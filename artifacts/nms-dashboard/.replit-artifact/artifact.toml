@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "NMS MikroTik Platform"
+version = "1.0.0"
+id = "artifacts/nms-dashboard"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19346
+
+[services.development]
+run = "pnpm --filter @workspace/nms-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/nms-dashboard", "run", "build" ]
+publicDir = "artifacts/nms-dashboard/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19346"
+BASE_PATH = "/"

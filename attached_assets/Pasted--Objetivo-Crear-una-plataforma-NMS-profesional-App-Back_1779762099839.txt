@@ -1,0 +1,33 @@
+​Objetivo: Crear una plataforma NMS profesional (App + Backend + Postgres + IA local) para administración de red MikroTik.
+​1. CAPA DE MONITOREO Y SALUD (NUEVO):
+​Heartbeat: Implementa un servicio en el backend que haga un "ping" (o consulta API /system/resource/print) a cada equipo registrado cada 60 segundos.
+​Alertas: Si un equipo no responde, el sistema debe marcarlo como "OFFLINE" en la DB y enviar una notificación al Chat de la App: "Alerta: El equipo [Nombre] del nodo [Nodo] ha dejado de responder".
+​2. CAPA DE SEGURIDAD Y VALIDACIÓN (NUEVO):
+​Validación de Comandos (Dry Run): Antes de ejecutar cualquier cambio de velocidad o eliminación de cliente, el MikroTikManager debe primero consultar el estado actual. Si el cambio es drástico (ej: bajar 500 megas), el chat debe preguntar: "¿Estás seguro de realizar este cambio? El cliente tiene una alta carga actualmente".
+​Role-Based Access Control (RBAC): Define una tabla users en Postgres con niveles (Admin/Operador). El sistema debe registrar qué usuario o agente (IA o humano) ejecutó cada comando.
+​3. REGISTRO DE EVENTOS (AUDIT LOGGING - NUEVO):
+​Tabla audit_logs: Debe registrar: timestamp, user/agent_id, equipment_id, action, command_sent, result (Success/Fail). Esto es obligatorio para auditoría.
+​4. ESQUEMA DE DATOS MEJORADO (POSTGRESQL):
+​Nodes: id, name, location, role
+​Equipment: id, node_id, ip, username, password, model, last_seen_status
+​Clients: id, equipment_id, mac, ip, name, plan_limit, status, last_seen_dbm (señal)
+​Audit_Logs: id, timestamp, entity, action, details
+​5. INTELIGENCIA ARTIFICIAL CONTEXTUAL:
+​El System Prompt de Ollama ahora debe recibir, además del comando, el estado actual de la red desde la DB.
+​Ejemplo: Al preguntar por un cliente, la IA debe recibir: "El cliente Juan tiene -85dBm y está en el equipo 'AP-Torre-1'". Así la IA puede sugerir diagnósticos precisos.
+​6. ESTRUCTURA DE CARPETAS Y EJECUCIÓN:
+​Usa pnpm para todo.
+​Estructura de Backend:
+​/services/mikrotik.service.ts (Manejo API)
+​/services/ai.service.ts (Conexión Ollama)
+​/services/monitoring.service.ts (Cron jobs para ping)
+​/routes/ (Endpoints para Frontend)
+​Usa prisma como ORM para Postgres por su seguridad de tipos.
+​¿Por qué esta versión es superior?
+​Ya no es un "bot ciego": Ahora el bot sabe el estado de la red (si el equipo está encendido o apagado) antes de intentar conectarse.
+​Protección contra errores: El "Dry Run" es vital. Evitarás configurar mal un equipo por un error de dedo o una mala interpretación de la IA.
+​Auditoría: Si un día un cliente reclama "¿quién me bajó la velocidad?", tendrás el audit_log para ver si fue la IA, un operador, o si fue un cambio automático.
+​Uso de Prisma: He especificado Prisma porque para un proyecto de red, tener el esquema definido con tipos estrictos (TypeScript) te ahorrará horas de errores de "propiedad no definida" cuando manejes datos de clientes.
+​Consejo Pro de 2026:
+​Al ser una app Capacitor, cuando implementes el monitoring.service.ts (el que hace pings cada minuto), asegúrate de que el backend envíe estas actualizaciones al frontend mediante WebSockets (Socket.io).
+Así, verás en tu móvil cómo los equipos cambian de color (verde a rojo) en tiempo real sin tener que recargar la página.

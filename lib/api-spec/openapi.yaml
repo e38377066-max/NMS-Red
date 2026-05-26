@@ -1,22 +1,35 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: NMS MikroTik Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: nodes
+    description: Network nodes
+  - name: equipment
+    description: Network equipment/routers
+  - name: clients
+    description: Network clients
+  - name: audit
+    description: Audit logs
+  - name: users
+    description: User management
+  - name: monitoring
+    description: Monitoring and status
+  - name: ai
+    description: AI assistant
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +37,765 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # NODES
+  /nodes:
+    get:
+      operationId: listNodes
+      tags: [nodes]
+      summary: List all nodes
+      responses:
+        "200":
+          description: List of nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Node"
+    post:
+      operationId: createNode
+      tags: [nodes]
+      summary: Create a node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+
+  /nodes/{id}:
+    get:
+      operationId: getNode
+      tags: [nodes]
+      summary: Get a node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Node
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+    patch:
+      operationId: updateNode
+      tags: [nodes]
+      summary: Update a node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+    delete:
+      operationId: deleteNode
+      tags: [nodes]
+      summary: Delete a node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # EQUIPMENT
+  /equipment:
+    get:
+      operationId: listEquipment
+      tags: [equipment]
+      summary: List all equipment
+      responses:
+        "200":
+          description: List of equipment
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Equipment"
+    post:
+      operationId: createEquipment
+      tags: [equipment]
+      summary: Register equipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquipmentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Equipment"
+
+  /equipment/{id}:
+    get:
+      operationId: getEquipment
+      tags: [equipment]
+      summary: Get equipment details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Equipment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Equipment"
+    patch:
+      operationId: updateEquipment
+      tags: [equipment]
+      summary: Update equipment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquipmentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Equipment"
+    delete:
+      operationId: deleteEquipment
+      tags: [equipment]
+      summary: Delete equipment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /equipment/{id}/status:
+    get:
+      operationId: getEquipmentStatus
+      tags: [equipment]
+      summary: Get current equipment status from MikroTik
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Live status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipmentLiveStatus"
+
+  # CLIENTS
+  /clients:
+    get:
+      operationId: listClients
+      tags: [clients]
+      summary: List all clients
+      responses:
+        "200":
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [clients]
+      summary: Create a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Get a client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    patch:
+      operationId: updateClient
+      tags: [clients]
+      summary: Update a client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    delete:
+      operationId: deleteClient
+      tags: [clients]
+      summary: Delete a client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /clients/{id}/speed:
+    post:
+      operationId: changeClientSpeed
+      tags: [clients]
+      summary: Change client speed limit (with dry run)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeedChangeInput"
+      responses:
+        "200":
+          description: Speed change result or dry run warning
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  # USERS (RBAC)
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/login:
+    post:
+      operationId: loginUser
+      tags: [users]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+
+  # AUDIT LOGS
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: List audit logs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: equipmentId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+
+  # MONITORING / DASHBOARD
+  /monitoring/summary:
+    get:
+      operationId: getMonitoringSummary
+      tags: [monitoring]
+      summary: Get network summary stats
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkSummary"
+
+  /monitoring/alerts:
+    get:
+      operationId: listAlerts
+      tags: [monitoring]
+      summary: Get recent offline alerts
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  # AI CHAT
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Send a message to the AI assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatInput"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiReply"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Node:
+      type: object
+      required: [id, name, location, role]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        role:
+          type: string
+        equipmentCount:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    NodeInput:
+      type: object
+      required: [name, location, role]
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        role:
+          type: string
+
+    NodeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        role:
+          type: string
+
+    Equipment:
+      type: object
+      required: [id, nodeId, ip, username, model, lastSeenStatus]
+      properties:
+        id:
+          type: integer
+        nodeId:
+          type: integer
+        nodeName:
+          type: ["string", "null"]
+        ip:
+          type: string
+        username:
+          type: string
+        model:
+          type: string
+        lastSeenStatus:
+          type: string
+          enum: [ONLINE, OFFLINE, UNKNOWN]
+        lastCheckedAt:
+          type: ["string", "null"]
+        clientCount:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    EquipmentInput:
+      type: object
+      required: [nodeId, ip, username, password, model]
+      properties:
+        nodeId:
+          type: integer
+        ip:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        model:
+          type: string
+
+    EquipmentUpdate:
+      type: object
+      properties:
+        nodeId:
+          type: integer
+        ip:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        model:
+          type: string
+
+    EquipmentLiveStatus:
+      type: object
+      required: [equipmentId, status]
+      properties:
+        equipmentId:
+          type: integer
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE]
+        cpuLoad:
+          type: ["string", "null"]
+        freeMemory:
+          type: ["string", "null"]
+        uptime:
+          type: ["string", "null"]
+        boardName:
+          type: ["string", "null"]
+
+    Client:
+      type: object
+      required: [id, equipmentId, mac, name, planLimit, status]
+      properties:
+        id:
+          type: integer
+        equipmentId:
+          type: integer
+        equipmentModel:
+          type: ["string", "null"]
+        mac:
+          type: string
+        ip:
+          type: ["string", "null"]
+        name:
+          type: string
+        planLimit:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, OFFLINE]
+        lastSeenDbm:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ClientInput:
+      type: object
+      required: [equipmentId, mac, name, planLimit]
+      properties:
+        equipmentId:
+          type: integer
+        mac:
+          type: string
+        ip:
+          type: string
+        name:
+          type: string
+        planLimit:
+          type: string
+        status:
+          type: string
+
+    ClientUpdate:
+      type: object
+      properties:
+        mac:
+          type: string
+        ip:
+          type: string
+        name:
+          type: string
+        planLimit:
+          type: string
+        status:
+          type: string
+        lastSeenDbm:
+          type: string
+
+    SpeedChangeInput:
+      type: object
+      required: [newLimit, userId, dryRun]
+      properties:
+        newLimit:
+          type: string
+        userId:
+          type: integer
+        dryRun:
+          type: boolean
+
+    CommandResult:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        requiresConfirmation:
+          type: ["boolean", "null"]
+        warning:
+          type: ["string", "null"]
+
+    User:
+      type: object
+      required: [id, username, role]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator]
+        createdAt:
+          type: string
+
+    UserInput:
+      type: object
+      required: [username, password, role]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    LoginResult:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    AuditLog:
+      type: object
+      required: [id, timestamp, entity, action, details]
+      properties:
+        id:
+          type: integer
+        timestamp:
+          type: string
+        userId:
+          type: ["integer", "null"]
+        username:
+          type: ["string", "null"]
+        equipmentId:
+          type: ["integer", "null"]
+        entity:
+          type: string
+        action:
+          type: string
+        commandSent:
+          type: ["string", "null"]
+        result:
+          type: string
+          enum: [Success, Fail, Pending]
+        details:
+          type: string
+
+    NetworkSummary:
+      type: object
+      required: [totalNodes, totalEquipment, onlineEquipment, offlineEquipment, totalClients, activeClients]
+      properties:
+        totalNodes:
+          type: integer
+        totalEquipment:
+          type: integer
+        onlineEquipment:
+          type: integer
+        offlineEquipment:
+          type: integer
+        totalClients:
+          type: integer
+        activeClients:
+          type: integer
+        recentAuditCount:
+          type: integer
+
+    Alert:
+      type: object
+      required: [id, equipmentId, equipmentIp, message, timestamp]
+      properties:
+        id:
+          type: integer
+        equipmentId:
+          type: integer
+        equipmentIp:
+          type: string
+        equipmentModel:
+          type: ["string", "null"]
+        nodeName:
+          type: ["string", "null"]
+        message:
+          type: string
+        timestamp:
+          type: string
+
+    AiChatInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        userId:
+          type: ["integer", "null"]
+
+    AiReply:
+      type: object
+      required: [reply]
+      properties:
+        reply:
+          type: string
+        context:
+          type: ["string", "null"]
