@@ -7,6 +7,7 @@ import usersRouter from "./users";
 import auditLogsRouter from "./auditLogs";
 import monitoringRouter from "./monitoring";
 import aiRouter from "./ai";
+import proxmoxRouter from "./proxmox";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(usersRouter);
 router.use(auditLogsRouter);
 router.use(monitoringRouter);
 router.use(aiRouter);
+router.use(proxmoxRouter);
 
 export default router;

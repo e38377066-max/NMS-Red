@@ -15,6 +15,8 @@ import Audit from "@/pages/audit";
 import Ai from "@/pages/ai";
 import Users from "@/pages/users";
 import Login from "@/pages/login";
+import Proxmox from "@/pages/proxmox";
+import Topology from "@/pages/topology";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } }
@@ -26,6 +28,9 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/">
         <Layout><Dashboard /></Layout>
+      </Route>
+      <Route path="/topology">
+        <Layout><Topology /></Layout>
       </Route>
       <Route path="/nodes">
         <Layout><Nodes /></Layout>
@@ -41,6 +46,9 @@ function Router() {
       </Route>
       <Route path="/clients/:id">
         <Layout><ClientDetail /></Layout>
+      </Route>
+      <Route path="/proxmox">
+        <Layout><Proxmox /></Layout>
       </Route>
       <Route path="/audit">
         <Layout><Audit /></Layout>

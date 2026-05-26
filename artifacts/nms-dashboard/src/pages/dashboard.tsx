@@ -15,9 +15,10 @@ export default function Dashboard() {
     query: { queryKey: getListAlertsQueryKey() }
   });
 
-  const { data: audits, isLoading: isLoadingAudit } = useListAuditLogs({
-    query: { queryKey: getListAuditLogsQueryKey({ limit: 10 }) }
-  });
+  const { data: audits, isLoading: isLoadingAudit } = useListAuditLogs(
+    { limit: 10 },
+    { query: { queryKey: getListAuditLogsQueryKey({ limit: 10 }) } }
+  );
 
   return (
     <div className="space-y-6">

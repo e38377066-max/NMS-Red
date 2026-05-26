@@ -2,27 +2,21 @@ openapi: 3.1.0
 info:
   title: Api
   version: 0.1.0
-  description: NMS MikroTik Platform API
+  description: NMS Multi-Brand Platform API (MikroTik + Ubiquiti + Proxmox)
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
   - name: nodes
-    description: Network nodes
   - name: equipment
-    description: Network equipment/routers
   - name: clients
-    description: Network clients
   - name: audit
-    description: Audit logs
   - name: users
-    description: User management
   - name: monitoring
-    description: Monitoring and status
   - name: ai
-    description: AI assistant
+  - name: proxmox
+    description: Proxmox VE hypervisor management
 
 paths:
   /healthz:
@@ -218,7 +212,7 @@ paths:
     get:
       operationId: getEquipmentStatus
       tags: [equipment]
-      summary: Get current equipment status from MikroTik
+      summary: Get live equipment status (MikroTik or Ubiquiti)
       parameters:
         - name: id
           in: path
@@ -232,6 +226,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EquipmentLiveStatus"
+
+  /equipment/{id}/wireless:
+    get:
+      operationId: getEquipmentWireless
+      tags: [equipment]
+      summary: Get wireless registration table (Ubiquiti AirOS or MikroTik)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Wireless clients table
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WirelessClient"
 
   # CLIENTS
   /clients:
@@ -452,6 +467,19 @@ paths:
                 items:
                   $ref: "#/components/schemas/Alert"
 
+  /monitoring/topology:
+    get:
+      operationId: getNetworkTopology
+      tags: [monitoring]
+      summary: Get full network topology (nodes + equipment with roles) for map view
+      responses:
+        "200":
+          description: Network topology
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkTopology"
+
   # AI CHAT
   /ai/chat:
     post:
@@ -471,6 +499,202 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AiReply"
+
+  # PROXMOX VE
+  /proxmox:
+    get:
+      operationId: listProxmoxServers
+      tags: [proxmox]
+      summary: List Proxmox servers
+      responses:
+        "200":
+          description: Proxmox servers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProxmoxServer"
+    post:
+      operationId: createProxmoxServer
+      tags: [proxmox]
+      summary: Add a Proxmox server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProxmoxServerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxmoxServer"
+
+  /proxmox/{id}:
+    delete:
+      operationId: deleteProxmoxServer
+      tags: [proxmox]
+      summary: Remove a Proxmox server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /proxmox/{id}/health:
+    get:
+      operationId: getProxmoxHealth
+      tags: [proxmox]
+      summary: Get Proxmox server health (CPU, RAM, storage, uptime)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Server health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxmoxHealth"
+
+  /proxmox/{id}/vms:
+    get:
+      operationId: listProxmoxVms
+      tags: [proxmox]
+      summary: List all VMs on a Proxmox server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: VM list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProxmoxVm"
+
+  /proxmox/{id}/vms/{vmid}/start:
+    post:
+      operationId: startProxmoxVm
+      tags: [proxmox]
+      summary: Start a VM
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vmid
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /proxmox/{id}/vms/{vmid}/stop:
+    post:
+      operationId: stopProxmoxVm
+      tags: [proxmox]
+      summary: Stop a VM
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vmid
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /proxmox/{id}/vms/{vmid}/snapshot:
+    post:
+      operationId: snapshotProxmoxVm
+      tags: [proxmox]
+      summary: Create a VM snapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vmid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnapshotInput"
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /proxmox/{id}/vms/{vmid}/config:
+    patch:
+      operationId: updateProxmoxVmConfig
+      tags: [proxmox]
+      summary: Update VM CPU/RAM configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vmid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VmConfigUpdate"
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
 
 components:
   schemas:
@@ -521,7 +745,7 @@ components:
 
     Equipment:
       type: object
-      required: [id, nodeId, ip, username, model, lastSeenStatus]
+      required: [id, nodeId, ip, username, model, lastSeenStatus, connectionType, equipmentRole]
       properties:
         id:
           type: integer
@@ -535,6 +759,16 @@ components:
           type: string
         model:
           type: string
+        connectionType:
+          type: string
+          enum: [mikrotik_routeros, ubiquiti_airos]
+        equipmentRole:
+          type: string
+          enum: [gateway, ptp_link, ap_distributor, core_router]
+        snmpCommunity:
+          type: ["string", "null"]
+        apiPort:
+          type: ["integer", "null"]
         lastSeenStatus:
           type: string
           enum: [ONLINE, OFFLINE, UNKNOWN]
@@ -547,7 +781,7 @@ components:
 
     EquipmentInput:
       type: object
-      required: [nodeId, ip, username, password, model]
+      required: [nodeId, ip, username, password, model, connectionType, equipmentRole]
       properties:
         nodeId:
           type: integer
@@ -559,6 +793,14 @@ components:
           type: string
         model:
           type: string
+        connectionType:
+          type: string
+        equipmentRole:
+          type: string
+        snmpCommunity:
+          type: string
+        apiPort:
+          type: integer
 
     EquipmentUpdate:
       type: object
@@ -573,13 +815,23 @@ components:
           type: string
         model:
           type: string
+        connectionType:
+          type: string
+        equipmentRole:
+          type: string
+        snmpCommunity:
+          type: string
+        apiPort:
+          type: integer
 
     EquipmentLiveStatus:
       type: object
-      required: [equipmentId, status]
+      required: [equipmentId, status, connectionType]
       properties:
         equipmentId:
           type: integer
+        connectionType:
+          type: string
         status:
           type: string
           enum: [ONLINE, OFFLINE]
@@ -590,6 +842,40 @@ components:
         uptime:
           type: ["string", "null"]
         boardName:
+          type: ["string", "null"]
+        # Ubiquiti-specific fields
+        frequency:
+          type: ["string", "null"]
+        txPower:
+          type: ["string", "null"]
+        noiseFloor:
+          type: ["string", "null"]
+        airMaxCapacity:
+          type: ["string", "null"]
+        firmware:
+          type: ["string", "null"]
+
+    WirelessClient:
+      type: object
+      required: [mac, signalDbm, ccq]
+      properties:
+        mac:
+          type: string
+        name:
+          type: ["string", "null"]
+        signalDbm:
+          type: string
+        noiseDbm:
+          type: ["string", "null"]
+        ccq:
+          type: string
+        txRate:
+          type: ["string", "null"]
+        rxRate:
+          type: ["string", "null"]
+        uptime:
+          type: ["string", "null"]
+        distance:
           type: ["string", "null"]
 
     Client:
@@ -762,6 +1048,8 @@ components:
           type: integer
         recentAuditCount:
           type: integer
+        totalProxmoxServers:
+          type: integer
 
     Alert:
       type: object
@@ -782,6 +1070,36 @@ components:
         timestamp:
           type: string
 
+    NetworkTopology:
+      type: object
+      required: [nodes, proxmoxServers]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopologyNode"
+        proxmoxServers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProxmoxServer"
+
+    TopologyNode:
+      type: object
+      required: [id, name, location, role, equipment]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        role:
+          type: string
+        equipment:
+          type: array
+          items:
+            $ref: "#/components/schemas/Equipment"
+
     AiChatInput:
       type: object
       required: [message]
@@ -799,3 +1117,117 @@ components:
           type: string
         context:
           type: ["string", "null"]
+
+    # PROXMOX SCHEMAS
+    ProxmoxServer:
+      type: object
+      required: [id, name, ip, port, username, nodeName, lastSeenStatus]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        ip:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        nodeName:
+          type: string
+        lastSeenStatus:
+          type: string
+          enum: [ONLINE, OFFLINE, UNKNOWN]
+        lastCheckedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ProxmoxServerInput:
+      type: object
+      required: [name, ip, username, password]
+      properties:
+        name:
+          type: string
+        ip:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        password:
+          type: string
+        nodeName:
+          type: string
+
+    ProxmoxHealth:
+      type: object
+      required: [serverId, status]
+      properties:
+        serverId:
+          type: integer
+        status:
+          type: string
+        cpuUsagePercent:
+          type: ["number", "null"]
+        memUsedGb:
+          type: ["number", "null"]
+        memTotalGb:
+          type: ["number", "null"]
+        diskUsedGb:
+          type: ["number", "null"]
+        diskTotalGb:
+          type: ["number", "null"]
+        uptime:
+          type: ["string", "null"]
+        kernelVersion:
+          type: ["string", "null"]
+        pveVersion:
+          type: ["string", "null"]
+
+    ProxmoxVm:
+      type: object
+      required: [vmid, name, status]
+      properties:
+        vmid:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum: [running, stopped, paused, unknown]
+        cpuUsage:
+          type: ["number", "null"]
+        memUsedMb:
+          type: ["number", "null"]
+        memTotalMb:
+          type: ["number", "null"]
+        diskGb:
+          type: ["number", "null"]
+        uptimeSeconds:
+          type: ["integer", "null"]
+        cores:
+          type: ["integer", "null"]
+        maxMem:
+          type: ["integer", "null"]
+        tags:
+          type: ["string", "null"]
+
+    SnapshotInput:
+      type: object
+      required: [snapname]
+      properties:
+        snapname:
+          type: string
+        description:
+          type: string
+
+    VmConfigUpdate:
+      type: object
+      properties:
+        cores:
+          type: integer
+        memory:
+          type: integer
+        description:
+          type: string

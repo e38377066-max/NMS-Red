@@ -1,0 +1,1 @@
+- [NMS multi-brand platform](nms-platform.md) — SSH/native modules need externals list in esbuild + onlyBuiltDependencies in pnpm-workspace.yaml

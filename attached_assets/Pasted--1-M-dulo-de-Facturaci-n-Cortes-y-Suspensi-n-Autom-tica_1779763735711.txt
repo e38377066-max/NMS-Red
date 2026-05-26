@@ -1,0 +1,21 @@
+​1. Módulo de Facturación, Cortes y Suspensión Automática (Crucial)
+​Base de Datos: Añadir campos en la tabla de clientes para: fecha_de_pago, monto_tarifa, estado_pago (Pagado / Pendiente / Suspendido).
+​Automatización de Cortes: Crear un servicio cron (tarea programada) en Node.js que corra todas las noches. Si un cliente llega a su fecha límite y está "Pendiente", el sistema debe:
+​Cambiar su estado a "Suspendido".
+​Modificar su velocidad en el MikroTik CHR a un perfil de corte (ejemplo: 64kbps) o mover su IP a un Address List de MikroTik llamado Clientes_Cortados que los redirija a una página web local de "Aviso de Pago Pendiente".
+​Integración con el Chat: Poder decirle a la IA: "¿Quiénes vencen hoy?" o "Genera el reporte de ingresos de este mes".
+​2. Sistema de Copias de Seguridad Automáticas (Backups)
+​Seguridad de Infraestructura: El backend debe generar un respaldo automático cada madrugada:
+​Un archivo .backup y .rsc (script) de cada MikroTik mediante comandos de la API.
+​Un volcado de la base de datos PostgreSQL.
+​Almacenamiento: Guardar estos respaldos de forma local en el almacenamiento del servidor Proxmox. El chat debe permitir restaurar o descargar un backup diciendo: "Muéstrame los respaldos de la torre central del lunes pasado".
+​3. Gráficas de Consumo Histórico (Bandwidth & Signal Graphs)
+​Monitoreo Visual: La tabla actual en tiempo real es excelente, pero necesito ver el historial. El backend debe almacenar el consumo de ancho de banda (Mbps) y los niveles de señal (dBm) de los clientes cada 5 minutos en una tabla histórica.
+​UI Frontend: Usar una librería de gráficos en React (como recharts o shadcn charts) para que, al tocar un cliente o un equipo, se despliegue una gráfica lineal que muestre el consumo de las últimas 24 horas o la estabilidad de su señal inalámbrica.
+​4. Optimización de Red por IA (El "Auto-Soporte")
+​Acciones Proactivas: El asistente Ollama debe poder ejecutar diagnósticos complejos combinando datos. Si detecta que un enlace troncal Ubiquiti bajó su rendimiento de transmisión (CCQ) o aumentó su latencia, la IA debe notificar proactivamente en el chat:
+​"Detecté degradación en el enlace Nodo 1 -> Nodo 2. La señal bajó 4dBm. Sugiero revisar alineación de antenas o buscar interferencia en la frecuencia."
+​💡 Por qué esto completa tu círculo de trabajo:
+​El negocio se cuida solo: Ya no tendrás que estar persiguiendo manualmente a los usuarios que no pagaron ni acordándote de quitarles el internet. El software lo hará por ti a las 12:00 AM de su día de vencimiento.
+​Evitas catástrofes: En redes inalámbricas, un apagón o una descarga eléctrica pueden desconfigurar un equipo. Tener los .rsc guardados automáticamente en tu Proxmox te permitirá levantar un nodo caído en menos de 5 minutos.
+​Diagnóstico sin adivinanzas: Cuando un cliente llame diciendo "está lento", la gráfica de historial te dirá si ha estado consumiendo el 100% de su plan todo el día o si realmente su antena Ubiquiti se desalineó por el viento.

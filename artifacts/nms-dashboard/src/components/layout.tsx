@@ -10,8 +10,9 @@ import {
   BotMessageSquare, 
   ShieldCheck,
   LogOut,
-  Settings,
-  Wifi
+  Network,
+  Wifi,
+  HardDrive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,26 +21,33 @@ export function Layout({ children }: { children: ReactNode }) {
   const { isConnected } = useWebSocket();
 
   const navigation = [
-    { name: "Overview", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
+    { name: "General", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
     { 
-      name: "Network", 
+      name: "Red", 
       items: [
-        { name: "Nodes", href: "/nodes", icon: Server },
-        { name: "Equipment", href: "/equipment", icon: RouterIcon },
-        { name: "Clients", href: "/clients", icon: Users },
+        { name: "Topología", href: "/topology", icon: Network },
+        { name: "Nodos", href: "/nodes", icon: Server },
+        { name: "Equipos", href: "/equipment", icon: RouterIcon },
+        { name: "Clientes", href: "/clients", icon: Users },
+      ]
+    },
+    {
+      name: "Infraestructura",
+      items: [
+        { name: "Proxmox VE", href: "/proxmox", icon: HardDrive },
       ]
     },
     { 
-      name: "Operations", 
+      name: "Operaciones", 
       items: [
-        { name: "AI Diagnostics", href: "/ai", icon: BotMessageSquare },
+        { name: "IA Diagnóstico", href: "/ai", icon: BotMessageSquare },
         { name: "Audit Log", href: "/audit", icon: Activity },
       ] 
     },
     { 
       name: "Admin", 
       items: [
-        { name: "Users", href: "/users", icon: ShieldCheck },
+        { name: "Usuarios", href: "/users", icon: ShieldCheck },
       ] 
     }
   ];
@@ -53,13 +61,13 @@ export function Layout({ children }: { children: ReactNode }) {
           <span>ISP Cockpit</span>
         </div>
         
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-5 scrollbar-thin">
           {navigation.map((section) => (
             <div key={section.name}>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
                 {section.name}
               </h4>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                   return (
@@ -86,7 +94,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="p-4 border-t border-border">
           <Link href="/login" className="flex items-center gap-3 px-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <LogOut className="w-4 h-4" />
-            Sign out
+            Cerrar sesión
           </Link>
         </div>
       </aside>
