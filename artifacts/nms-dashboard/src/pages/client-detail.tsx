@@ -6,7 +6,7 @@ import {
   useRegisterClientPayment, getListClientsQueryKey,
   useChangeClientSpeed,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,29 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "wouter";
 import {
   ArrowLeft, DollarSign, CheckCircle2, AlertCircle, XCircle,
-  Calendar, Zap, Signal, TrendingUp, User,
+  Calendar, Zap, Signal, TrendingUp, User, Network, Trash2,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+
+type DhcpLease = {
+  id: string;
+  address: string;
+  macAddress: string;
+  hostName: string | null;
+  comment: string | null;
+  status: string;
+  dynamic: boolean;
+  blocked: boolean;
+  dhcpServer: string;
+  expiresAfter: string | null;
+};
 
 function PaymentBadge({ status }: { status: string }) {
   if (status === "PAID") return <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 gap-1"><CheckCircle2 className="w-3 h-3" /> Al día</Badge>;
@@ -39,6 +53,8 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
 }
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export default function ClientDetail() {
   const [, params] = useRoute("/clients/:id");
   const id = Number(params?.id);
@@ -53,9 +69,67 @@ export default function ClientDetail() {
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
+  const [dhcpOpen, setDhcpOpen] = useState(false);
   const [fee, setFee] = useState("");
   const [days, setDays] = useState("30");
   const [newPlan, setNewPlan] = useState("");
+  const [fixedIp, setFixedIp] = useState("");
+  const [dhcpServer, setDhcpServer] = useState("");
+
+  // DHCP leases for the client's equipment
+  const dhcpQuery = useQuery<DhcpLease[]>({
+    queryKey: ["dhcp-leases", client?.equipmentId],
+    queryFn: async () => {
+      if (!client?.equipmentId) return [];
+      const res = await fetch(`${BASE}/api/equipment/${client.equipmentId}/dhcp-leases`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!client?.equipmentId,
+    staleTime: 30_000,
+  });
+
+  const createLease = useMutation({
+    mutationFn: async ({ fixedIp, dhcpServer }: { fixedIp: string; dhcpServer: string }) => {
+      const res = await fetch(`${BASE}/api/clients/${id}/dhcp-lease`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fixedIp, dhcpServer: dhcpServer || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message ?? "Error");
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: ["dhcp-leases", client?.equipmentId] });
+      toast({ title: "Lease estático creado", description: data.message });
+      setDhcpOpen(false);
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteLease = useMutation({
+    mutationFn: async (leaseId: string) => {
+      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}`, { method: "DELETE" });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dhcp-leases", client?.equipmentId] });
+      toast({ title: "Lease eliminado" });
+    },
+  });
+
+  const makeStatic = useMutation({
+    mutationFn: async (leaseId: string) => {
+      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}/make-static`, { method: "PATCH" });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dhcp-leases", client?.equipmentId] });
+      toast({ title: data.message });
+    },
+  });
 
   const submitPayment = () => {
     registerPayment.mutate(
@@ -112,6 +186,9 @@ export default function ClientDetail() {
 
   const isOverdue = client.dueDate && new Date(client.dueDate) < new Date();
 
+  // Find this client's lease in the list
+  const clientLease = dhcpQuery.data?.find(l => l.macAddress.toLowerCase() === client.mac.toLowerCase());
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -132,12 +209,15 @@ export default function ClientDetail() {
             <span>Plan: <span className="font-mono text-foreground">{client.planLimit}</span></span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Button variant="outline" size="sm" onClick={() => { setFee(client.monthlyFee ?? ""); setDays("30"); setPaymentOpen(true); }}>
             <DollarSign className="w-4 h-4 mr-2 text-emerald-400" /> Registrar Pago
           </Button>
           <Button variant="outline" size="sm" onClick={() => { setNewPlan(client.planLimit); setSpeedOpen(true); }}>
             <Zap className="w-4 h-4 mr-2 text-yellow-400" /> Cambiar Velocidad
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpServer(""); setDhcpOpen(true); }}>
+            <Network className="w-4 h-4 mr-2 text-sky-400" /> Lease DHCP Estático
           </Button>
         </div>
       </div>
@@ -188,6 +268,64 @@ export default function ClientDetail() {
         </div>
       )}
 
+      {/* DHCP Lease card */}
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Network className="w-4 h-4 text-sky-400" />
+            IP Fija (DHCP Lease)
+            {clientLease && (
+              <Badge variant="outline" className={clientLease.dynamic ? "border-yellow-500/30 text-yellow-400 text-[10px]" : "border-emerald-500/30 text-emerald-400 text-[10px]"}>
+                {clientLease.dynamic ? "Dinámica" : "Estática"}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {dhcpQuery.isLoading ? (
+            <Skeleton className="h-8 w-full" />
+          ) : !clientLease ? (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                No se encontró lease DHCP para <span className="font-mono text-foreground">{client.mac}</span> en este equipo.
+              </div>
+              <Button size="sm" variant="outline" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpOpen(true); }}>
+                <Network className="w-3 h-3 mr-2" /> Crear Lease Estático
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-muted-foreground">IP asignada:</span>
+                  <span className="font-mono text-sky-400 font-medium">{clientLease.address}</span>
+                  {clientLease.expiresAfter && !clientLease.dynamic === false && (
+                    <span className="text-xs text-muted-foreground">expira en {clientLease.expiresAfter}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Servidor DHCP: <span className="font-mono">{clientLease.dhcpServer || "—"}</span></span>
+                  <span>·</span>
+                  <span>Estado: <span className="text-foreground">{clientLease.status}</span></span>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {clientLease.dynamic && (
+                  <Button size="sm" variant="outline" className="text-sky-400 border-sky-500/30 hover:bg-sky-500/10" onClick={() => makeStatic.mutate(clientLease.id)}>
+                    Convertir a Estático
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => {
+                  if (confirm(`¿Eliminar lease de ${clientLease.address}?`)) deleteLease.mutate(clientLease.id);
+                }}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Metrics chart */}
       <Card className="bg-card/50 border-border/50">
         <CardHeader className="pb-3 border-b border-border/40">
@@ -219,6 +357,65 @@ export default function ClientDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* DHCP all leases */}
+      {(dhcpQuery.data?.length ?? 0) > 0 && (
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-3 border-b border-border/40">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Network className="w-4 h-4 text-muted-foreground" />
+              Todos los Leases DHCP del Equipo
+              <span className="text-xs text-muted-foreground ml-auto">{dhcpQuery.data?.length} total</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>IP</TableHead>
+                  <TableHead>MAC</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dhcpQuery.data?.map(lease => {
+                  const isThisClient = lease.macAddress.toLowerCase() === client.mac.toLowerCase();
+                  return (
+                    <TableRow key={lease.id} className={isThisClient ? "bg-sky-950/20" : ""}>
+                      <TableCell className="font-mono text-sm">{lease.address}</TableCell>
+                      <TableCell className="font-mono text-xs">{lease.macAddress}</TableCell>
+                      <TableCell className="text-sm">{lease.hostName ?? lease.comment ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={lease.dynamic ? "border-yellow-500/30 text-yellow-400 text-[10px]" : "border-emerald-500/30 text-emerald-400 text-[10px]"}>
+                          {lease.dynamic ? "Dinámica" : "Estática"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{lease.status}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {lease.dynamic && (
+                            <Button variant="ghost" size="sm" className="text-xs text-sky-400 h-7" onClick={() => makeStatic.mutate(lease.id)}>
+                              → Estático
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-7 w-7" onClick={() => {
+                            if (confirm(`¿Eliminar lease ${lease.address}?`)) deleteLease.mutate(lease.id);
+                          }}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Payment dialog */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
@@ -269,6 +466,51 @@ export default function ClientDetail() {
             <Button variant="outline" onClick={() => setSpeedOpen(false)}>Cancelar</Button>
             <Button onClick={() => submitSpeed(false)} disabled={!newPlan || changeSpeed.isPending}>
               {changeSpeed.isPending ? "Aplicando..." : "Cambiar Velocidad"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DHCP lease dialog */}
+      <Dialog open={dhcpOpen} onOpenChange={setDhcpOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Network className="w-5 h-5 text-sky-400" /> Crear Lease DHCP Estático
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1 p-3 rounded-md bg-muted/20 border border-border/40 text-xs text-muted-foreground">
+              <div>MAC del cliente: <span className="font-mono text-foreground">{client.mac}</span></div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>IP fija a asignar</Label>
+              <Input
+                placeholder="10.0.1.100"
+                value={fixedIp}
+                onChange={e => setFixedIp(e.target.value)}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">La MAC del cliente quedará amarrada siempre a esta IP.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nombre del servidor DHCP <span className="text-muted-foreground">(opcional)</span></Label>
+              <Input
+                placeholder="dhcp1"
+                value={dhcpServer}
+                onChange={e => setDhcpServer(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDhcpOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => createLease.mutate({ fixedIp, dhcpServer })}
+              disabled={!fixedIp || createLease.isPending}
+              className="bg-sky-700 hover:bg-sky-600"
+            >
+              {createLease.isPending ? "Creando..." : "Crear Lease Estático"}
             </Button>
           </DialogFooter>
         </DialogContent>

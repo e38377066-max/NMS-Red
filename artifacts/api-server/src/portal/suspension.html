@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Servicio Suspendido — ISP Cockpit</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #0a0a14;
+      color: #e5e7eb;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .card {
+      background: #12121f;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 16px;
+      max-width: 520px;
+      width: 100%;
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(239, 68, 68, 0.08), 0 20px 60px rgba(0,0,0,0.6);
+    }
+
+    .card-header {
+      background: rgba(239, 68, 68, 0.08);
+      border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+      padding: 2rem 2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .icon-wrapper {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-wrapper svg {
+      width: 36px;
+      height: 36px;
+      color: #f87171;
+    }
+
+    .card-header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #f87171;
+      text-align: center;
+      letter-spacing: -0.01em;
+    }
+
+    .card-header p {
+      font-size: 0.9rem;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.6;
+      max-width: 340px;
+    }
+
+    .card-body {
+      padding: 1.75rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .info-box {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+
+    .info-box-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      margin-bottom: 0.5rem;
+    }
+
+    .info-box p {
+      font-size: 0.9rem;
+      color: #d1d5db;
+      line-height: 1.6;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .contact-item {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 0.875rem 1rem;
+    }
+
+    .contact-item-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      margin-bottom: 0.3rem;
+    }
+
+    .contact-item-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+    }
+
+    .cta-btn {
+      display: block;
+      width: 100%;
+      padding: 0.9rem;
+      background: #15803d;
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cta-btn:hover { background: #166534; }
+
+    .footer {
+      padding: 1rem 2rem 1.5rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #4b5563;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      font-size: 0.75rem;
+      color: #f87171;
+      font-weight: 500;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    @media (max-width: 480px) {
+      .contact-grid { grid-template-columns: 1fr; }
+      .card-header { padding: 1.5rem 1.25rem 1.25rem; }
+      .card-body { padding: 1.25rem; }
+      .footer { padding: 0.75rem 1.25rem 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <span class="badge">
+        <span class="pulse"></span>
+        Servicio Suspendido
+      </span>
+      <div class="icon-wrapper">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <h1>Tu servicio está suspendido</h1>
+      <p>El acceso a internet ha sido desactivado temporalmente por falta de pago en tu cuenta.</p>
+    </div>
+
+    <div class="card-body">
+      <div class="info-box">
+        <div class="info-box-title">¿Por qué estoy viendo esta página?</div>
+        <p>Tu fecha de pago venció y no se registró ningún abono. El sistema aplicó una suspensión automática de tu servicio de internet.</p>
+      </div>
+
+      <div class="info-box">
+        <div class="info-box-title">¿Cómo reactivar mi servicio?</div>
+        <p>Realiza tu pago y comunícate con soporte. La reactivación es <strong style="color:#4ade80">inmediata</strong> una vez confirmado el pago.</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="info-box-title" style="margin-bottom:0.6rem">Contacto de soporte</div>
+        <div class="contact-grid">
+          <div class="contact-item">
+            <div class="contact-item-label">WhatsApp</div>
+            <div class="contact-item-value" id="contact-phone">+502 0000-0000</div>
+          </div>
+          <div class="contact-item">
+            <div class="contact-item-label">Horario</div>
+            <div class="contact-item-value" style="font-size:0.82rem; color:#d1d5db">Lun–Sáb 8am–6pm</div>
+          </div>
+        </div>
+      </div>
+
+      <a class="cta-btn" id="whatsapp-btn" href="#">
+        Contactar Soporte por WhatsApp
+      </a>
+    </div>
+
+    <div class="footer">
+      Servicio gestionado por ISP Cockpit &nbsp;·&nbsp; Si ya pagaste, espera unos minutos o comunícate con soporte.
+    </div>
+  </div>
+
+  <script>
+    // Lee parámetros de configuración desde data-attributes del body o desde query params
+    const params = new URLSearchParams(window.location.search);
+
+    const phone = params.get('phone') || document.body.dataset.phone || '+502 0000-0000';
+    const isp = params.get('isp') || document.body.dataset.isp || 'ISP Cockpit';
+    const waMsg = encodeURIComponent('Hola, mi servicio fue suspendido y deseo reactivarlo. Mi IP es: ' + (params.get('ip') || 'desconocida'));
+
+    document.getElementById('contact-phone').textContent = phone;
+    document.getElementById('whatsapp-btn').href = 'https://wa.me/' + phone.replace(/\D/g, '') + '?text=' + waMsg;
+    document.querySelector('.footer').innerHTML = 'Servicio gestionado por ' + isp + ' &nbsp;·&nbsp; Si ya pagaste, espera unos minutos o comunícate con soporte.';
+  </script>
+</body>
+</html>

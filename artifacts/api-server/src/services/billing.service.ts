@@ -1,7 +1,10 @@
 import { db, clientsTable, equipmentTable, auditLogsTable } from "@workspace/db";
-import { eq, and, lte, isNotNull } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { addToAddressList, removeFromAddressList } from "./mikrotik.service";
 import type { Server as SocketServer } from "socket.io";
+
+const SUSPENSION_LIST = "Clientes_Cortados";
 
 let io: SocketServer | null = null;
 let billingInterval: ReturnType<typeof setInterval> | null = null;
@@ -57,19 +60,17 @@ export async function runBillingCheck(): Promise<{ suspended: number; markedPend
           .set({ paymentStatus: "SUSPENDED", status: "SUSPENDED" })
           .where(eq(clientsTable.id, client.id));
 
-        await suspendClientOnMikroTik(client.equipmentId, client.mac, client.name);
+        await suspendClientOnMikroTik(client.equipmentId, client.mac, client.ip, client.name);
         await db.insert(auditLogsTable).values({
           entity: "Client",
           action: "AUTO_SUSPEND",
-          commandSent: `/ip/firewall/address-list add address=${client.ip ?? client.mac} list=Clientes_Cortados`,
+          commandSent: `/ip/firewall/address-list add address=${client.ip ?? client.mac} list=${SUSPENSION_LIST}`,
           result: "Success",
-          details: `Cliente ${client.name} suspendido automáticamente por vencimiento (fecha límite: ${due.toLocaleDateString("es")})`,
+          details: `Cliente ${client.name} suspendido automáticamente (venció: ${due.toLocaleDateString("es")})`,
           equipmentId: client.equipmentId,
         });
 
-        if (io) {
-          io.emit("billing:suspended", { clientId: client.id, name: client.name, dueDate: due });
-        }
+        if (io) io.emit("billing:suspended", { clientId: client.id, name: client.name, dueDate: due });
         logger.info({ clientId: client.id, name: client.name }, "Client auto-suspended for non-payment");
         suspended++;
       } else if (isNearDue && client.paymentStatus === "PAID") {
@@ -78,9 +79,7 @@ export async function runBillingCheck(): Promise<{ suspended: number; markedPend
           .set({ paymentStatus: "PENDING" })
           .where(eq(clientsTable.id, client.id));
 
-        if (io) {
-          io.emit("billing:nearDue", { clientId: client.id, name: client.name, dueDate: due });
-        }
+        if (io) io.emit("billing:nearDue", { clientId: client.id, name: client.name, dueDate: due });
         markedPending++;
       }
     }
@@ -115,7 +114,7 @@ export async function registerPayment(
 
   if (!client) return false;
 
-  await reactivateClientOnMikroTik(client.equipmentId, client.mac, client.name, client.planLimit ?? "10M/10M");
+  await reactivateClientOnMikroTik(client.equipmentId, client.mac, client.ip, client.name, client.planLimit ?? "10M/10M");
 
   await db.insert(auditLogsTable).values({
     entity: "Client",
@@ -125,36 +124,51 @@ export async function registerPayment(
     equipmentId: client.equipmentId,
   });
 
-  if (io) {
-    io.emit("billing:paid", { clientId: client.id, name: client.name, nextDue });
-  }
+  if (io) io.emit("billing:paid", { clientId: client.id, name: client.name, nextDue });
   return true;
 }
 
-async function suspendClientOnMikroTik(equipmentId: number, mac: string, clientName: string): Promise<void> {
-  try {
-    const [equip] = await db
-      .select({ ip: equipmentTable.ip, username: equipmentTable.username, password: equipmentTable.password })
-      .from(equipmentTable)
-      .where(eq(equipmentTable.id, equipmentId));
+async function getEquipmentConn(equipmentId: number) {
+  const [equip] = await db
+    .select({ ip: equipmentTable.ip, username: equipmentTable.username, password: equipmentTable.password })
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, equipmentId));
+  return equip ?? null;
+}
 
+async function suspendClientOnMikroTik(
+  equipmentId: number,
+  mac: string,
+  clientIp: string | null,
+  clientName: string
+): Promise<void> {
+  try {
+    const equip = await getEquipmentConn(equipmentId);
     if (!equip) return;
 
-    const auth = Buffer.from(`${equip.username}:${equip.password}`).toString("base64");
+    const { ip: rtrIp, username, password } = equip;
+    const auth = Buffer.from(`${username}:${password}`).toString("base64");
     const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
-    const baseUrl = `http://${equip.ip}/rest`;
+    const baseUrl = `http://${rtrIp}/rest`;
 
+    // 1. Throttle Simple Queue to 64k/64k
     const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
-    if (!queuesResp.ok) return;
+    if (queuesResp.ok) {
+      const queues = await queuesResp.json() as Array<{ ".id": string; target: string }>;
+      const queue = queues.find(q => q.target?.includes(mac));
+      if (queue) {
+        await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ "max-limit": "64k/64k", comment: `SUSPENDIDO-${clientName}` }),
+        });
+      }
+    }
 
-    const queues = await queuesResp.json() as Array<{ ".id": string; target: string; "max-limit": string }>;
-    const queue = queues.find(q => q.target?.includes(mac));
-    if (queue) {
-      await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ "max-limit": "64k/64k", comment: `SUSPENDIDO-${clientName}` }),
-      });
+    // 2. Add IP to Address List for captive portal redirect
+    if (clientIp) {
+      await addToAddressList(rtrIp, username, password, clientIp, SUSPENSION_LIST, `SUSPENDIDO: ${clientName}`);
+      logger.info({ clientIp, clientName }, `Added to address list ${SUSPENSION_LIST} for portal redirect`);
     }
   } catch (err) {
     logger.warn({ err, mac }, "Could not apply suspension on MikroTik");
@@ -164,32 +178,37 @@ async function suspendClientOnMikroTik(equipmentId: number, mac: string, clientN
 async function reactivateClientOnMikroTik(
   equipmentId: number,
   mac: string,
+  clientIp: string | null,
   clientName: string,
   planLimit: string
 ): Promise<void> {
   try {
-    const [equip] = await db
-      .select({ ip: equipmentTable.ip, username: equipmentTable.username, password: equipmentTable.password })
-      .from(equipmentTable)
-      .where(eq(equipmentTable.id, equipmentId));
-
+    const equip = await getEquipmentConn(equipmentId);
     if (!equip) return;
 
-    const auth = Buffer.from(`${equip.username}:${equip.password}`).toString("base64");
+    const { ip: rtrIp, username, password } = equip;
+    const auth = Buffer.from(`${username}:${password}`).toString("base64");
     const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
-    const baseUrl = `http://${equip.ip}/rest`;
+    const baseUrl = `http://${rtrIp}/rest`;
 
+    // 1. Restore Simple Queue speed
     const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
-    if (!queuesResp.ok) return;
+    if (queuesResp.ok) {
+      const queues = await queuesResp.json() as Array<{ ".id": string; target: string }>;
+      const queue = queues.find(q => q.target?.includes(mac));
+      if (queue) {
+        await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ "max-limit": planLimit, comment: clientName }),
+        });
+      }
+    }
 
-    const queues = await queuesResp.json() as Array<{ ".id": string; target: string }>;
-    const queue = queues.find(q => q.target?.includes(mac));
-    if (queue) {
-      await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ "max-limit": planLimit, comment: clientName }),
-      });
+    // 2. Remove from suspension address list
+    if (clientIp) {
+      await removeFromAddressList(rtrIp, username, password, clientIp, SUSPENSION_LIST);
+      logger.info({ clientIp, clientName }, `Removed from address list ${SUSPENSION_LIST}`);
     }
   } catch (err) {
     logger.warn({ err, mac }, "Could not reactivate client on MikroTik");
@@ -236,9 +255,7 @@ export async function getBillingSummary() {
     } else if (c.paymentStatus === "PENDING") {
       pendingCount++;
       pendingIncome += fee;
-      if (c.dueDate && new Date(c.dueDate) <= todayEnd) {
-        overdueToday.push(c);
-      }
+      if (c.dueDate && new Date(c.dueDate) <= todayEnd) overdueToday.push(c);
     } else if (c.paymentStatus === "SUSPENDED") {
       suspendedCount++;
     }

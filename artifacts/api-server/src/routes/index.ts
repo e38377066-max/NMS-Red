@@ -11,6 +11,7 @@ import proxmoxRouter from "./proxmox";
 import billingRouter from "./billing";
 import backupsRouter from "./backups";
 import metricsRouter from "./metrics";
+import dhcpRouter from "./dhcp";
 
 const router: IRouter = Router();
 
@@ -21,6 +22,7 @@ router.use(clientsRouter);
 router.use(billingRouter);
 router.use(backupsRouter);
 router.use(metricsRouter);
+router.use(dhcpRouter);
 router.use(usersRouter);
 router.use(auditLogsRouter);
 router.use(monitoringRouter);
