@@ -13,4 +13,7 @@ export interface ClientInput {
   name: string;
   planLimit: string;
   status?: string;
+  paymentStatus?: string;
+  monthlyFee?: string;
+  dueDate?: string;
 }

@@ -1,8 +1,11 @@
 import { useRoute } from "wouter";
 import {
-  useGetEquipment, useGetEquipmentStatus, useGetEquipmentWireless,
-  getGetEquipmentQueryKey, getGetEquipmentStatusQueryKey, getGetEquipmentWirelessQueryKey,
+  useGetEquipment, useGetEquipmentStatus, useGetEquipmentWireless, useGetEquipmentMetrics,
+  getGetEquipmentQueryKey, getGetEquipmentStatusQueryKey, getGetEquipmentWirelessQueryKey, getGetEquipmentMetricsQueryKey,
 } from "@workspace/api-client-react";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -46,6 +49,9 @@ export default function EquipmentDetail() {
   const { data: equip, isLoading: loadingEquip } = useGetEquipment(id);
   const { data: liveStatus, isLoading: loadingStatus } = useGetEquipmentStatus(id, {
     query: { queryKey: getGetEquipmentStatusQueryKey(id) },
+  });
+  const { data: metrics } = useGetEquipmentMetrics(id, { hours: 24 }, {
+    query: { queryKey: getGetEquipmentMetricsQueryKey(id, { hours: 24 }) },
   });
   const { data: wireless, isLoading: loadingWireless } = useGetEquipmentWireless(id, {
     query: { queryKey: getGetEquipmentWirelessQueryKey(id) },
@@ -226,6 +232,45 @@ export default function EquipmentDetail() {
                 ))}
               </TableBody>
             </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Historical signal chart */}
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Signal className="w-4 h-4 text-primary" />
+            Señal Histórica — Últimas 24 horas
+            <span className="text-xs text-muted-foreground ml-auto">{(metrics ?? []).length} puntos</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {!metrics || metrics.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-36 text-muted-foreground/50 text-sm">
+              <Signal className="w-8 h-8 mb-2" />
+              Sin datos históricos aún. Se recolectan cada 5 min en equipos Ubiquiti.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart
+                data={metrics.map(m => ({
+                  time: new Date(m.recordedAt).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }),
+                  "Señal dBm": m.signalDbm,
+                  "CCQ %": m.ccq,
+                }))}
+                margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#6b7280" }} />
+                <YAxis yAxisId="dbm" domain={[-100, -40]} tick={{ fontSize: 10, fill: "#6b7280" }} />
+                <YAxis yAxisId="ccq" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fill: "#6b7280" }} />
+                <Tooltip contentStyle={{ backgroundColor: "#1c1c2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 12 }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                <Line yAxisId="dbm" type="monotone" dataKey="Señal dBm" stroke="#38bdf8" strokeWidth={2} dot={false} connectNulls />
+                <Line yAxisId="ccq" type="monotone" dataKey="CCQ %" stroke="#a78bfa" strokeWidth={2} dot={false} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
           )}
         </CardContent>
       </Card>

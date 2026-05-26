@@ -24,6 +24,8 @@ import type {
   AiReply,
   Alert,
   AuditLog,
+  BackupFile,
+  BillingSummary,
   Client,
   ClientInput,
   ClientUpdate,
@@ -32,15 +34,20 @@ import type {
   EquipmentInput,
   EquipmentLiveStatus,
   EquipmentUpdate,
+  GetClientMetricsParams,
+  GetEquipmentMetricsParams,
   HealthStatus,
   ListAuditLogsParams,
+  ListBackupsParams,
   LoginInput,
   LoginResult,
+  MetricPoint,
   NetworkSummary,
   NetworkTopology,
   Node,
   NodeInput,
   NodeUpdate,
+  PaymentInput,
   ProxmoxHealth,
   ProxmoxServer,
   ProxmoxServerInput,
@@ -1396,6 +1403,634 @@ export const useDeleteClient = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteClientMutationOptions(options));
     }
+
+export const getRegisterClientPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/clients/${id}/payment`
+}
+
+/**
+ * @summary Registrar pago de cliente y actualizar estado de facturación
+ */
+export const registerClientPayment = async (id: number,
+    paymentInput: PaymentInput, options?: RequestInit): Promise<Client> => {
+
+  return customFetch<Client>(getRegisterClientPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      paymentInput,)
+  }
+);}
+
+
+
+
+export const getRegisterClientPaymentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerClientPayment>>, TError,{id: number;data: BodyType<PaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerClientPayment>>, TError,{id: number;data: BodyType<PaymentInput>}, TContext> => {
+
+const mutationKey = ['registerClientPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerClientPayment>>, {id: number;data: BodyType<PaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  registerClientPayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterClientPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof registerClientPayment>>>
+    export type RegisterClientPaymentMutationBody = BodyType<PaymentInput>
+    export type RegisterClientPaymentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Registrar pago de cliente y actualizar estado de facturación
+ */
+export const useRegisterClientPayment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerClientPayment>>, TError,{id: number;data: BodyType<PaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerClientPayment>>,
+        TError,
+        {id: number;data: BodyType<PaymentInput>},
+        TContext
+      > => {
+      return useMutation(getRegisterClientPaymentMutationOptions(options));
+    }
+
+export const getGetBillingSummaryUrl = () => {
+
+
+
+
+  return `/api/billing/summary`
+}
+
+/**
+ * @summary Resumen de facturación del mes actual
+ */
+export const getBillingSummary = async ( options?: RequestInit): Promise<BillingSummary> => {
+
+  return customFetch<BillingSummary>(getGetBillingSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBillingSummaryQueryKey = () => {
+    return [
+    `/api/billing/summary`
+    ] as const;
+    }
+
+
+export const getGetBillingSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getBillingSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBillingSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillingSummary>>> = ({ signal }) => getBillingSummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBillingSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBillingSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getBillingSummary>>>
+export type GetBillingSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Resumen de facturación del mes actual
+ */
+
+export function useGetBillingSummary<TData = Awaited<ReturnType<typeof getBillingSummary>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBillingSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getRunSuspendOverdueUrl = () => {
+
+
+
+
+  return `/api/billing/suspend-overdue`
+}
+
+/**
+ * @summary Ejecutar corte manual de clientes vencidos
+ */
+export const runSuspendOverdue = async ( options?: RequestInit): Promise<CommandResult> => {
+
+  return customFetch<CommandResult>(getRunSuspendOverdueUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRunSuspendOverdueMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runSuspendOverdue>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runSuspendOverdue>>, TError,void, TContext> => {
+
+const mutationKey = ['runSuspendOverdue'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runSuspendOverdue>>, void> = () => {
+
+
+          return  runSuspendOverdue(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunSuspendOverdueMutationResult = NonNullable<Awaited<ReturnType<typeof runSuspendOverdue>>>
+
+    export type RunSuspendOverdueMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Ejecutar corte manual de clientes vencidos
+ */
+export const useRunSuspendOverdue = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runSuspendOverdue>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runSuspendOverdue>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunSuspendOverdueMutationOptions(options));
+    }
+
+export const getGetEquipmentMetricsUrl = (id: number,
+    params?: GetEquipmentMetricsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/equipment/${id}/metrics?${stringifiedParams}` : `/api/equipment/${id}/metrics`
+}
+
+/**
+ * @summary Historial de consumo y señal del equipo (últimas 24h)
+ */
+export const getEquipmentMetrics = async (id: number,
+    params?: GetEquipmentMetricsParams, options?: RequestInit): Promise<MetricPoint[]> => {
+
+  return customFetch<MetricPoint[]>(getGetEquipmentMetricsUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEquipmentMetricsQueryKey = (id: number,
+    params?: GetEquipmentMetricsParams,) => {
+    return [
+    `/api/equipment/${id}/metrics`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEquipmentMetricsQueryOptions = <TData = Awaited<ReturnType<typeof getEquipmentMetrics>>, TError = ErrorType<unknown>>(id: number,
+    params?: GetEquipmentMetricsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEquipmentMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEquipmentMetricsQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEquipmentMetrics>>> = ({ signal }) => getEquipmentMetrics(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEquipmentMetrics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEquipmentMetricsQueryResult = NonNullable<Awaited<ReturnType<typeof getEquipmentMetrics>>>
+export type GetEquipmentMetricsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Historial de consumo y señal del equipo (últimas 24h)
+ */
+
+export function useGetEquipmentMetrics<TData = Awaited<ReturnType<typeof getEquipmentMetrics>>, TError = ErrorType<unknown>>(
+ id: number,
+    params?: GetEquipmentMetricsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEquipmentMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEquipmentMetricsQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetClientMetricsUrl = (id: number,
+    params?: GetClientMetricsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/clients/${id}/metrics?${stringifiedParams}` : `/api/clients/${id}/metrics`
+}
+
+/**
+ * @summary Historial de consumo y señal del cliente (últimas 24h)
+ */
+export const getClientMetrics = async (id: number,
+    params?: GetClientMetricsParams, options?: RequestInit): Promise<MetricPoint[]> => {
+
+  return customFetch<MetricPoint[]>(getGetClientMetricsUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClientMetricsQueryKey = (id: number,
+    params?: GetClientMetricsParams,) => {
+    return [
+    `/api/clients/${id}/metrics`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetClientMetricsQueryOptions = <TData = Awaited<ReturnType<typeof getClientMetrics>>, TError = ErrorType<unknown>>(id: number,
+    params?: GetClientMetricsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClientMetricsQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientMetrics>>> = ({ signal }) => getClientMetrics(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClientMetrics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClientMetricsQueryResult = NonNullable<Awaited<ReturnType<typeof getClientMetrics>>>
+export type GetClientMetricsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Historial de consumo y señal del cliente (últimas 24h)
+ */
+
+export function useGetClientMetrics<TData = Awaited<ReturnType<typeof getClientMetrics>>, TError = ErrorType<unknown>>(
+ id: number,
+    params?: GetClientMetricsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClientMetricsQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListBackupsUrl = (params?: ListBackupsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/backups?${stringifiedParams}` : `/api/backups`
+}
+
+/**
+ * @summary Listar respaldos disponibles
+ */
+export const listBackups = async (params?: ListBackupsParams, options?: RequestInit): Promise<BackupFile[]> => {
+
+  return customFetch<BackupFile[]>(getListBackupsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBackupsQueryKey = (params?: ListBackupsParams,) => {
+    return [
+    `/api/backups`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBackupsQueryOptions = <TData = Awaited<ReturnType<typeof listBackups>>, TError = ErrorType<unknown>>(params?: ListBackupsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBackups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBackupsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBackups>>> = ({ signal }) => listBackups(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBackups>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBackupsQueryResult = NonNullable<Awaited<ReturnType<typeof listBackups>>>
+export type ListBackupsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Listar respaldos disponibles
+ */
+
+export function useListBackups<TData = Awaited<ReturnType<typeof listBackups>>, TError = ErrorType<unknown>>(
+ params?: ListBackupsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBackups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBackupsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getRunBackupNowUrl = () => {
+
+
+
+
+  return `/api/backups/run`
+}
+
+/**
+ * @summary Ejecutar respaldo manual ahora
+ */
+export const runBackupNow = async ( options?: RequestInit): Promise<CommandResult> => {
+
+  return customFetch<CommandResult>(getRunBackupNowUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRunBackupNowMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runBackupNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runBackupNow>>, TError,void, TContext> => {
+
+const mutationKey = ['runBackupNow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runBackupNow>>, void> = () => {
+
+
+          return  runBackupNow(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunBackupNowMutationResult = NonNullable<Awaited<ReturnType<typeof runBackupNow>>>
+
+    export type RunBackupNowMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Ejecutar respaldo manual ahora
+ */
+export const useRunBackupNow = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runBackupNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runBackupNow>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunBackupNowMutationOptions(options));
+    }
+
+export const getDownloadBackupUrl = (id: number,) => {
+
+
+
+
+  return `/api/backups/${id}/download`
+}
+
+/**
+ * @summary Descargar archivo de respaldo
+ */
+export const downloadBackup = async (id: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadBackupUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadBackupQueryKey = (id: number,) => {
+    return [
+    `/api/backups/${id}/download`
+    ] as const;
+    }
+
+
+export const getDownloadBackupQueryOptions = <TData = Awaited<ReturnType<typeof downloadBackup>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadBackupQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadBackup>>> = ({ signal }) => downloadBackup(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadBackupQueryResult = NonNullable<Awaited<ReturnType<typeof downloadBackup>>>
+export type DownloadBackupQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Descargar archivo de respaldo
+ */
+
+export function useDownloadBackup<TData = Awaited<ReturnType<typeof downloadBackup>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadBackupQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getChangeClientSpeedUrl = (id: number,) => {
 

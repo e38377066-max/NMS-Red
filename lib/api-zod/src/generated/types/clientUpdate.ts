@@ -13,4 +13,7 @@ export interface ClientUpdate {
   planLimit?: string;
   status?: string;
   lastSeenDbm?: string;
+  paymentStatus?: string;
+  monthlyFee?: string;
+  dueDate?: string;
 }

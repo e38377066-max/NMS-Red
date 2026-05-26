@@ -17,6 +17,8 @@ import Users from "@/pages/users";
 import Login from "@/pages/login";
 import Proxmox from "@/pages/proxmox";
 import Topology from "@/pages/topology";
+import Billing from "@/pages/billing";
+import Backups from "@/pages/backups";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } }
@@ -46,6 +48,12 @@ function Router() {
       </Route>
       <Route path="/clients/:id">
         <Layout><ClientDetail /></Layout>
+      </Route>
+      <Route path="/billing">
+        <Layout><Billing /></Layout>
+      </Route>
+      <Route path="/backups">
+        <Layout><Backups /></Layout>
       </Route>
       <Route path="/proxmox">
         <Layout><Proxmox /></Layout>

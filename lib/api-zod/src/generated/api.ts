@@ -253,6 +253,10 @@ export const ListClientsResponseItem = zod.object({
   "planLimit": zod.string(),
   "status": zod.enum(['ACTIVE', 'SUSPENDED', 'OFFLINE']),
   "lastSeenDbm": zod.string().nullish(),
+  "paymentStatus": zod.enum(['PAID', 'PENDING', 'SUSPENDED']),
+  "monthlyFee": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "lastPaymentDate": zod.string().nullish(),
   "createdAt": zod.string().optional()
 })
 export const ListClientsResponse = zod.array(ListClientsResponseItem)
@@ -267,7 +271,10 @@ export const CreateClientBody = zod.object({
   "ip": zod.string().optional(),
   "name": zod.string(),
   "planLimit": zod.string(),
-  "status": zod.string().optional()
+  "status": zod.string().optional(),
+  "paymentStatus": zod.string().optional(),
+  "monthlyFee": zod.string().optional(),
+  "dueDate": zod.string().optional()
 })
 
 
@@ -288,6 +295,10 @@ export const GetClientResponse = zod.object({
   "planLimit": zod.string(),
   "status": zod.enum(['ACTIVE', 'SUSPENDED', 'OFFLINE']),
   "lastSeenDbm": zod.string().nullish(),
+  "paymentStatus": zod.enum(['PAID', 'PENDING', 'SUSPENDED']),
+  "monthlyFee": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "lastPaymentDate": zod.string().nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -305,7 +316,10 @@ export const UpdateClientBody = zod.object({
   "name": zod.string().optional(),
   "planLimit": zod.string().optional(),
   "status": zod.string().optional(),
-  "lastSeenDbm": zod.string().optional()
+  "lastSeenDbm": zod.string().optional(),
+  "paymentStatus": zod.string().optional(),
+  "monthlyFee": zod.string().optional(),
+  "dueDate": zod.string().optional()
 })
 
 export const UpdateClientResponse = zod.object({
@@ -318,6 +332,10 @@ export const UpdateClientResponse = zod.object({
   "planLimit": zod.string(),
   "status": zod.enum(['ACTIVE', 'SUSPENDED', 'OFFLINE']),
   "lastSeenDbm": zod.string().nullish(),
+  "paymentStatus": zod.enum(['PAID', 'PENDING', 'SUSPENDED']),
+  "monthlyFee": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "lastPaymentDate": zod.string().nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -326,6 +344,157 @@ export const UpdateClientResponse = zod.object({
  * @summary Delete a client
  */
 export const DeleteClientParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Registrar pago de cliente y actualizar estado de facturación
+ */
+export const RegisterClientPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RegisterClientPaymentBody = zod.object({
+  "monthlyFee": zod.number(),
+  "daysUntilNextDue": zod.number().optional()
+})
+
+export const RegisterClientPaymentResponse = zod.object({
+  "id": zod.number(),
+  "equipmentId": zod.number(),
+  "equipmentModel": zod.string().nullish(),
+  "mac": zod.string(),
+  "ip": zod.string().nullish(),
+  "name": zod.string(),
+  "planLimit": zod.string(),
+  "status": zod.enum(['ACTIVE', 'SUSPENDED', 'OFFLINE']),
+  "lastSeenDbm": zod.string().nullish(),
+  "paymentStatus": zod.enum(['PAID', 'PENDING', 'SUSPENDED']),
+  "monthlyFee": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "lastPaymentDate": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Resumen de facturación del mes actual
+ */
+export const GetBillingSummaryResponse = zod.object({
+  "totalClients": zod.number(),
+  "paidCount": zod.number(),
+  "pendingCount": zod.number(),
+  "suspendedCount": zod.number(),
+  "totalMonthlyIncome": zod.number(),
+  "pendingIncome": zod.number(),
+  "overdueToday": zod.array(zod.object({
+  "id": zod.number(),
+  "equipmentId": zod.number(),
+  "equipmentModel": zod.string().nullish(),
+  "mac": zod.string(),
+  "ip": zod.string().nullish(),
+  "name": zod.string(),
+  "planLimit": zod.string(),
+  "status": zod.enum(['ACTIVE', 'SUSPENDED', 'OFFLINE']),
+  "lastSeenDbm": zod.string().nullish(),
+  "paymentStatus": zod.enum(['PAID', 'PENDING', 'SUSPENDED']),
+  "monthlyFee": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "lastPaymentDate": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Ejecutar corte manual de clientes vencidos
+ */
+export const RunSuspendOverdueResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string(),
+  "requiresConfirmation": zod.boolean().nullish(),
+  "warning": zod.string().nullish()
+})
+
+
+/**
+ * @summary Historial de consumo y señal del equipo (últimas 24h)
+ */
+export const GetEquipmentMetricsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEquipmentMetricsQueryParams = zod.object({
+  "hours": zod.coerce.number().optional()
+})
+
+export const GetEquipmentMetricsResponseItem = zod.object({
+  "recordedAt": zod.string(),
+  "txMbps": zod.number().nullish(),
+  "rxMbps": zod.number().nullish(),
+  "signalDbm": zod.number().nullish(),
+  "ccq": zod.number().nullish()
+})
+export const GetEquipmentMetricsResponse = zod.array(GetEquipmentMetricsResponseItem)
+
+
+/**
+ * @summary Historial de consumo y señal del cliente (últimas 24h)
+ */
+export const GetClientMetricsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetClientMetricsQueryParams = zod.object({
+  "hours": zod.coerce.number().optional()
+})
+
+export const GetClientMetricsResponseItem = zod.object({
+  "recordedAt": zod.string(),
+  "txMbps": zod.number().nullish(),
+  "rxMbps": zod.number().nullish(),
+  "signalDbm": zod.number().nullish(),
+  "ccq": zod.number().nullish()
+})
+export const GetClientMetricsResponse = zod.array(GetClientMetricsResponseItem)
+
+
+/**
+ * @summary Listar respaldos disponibles
+ */
+export const ListBackupsQueryParams = zod.object({
+  "type": zod.coerce.string().optional(),
+  "equipmentId": zod.coerce.number().nullish()
+})
+
+export const ListBackupsResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['mikrotik_backup', 'mikrotik_script', 'postgres']),
+  "name": zod.string(),
+  "sizeBytes": zod.number().nullish(),
+  "equipmentId": zod.number().nullish(),
+  "equipmentModel": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListBackupsResponse = zod.array(ListBackupsResponseItem)
+
+
+/**
+ * @summary Ejecutar respaldo manual ahora
+ */
+export const RunBackupNowResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string(),
+  "requiresConfirmation": zod.boolean().nullish(),
+  "warning": zod.string().nullish()
+})
+
+
+/**
+ * @summary Descargar archivo de respaldo
+ */
+export const DownloadBackupParams = zod.object({
   "id": zod.coerce.number()
 })
 

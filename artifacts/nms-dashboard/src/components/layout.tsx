@@ -13,6 +13,8 @@ import {
   Network,
   Wifi,
   HardDrive,
+  Archive,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +31,14 @@ export function Layout({ children }: { children: ReactNode }) {
         { name: "Nodos", href: "/nodes", icon: Server },
         { name: "Equipos", href: "/equipment", icon: RouterIcon },
         { name: "Clientes", href: "/clients", icon: Users },
+        { name: "Facturación", href: "/billing", icon: DollarSign },
       ]
     },
     {
       name: "Infraestructura",
       items: [
         { name: "Proxmox VE", href: "/proxmox", icon: HardDrive },
+        { name: "Respaldos", href: "/backups", icon: Archive },
       ]
     },
     { 
@@ -54,7 +58,6 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden selection:bg-primary/30">
-      {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-card flex flex-col z-20">
         <div className="h-14 border-b border-border flex items-center px-4 gap-2 text-primary font-bold tracking-widest uppercase">
           <Wifi className="w-5 h-5" />
@@ -99,7 +102,6 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-border bg-card/50 backdrop-blur flex items-center justify-between px-6 z-10 sticky top-0">
           <div className="flex items-center gap-4">

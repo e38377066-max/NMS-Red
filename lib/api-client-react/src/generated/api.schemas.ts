@@ -163,6 +163,15 @@ export const ClientStatus = {
   OFFLINE: 'OFFLINE',
 } as const;
 
+export type ClientPaymentStatus = typeof ClientPaymentStatus[keyof typeof ClientPaymentStatus];
+
+
+export const ClientPaymentStatus = {
+  PAID: 'PAID',
+  PENDING: 'PENDING',
+  SUSPENDED: 'SUSPENDED',
+} as const;
+
 export interface Client {
   id: number;
   equipmentId: number;
@@ -176,6 +185,13 @@ export interface Client {
   status: ClientStatus;
   /** @nullable */
   lastSeenDbm?: string | null;
+  paymentStatus: ClientPaymentStatus;
+  /** @nullable */
+  monthlyFee?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  lastPaymentDate?: string | null;
   createdAt?: string;
 }
 
@@ -186,6 +202,9 @@ export interface ClientInput {
   name: string;
   planLimit: string;
   status?: string;
+  paymentStatus?: string;
+  monthlyFee?: string;
+  dueDate?: string;
 }
 
 export interface ClientUpdate {
@@ -195,6 +214,58 @@ export interface ClientUpdate {
   planLimit?: string;
   status?: string;
   lastSeenDbm?: string;
+  paymentStatus?: string;
+  monthlyFee?: string;
+  dueDate?: string;
+}
+
+export interface PaymentInput {
+  monthlyFee: number;
+  daysUntilNextDue?: number;
+}
+
+export interface BillingSummary {
+  totalClients: number;
+  paidCount: number;
+  pendingCount: number;
+  suspendedCount: number;
+  totalMonthlyIncome: number;
+  pendingIncome: number;
+  overdueToday?: Client[];
+}
+
+export interface MetricPoint {
+  recordedAt: string;
+  /** @nullable */
+  txMbps?: number | null;
+  /** @nullable */
+  rxMbps?: number | null;
+  /** @nullable */
+  signalDbm?: number | null;
+  /** @nullable */
+  ccq?: number | null;
+}
+
+export type BackupFileType = typeof BackupFileType[keyof typeof BackupFileType];
+
+
+export const BackupFileType = {
+  mikrotik_backup: 'mikrotik_backup',
+  mikrotik_script: 'mikrotik_script',
+  postgres: 'postgres',
+} as const;
+
+export interface BackupFile {
+  id: number;
+  type: BackupFileType;
+  name: string;
+  /** @nullable */
+  sizeBytes?: number | null;
+  /** @nullable */
+  equipmentId?: number | null;
+  /** @nullable */
+  equipmentModel?: string | null;
+  createdAt: string;
 }
 
 export interface SpeedChangeInput {
@@ -411,6 +482,22 @@ export interface VmConfigUpdate {
   memory?: number;
   description?: string;
 }
+
+export type GetEquipmentMetricsParams = {
+hours?: number;
+};
+
+export type GetClientMetricsParams = {
+hours?: number;
+};
+
+export type ListBackupsParams = {
+type?: string;
+/**
+ * @nullable
+ */
+equipmentId?: number | null;
+};
 
 export type ListAuditLogsParams = {
 limit?: number;

@@ -3,6 +3,8 @@ import { Server as SocketServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startMonitoring, setSocketServer } from "./services/monitoring.service";
+import { startBillingCron, setBillingSocketServer } from "./services/billing.service";
+import { startBackupCron } from "./services/backup.service";
 
 const rawPort = process.env["PORT"];
 
@@ -29,6 +31,7 @@ const io = new SocketServer(httpServer, {
 });
 
 setSocketServer(io);
+setBillingSocketServer(io);
 
 io.on("connection", (socket) => {
   logger.info({ socketId: socket.id }, "Client connected via WebSocket");
@@ -44,4 +47,6 @@ httpServer.listen(port, (err?: Error) => {
   }
   logger.info({ port }, "Server listening");
   startMonitoring();
+  startBillingCron();
+  startBackupCron();
 });

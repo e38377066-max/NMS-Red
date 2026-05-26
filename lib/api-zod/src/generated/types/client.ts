@@ -5,6 +5,7 @@
  * NMS Multi-Brand Platform API (MikroTik + Ubiquiti + Proxmox)
  * OpenAPI spec version: 0.1.0
  */
+import type { ClientPaymentStatus } from './clientPaymentStatus';
 import type { ClientStatus } from './clientStatus';
 
 export interface Client {
@@ -20,5 +21,12 @@ export interface Client {
   status: ClientStatus;
   /** @nullable */
   lastSeenDbm?: string | null;
+  paymentStatus: ClientPaymentStatus;
+  /** @nullable */
+  monthlyFee?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  lastPaymentDate?: string | null;
   createdAt?: string;
 }

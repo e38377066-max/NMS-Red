@@ -11,6 +11,12 @@ tags:
   - name: nodes
   - name: equipment
   - name: clients
+  - name: billing
+    description: Facturación, cortes y cobros
+  - name: metrics
+    description: Historial de consumo y señal
+  - name: backups
+    description: Respaldos automáticos de equipos y base de datos
   - name: audit
   - name: users
   - name: monitoring
@@ -335,6 +341,164 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /clients/{id}/payment:
+    post:
+      operationId: registerClientPayment
+      tags: [billing]
+      summary: Registrar pago de cliente y actualizar estado de facturación
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentInput"
+      responses:
+        "200":
+          description: Client updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /billing/summary:
+    get:
+      operationId: getBillingSummary
+      tags: [billing]
+      summary: Resumen de facturación del mes actual
+      responses:
+        "200":
+          description: Billing summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSummary"
+
+  /billing/suspend-overdue:
+    post:
+      operationId: runSuspendOverdue
+      tags: [billing]
+      summary: Ejecutar corte manual de clientes vencidos
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /equipment/{id}/metrics:
+    get:
+      operationId: getEquipmentMetrics
+      tags: [metrics]
+      summary: Historial de consumo y señal del equipo (últimas 24h)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: hours
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Metric history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MetricPoint"
+
+  /clients/{id}/metrics:
+    get:
+      operationId: getClientMetrics
+      tags: [metrics]
+      summary: Historial de consumo y señal del cliente (últimas 24h)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: hours
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Metric history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MetricPoint"
+
+  /backups:
+    get:
+      operationId: listBackups
+      tags: [backups]
+      summary: Listar respaldos disponibles
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: equipmentId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Backup list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BackupFile"
+
+  /backups/run:
+    post:
+      operationId: runBackupNow
+      tags: [backups]
+      summary: Ejecutar respaldo manual ahora
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /backups/{id}/download:
+    get:
+      operationId: downloadBackup
+      tags: [backups]
+      summary: Descargar archivo de respaldo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: File download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
 
   /clients/{id}/speed:
     post:
@@ -880,7 +1044,7 @@ components:
 
     Client:
       type: object
-      required: [id, equipmentId, mac, name, planLimit, status]
+      required: [id, equipmentId, mac, name, planLimit, status, paymentStatus]
       properties:
         id:
           type: integer
@@ -901,6 +1065,15 @@ components:
           enum: [ACTIVE, SUSPENDED, OFFLINE]
         lastSeenDbm:
           type: ["string", "null"]
+        paymentStatus:
+          type: string
+          enum: [PAID, PENDING, SUSPENDED]
+        monthlyFee:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        lastPaymentDate:
+          type: ["string", "null"]
         createdAt:
           type: string
 
@@ -920,6 +1093,12 @@ components:
           type: string
         status:
           type: string
+        paymentStatus:
+          type: string
+        monthlyFee:
+          type: string
+        dueDate:
+          type: string
 
     ClientUpdate:
       type: object
@@ -935,6 +1114,77 @@ components:
         status:
           type: string
         lastSeenDbm:
+          type: string
+        paymentStatus:
+          type: string
+        monthlyFee:
+          type: string
+        dueDate:
+          type: string
+
+    PaymentInput:
+      type: object
+      required: [monthlyFee]
+      properties:
+        monthlyFee:
+          type: number
+        daysUntilNextDue:
+          type: integer
+
+    BillingSummary:
+      type: object
+      required: [totalClients, paidCount, pendingCount, suspendedCount, totalMonthlyIncome, pendingIncome]
+      properties:
+        totalClients:
+          type: integer
+        paidCount:
+          type: integer
+        pendingCount:
+          type: integer
+        suspendedCount:
+          type: integer
+        totalMonthlyIncome:
+          type: number
+        pendingIncome:
+          type: number
+        overdueToday:
+          type: array
+          items:
+            $ref: "#/components/schemas/Client"
+
+    MetricPoint:
+      type: object
+      required: [recordedAt]
+      properties:
+        recordedAt:
+          type: string
+        txMbps:
+          type: ["number", "null"]
+        rxMbps:
+          type: ["number", "null"]
+        signalDbm:
+          type: ["number", "null"]
+        ccq:
+          type: ["number", "null"]
+
+    BackupFile:
+      type: object
+      required: [id, type, name, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [mikrotik_backup, mikrotik_script, postgres]
+        name:
+          type: string
+        sizeBytes:
+          type: ["integer", "null"]
+        equipmentId:
+          type: ["integer", "null"]
+        equipmentModel:
+          type: ["string", "null"]
+        createdAt:
           type: string
 
     SpeedChangeInput:

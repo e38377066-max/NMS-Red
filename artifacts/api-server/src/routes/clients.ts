@@ -15,24 +15,54 @@ import { extractUserFromRequest } from "../services/auth.service";
 
 const router: IRouter = Router();
 
+const CLIENT_SELECT = {
+  id: clientsTable.id,
+  equipmentId: clientsTable.equipmentId,
+  equipmentModel: equipmentTable.model,
+  mac: clientsTable.mac,
+  ip: clientsTable.ip,
+  name: clientsTable.name,
+  planLimit: clientsTable.planLimit,
+  status: clientsTable.status,
+  lastSeenDbm: clientsTable.lastSeenDbm,
+  paymentStatus: clientsTable.paymentStatus,
+  monthlyFee: clientsTable.monthlyFee,
+  dueDate: clientsTable.dueDate,
+  lastPaymentDate: clientsTable.lastPaymentDate,
+  createdAt: clientsTable.createdAt,
+} as const;
+
+function serializeClient(row: {
+  id: number;
+  equipmentId: number;
+  equipmentModel: string | null;
+  mac: string;
+  ip: string | null;
+  name: string;
+  planLimit: string;
+  status: string;
+  lastSeenDbm: string | null;
+  paymentStatus: string;
+  monthlyFee: string | null;
+  dueDate: Date | null;
+  lastPaymentDate: Date | null;
+  createdAt: Date;
+}) {
+  return {
+    ...row,
+    dueDate: row.dueDate?.toISOString() ?? null,
+    lastPaymentDate: row.lastPaymentDate?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 router.get("/clients", async (_req, res): Promise<void> => {
   const rows = await db
-    .select({
-      id: clientsTable.id,
-      equipmentId: clientsTable.equipmentId,
-      equipmentModel: equipmentTable.model,
-      mac: clientsTable.mac,
-      ip: clientsTable.ip,
-      name: clientsTable.name,
-      planLimit: clientsTable.planLimit,
-      status: clientsTable.status,
-      lastSeenDbm: clientsTable.lastSeenDbm,
-      createdAt: clientsTable.createdAt,
-    })
+    .select(CLIENT_SELECT)
     .from(clientsTable)
     .leftJoin(equipmentTable, eq(equipmentTable.id, clientsTable.equipmentId))
     .orderBy(clientsTable.name);
-  res.json(rows);
+  res.json(rows.map(serializeClient));
 });
 
 router.post("/clients", async (req, res): Promise<void> => {
@@ -41,8 +71,13 @@ router.post("/clients", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [client] = await db.insert(clientsTable).values(parsed.data).returning();
-  res.status(201).json({ ...client, equipmentModel: null });
+  const { dueDate, ...rest } = parsed.data;
+  const insertData = {
+    ...rest,
+    dueDate: dueDate ? new Date(dueDate) : undefined,
+  };
+  const [client] = await db.insert(clientsTable).values(insertData).returning();
+  res.status(201).json(serializeClient({ ...client, equipmentModel: null }));
 });
 
 router.get("/clients/:id", async (req, res): Promise<void> => {
@@ -52,18 +87,7 @@ router.get("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
   const [row] = await db
-    .select({
-      id: clientsTable.id,
-      equipmentId: clientsTable.equipmentId,
-      equipmentModel: equipmentTable.model,
-      mac: clientsTable.mac,
-      ip: clientsTable.ip,
-      name: clientsTable.name,
-      planLimit: clientsTable.planLimit,
-      status: clientsTable.status,
-      lastSeenDbm: clientsTable.lastSeenDbm,
-      createdAt: clientsTable.createdAt,
-    })
+    .select(CLIENT_SELECT)
     .from(clientsTable)
     .leftJoin(equipmentTable, eq(equipmentTable.id, clientsTable.equipmentId))
     .where(eq(clientsTable.id, params.data.id));
@@ -72,7 +96,7 @@ router.get("/clients/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-  res.json(row);
+  res.json(serializeClient(row));
 });
 
 router.patch("/clients/:id", async (req, res): Promise<void> => {
@@ -86,16 +110,21 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const { dueDate: ud, ...updateRest } = parsed.data;
+  const updateData = {
+    ...updateRest,
+    ...(ud !== undefined ? { dueDate: ud ? new Date(ud) : null } : {}),
+  };
   const [client] = await db
     .update(clientsTable)
-    .set(parsed.data)
+    .set(updateData)
     .where(eq(clientsTable.id, params.data.id))
     .returning();
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-  res.json({ ...client, equipmentModel: null });
+  res.json(serializeClient({ ...client, equipmentModel: null }));
 });
 
 router.delete("/clients/:id", async (req, res): Promise<void> => {
@@ -145,7 +174,6 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
     return;
   }
 
-  // Dry Run validation
   if (parsed.data.dryRun) {
     const currentLimitMbps = parseMbps(client.planLimit);
     const newLimitMbps = parseMbps(parsed.data.newLimit);
@@ -170,7 +198,6 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
     return;
   }
 
-  // Actually apply the speed change
   const authUser = extractUserFromRequest(req.headers.authorization);
   const result = await setClientSpeedLimit(equip.ip, equip.username, equip.password, client.mac, parsed.data.newLimit);
 
