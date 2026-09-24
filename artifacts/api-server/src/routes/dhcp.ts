@@ -27,8 +27,8 @@ router.post("/equipment/:id/dhcp-leases", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
 
-  const { macAddress, fixedIp, comment, dhcpServer } = req.body as {
-    macAddress?: string; fixedIp?: string; comment?: string; dhcpServer?: string;
+  const { macAddress, fixedIp, comment, dhcpServer, rateLimit } = req.body as {
+    macAddress?: string; fixedIp?: string; comment?: string; dhcpServer?: string; rateLimit?: string;
   };
   if (!macAddress || !fixedIp) { res.status(400).json({ error: "macAddress y fixedIp son requeridos" }); return; }
 
@@ -37,7 +37,7 @@ router.post("/equipment/:id/dhcp-leases", async (req, res): Promise<void> => {
 
   const result = await createStaticDhcpLease(
     equip.ip, equip.username, equip.password,
-    macAddress, fixedIp, comment ?? macAddress, dhcpServer
+    macAddress, fixedIp, comment ?? macAddress, dhcpServer, rateLimit
   );
 
   if (result.success) {
@@ -106,14 +106,14 @@ router.patch("/equipment/:id/dhcp-leases/:leaseId/make-static", async (req, res)
   const linkedClient = linkedClients[0];
   const clientComment = linkedClient ? `Cliente: ${linkedClient.name}` : undefined;
   const ok = await makeLeaseStatic(equip.ip, equip.username, equip.password, leaseId, clientComment);
-  let queueConfigured: boolean | null = null;
-  let queueMessage: string | null = null;
+  let rateLimitConfigured: boolean | null = null;
+  let rateLimitMessage: string | null = null;
   if (ok) {
     if (linkedClient && lease?.address) {
       await db.update(clientsTable)
         .set({ ip: lease.address })
         .where(eq(clientsTable.id, linkedClient.id));
-      const queue = await setClientSpeedLimit(
+      const limit = await setClientSpeedLimit(
         equip.ip,
         equip.username,
         equip.password,
@@ -122,8 +122,8 @@ router.patch("/equipment/:id/dhcp-leases/:leaseId/make-static", async (req, res)
         lease.address,
         linkedClient.name,
       );
-      queueConfigured = queue.success;
-      queueMessage = queue.message;
+      rateLimitConfigured = limit.success;
+      rateLimitMessage = limit.message;
     }
     await db.insert(auditLogsTable).values({
       entity: "DHCP",
@@ -140,8 +140,8 @@ router.patch("/equipment/:id/dhcp-leases/:leaseId/make-static", async (req, res)
       ? linkedClient ? `Lease estático vinculado a ${linkedClient.name}` : "Lease convertido a estático"
       : "Error al convertir lease",
     clientName: linkedClient?.name ?? null,
-    queueConfigured,
-    queueMessage,
+    rateLimitConfigured,
+    rateLimitMessage,
   });
 });
 
@@ -163,7 +163,8 @@ router.post("/clients/:id/dhcp-lease", async (req, res): Promise<void> => {
     equip.ip, equip.username, equip.password,
     client.mac, fixedIp,
     `Cliente: ${client.name}`,
-    dhcpServer
+    dhcpServer,
+    client.planLimit
   );
 
   if (result.success) {
@@ -187,11 +188,11 @@ router.post("/clients/:id/dhcp-lease", async (req, res): Promise<void> => {
     });
     res.status(201).json({
       ...result,
-      queueConfigured: queue.success,
-      queueMessage: queue.message,
+      rateLimitConfigured: queue.success,
+      rateLimitMessage: queue.message,
       message: queue.success
-        ? `${result.message}. Cola de ${client.name} sincronizada a ${fixedIp}.`
-        : `${result.message}. Advertencia: no se pudo sincronizar la cola: ${queue.message}`,
+        ? `${result.message}. Límite DHCP de ${client.name} sincronizado a ${client.planLimit}.`
+        : `${result.message}. Advertencia: no se pudo sincronizar el límite DHCP: ${queue.message}`,
     });
     return;
   }

@@ -248,7 +248,7 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
     equipmentId: equip.id,
     entity: "Client",
     action: "SPEED_CHANGE",
-    commandSent: `/queue/simple set max-limit=${parsed.data.newLimit} target=${client.mac}`,
+    commandSent: `/ip/dhcp-server/lease set mac-address=${client.mac} rate-limit=${parsed.data.newLimit}`,
     result: result.success ? "Success" : "Fail",
     details: `Cliente: ${client.name} (${client.mac}) | Nuevo plan: ${parsed.data.newLimit} | ${result.message}`,
   });

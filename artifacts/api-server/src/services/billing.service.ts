@@ -1,7 +1,7 @@
 import { db, clientsTable, equipmentTable, auditLogsTable } from "@workspace/db";
 import { eq, isNotNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { addToAddressList, removeFromAddressList } from "./mikrotik.service";
+import { addToAddressList, removeFromAddressList, setClientSpeedLimit } from "./mikrotik.service";
 import type { Server as SocketServer } from "socket.io";
 
 const SUSPENSION_LIST = "Clientes_Cortados";
@@ -154,28 +154,10 @@ async function suspendClientOnMikroTik(
     if (!equip) return;
 
     const { ip: rtrIp, username, password } = equip;
-    const auth = Buffer.from(`${username}:${password}`).toString("base64");
-    const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
-    const baseUrl = `http://${rtrIp}/rest`;
-
-    // 1. Throttle Simple Queue to 64k/64k
-    const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
-    if (queuesResp.ok) {
-      const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
-      const queue = queues.find(q =>
-        (clientIp && q.target?.includes(clientIp)) ||
-        q["mac-src"]?.toLowerCase() === mac.toLowerCase() ||
-        q.name?.toLowerCase() === clientName.toLowerCase() ||
-        q.comment?.toLowerCase().includes(clientName.toLowerCase())
-      );
-      if (queue) {
-        await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({ "max-limit": "64k/64k", name: clientName, comment: `SUSPENDIDO | Cliente: ${clientName}` }),
-        });
-      }
-    }
+    // 1. Throttle the DHCP lease to 64k/64k. The router uses one global
+    // parent queue (TOTAL) and per-client rate-limit values on leases.
+    const limitResult = await setClientSpeedLimit(rtrIp, username, password, mac, "64k/64k", clientIp ?? undefined, clientName);
+    if (!limitResult.success) logger.warn({ clientName, message: limitResult.message }, "Could not throttle DHCP lease");
 
     // 2. Add IP to Address List for captive portal redirect
     if (clientIp) {
@@ -199,28 +181,9 @@ async function reactivateClientOnMikroTik(
     if (!equip) return;
 
     const { ip: rtrIp, username, password } = equip;
-    const auth = Buffer.from(`${username}:${password}`).toString("base64");
-    const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
-    const baseUrl = `http://${rtrIp}/rest`;
-
-    // 1. Restore Simple Queue speed
-    const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
-    if (queuesResp.ok) {
-      const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
-      const queue = queues.find(q =>
-        (clientIp && q.target?.includes(clientIp)) ||
-        q["mac-src"]?.toLowerCase() === mac.toLowerCase() ||
-        q.name?.toLowerCase() === clientName.toLowerCase() ||
-        q.comment?.toLowerCase().includes(clientName.toLowerCase())
-      );
-      if (queue) {
-        await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({ "max-limit": planLimit, name: clientName, comment: `Cliente: ${clientName}` }),
-        });
-      }
-    }
+    // 1. Restore the DHCP lease rate-limit under the global TOTAL queue.
+    const limitResult = await setClientSpeedLimit(rtrIp, username, password, mac, planLimit, clientIp ?? undefined, clientName);
+    if (!limitResult.success) logger.warn({ clientName, message: limitResult.message }, "Could not restore DHCP lease rate-limit");
 
     // 2. Remove from suspension address list
     if (clientIp) {

@@ -14,6 +14,9 @@ export interface MikroTikDhcpLease {
   macAddress: string;
   hostName: string | null;
   comment: string | null;
+  rateLimit: string | null;
+  parentQueue: string | null;
+  addressLists: string | null;
   status: string;
   dynamic: boolean;
   blocked: boolean;
@@ -80,53 +83,34 @@ export async function setClientSpeedLimit(
   clientName?: string,
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const listRes = await mkFetch(ip, username, password, "/queue/simple");
-    if (!listRes.ok) return { success: false, message: "Could not query MikroTik queue" };
-
-    const queues = await listRes.json() as Array<{
-      ".id": string;
-      name?: string;
-      comment?: string;
-      target?: string;
-      "mac-src"?: string;
-    }>;
-    const queue = queues.find((item) =>
-      (clientIp && item.target?.includes(clientIp)) ||
-      item["mac-src"]?.toLowerCase() === mac.toLowerCase() ||
-      (clientName && (
-        item.name?.toLowerCase() === clientName.toLowerCase() ||
-        item.comment?.toLowerCase().includes(clientName.toLowerCase())
+    const leases = await getMikroTikDhcpLeases(ip, username, password);
+    const normalizedMac = mac.toLowerCase();
+    const normalizedName = clientName?.trim().toLowerCase();
+    const lease = leases.find((item) =>
+      (clientIp && item.address === clientIp) ||
+      item.macAddress.toLowerCase() === normalizedMac ||
+      (normalizedName && (
+        item.hostName?.trim().toLowerCase() === normalizedName ||
+        item.comment?.toLowerCase().includes(normalizedName)
       ))
     );
 
-    if (!queue) {
-      const queueBody: Record<string, string> = {
-        "max-limit": newLimit,
-        name: clientName ?? `Cliente-${mac}`,
-        comment: clientName ? `Cliente: ${clientName}` : "",
+    if (!lease) {
+      return {
+        success: false,
+        message: `No se encontró un lease DHCP para ${clientName ?? mac}. Conecta el cliente o créale un lease estático primero.`,
       };
-      if (clientIp) queueBody.target = `${clientIp}/32`;
-      else queueBody["mac-src"] = mac;
-      const createRes = await mkFetch(ip, username, password, "/queue/simple", {
-        method: "POST",
-        body: JSON.stringify(queueBody),
-      });
-      if (!createRes.ok) return { success: false, message: "Failed to create speed queue" };
-      return { success: true, message: `Cola de ${clientName ?? mac} creada con ${newLimit}` };
     }
 
-    const updateBody: Record<string, string> = { "max-limit": newLimit };
-    if (clientIp) updateBody.target = `${clientIp}/32`;
-    if (clientName) {
-      updateBody.name = clientName;
-      updateBody.comment = `Cliente: ${clientName}`;
-    }
-    const updateRes = await mkFetch(ip, username, password, `/queue/simple/${queue[".id"]}`, {
+    const updateRes = await mkFetch(ip, username, password, `/ip/dhcp-server/lease/${lease.id}`, {
       method: "PATCH",
-      body: JSON.stringify(updateBody),
+      body: JSON.stringify({ "rate-limit": newLimit }),
     });
-    if (!updateRes.ok) return { success: false, message: "Failed to update speed queue" };
-    return { success: true, message: `Cola de ${clientName ?? mac} actualizada a ${newLimit}` };
+    if (!updateRes.ok) {
+      const errBody = await updateRes.text().catch(() => "");
+      return { success: false, message: `No se pudo actualizar rate-limit del lease: ${updateRes.status} ${errBody}` };
+    }
+    return { success: true, message: `Límite DHCP de ${clientName ?? mac} actualizado a ${newLimit}` };
   } catch (err) {
     logger.error({ ip, mac, err }, "Error setting speed limit on MikroTik");
     return { success: false, message: "Connection error" };
@@ -202,6 +186,9 @@ export async function getMikroTikDhcpLeases(
       macAddress: entry["mac-address"] ?? "",
       hostName: entry["host-name"] ?? null,
       comment: entry["comment"] ?? null,
+      rateLimit: entry["rate-limit"] ?? null,
+      parentQueue: entry["parent-queue"] ?? null,
+      addressLists: entry["address-lists"] ?? null,
       status: entry["status"] ?? "waiting",
       dynamic: entry["dynamic"] === "true",
       blocked: entry["blocked"] === "true",
@@ -221,15 +208,23 @@ export async function createStaticDhcpLease(
   macAddress: string,
   fixedIp: string,
   comment: string,
-  dhcpServer?: string
+  dhcpServer?: string,
+  rateLimit?: string,
 ): Promise<{ success: boolean; message: string; id?: string }> {
   try {
     const body: Record<string, string> = {
       "mac-address": macAddress,
       address: fixedIp,
       comment,
+      "insert-queue-before": "bottom",
     };
     if (dhcpServer) body["server"] = dhcpServer;
+    if (rateLimit) body["rate-limit"] = rateLimit;
+
+    const existingLeases = await getMikroTikDhcpLeases(ip, username, password);
+    const leaseTemplate = existingLeases.find((lease) => lease.parentQueue || lease.addressLists);
+    if (leaseTemplate?.parentQueue) body["parent-queue"] = leaseTemplate.parentQueue;
+    if (leaseTemplate?.addressLists) body["address-lists"] = leaseTemplate.addressLists;
 
     const res = await mkFetch(ip, username, password, "/ip/dhcp-server/lease", {
       method: "POST",

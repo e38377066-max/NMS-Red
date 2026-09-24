@@ -31,6 +31,9 @@ type DhcpLease = {
   macAddress: string;
   hostName: string | null;
   comment: string | null;
+  rateLimit: string | null;
+  parentQueue: string | null;
+  addressLists: string | null;
   status: string;
   dynamic: boolean;
   blocked: boolean;
@@ -134,12 +137,12 @@ export default function ClientDetail() {
       queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
       toast({
         title: data.message,
-        description: data.queueConfigured === false
-          ? `La cola no se pudo sincronizar: ${data.queueMessage ?? "revisa el RouterOS"}`
-          : data.queueConfigured
-            ? `Cola de velocidad sincronizada para ${data.clientName ?? client?.name}.`
+        description: data.rateLimitConfigured === false
+          ? `El límite DHCP no se pudo sincronizar: ${data.rateLimitMessage ?? "revisa el RouterOS"}`
+          : data.rateLimitConfigured
+            ? `Rate-limit DHCP sincronizado para ${data.clientName ?? client?.name}.`
             : undefined,
-        variant: data.queueConfigured === false ? "destructive" : "default",
+        variant: data.rateLimitConfigured === false ? "destructive" : "default",
       });
     },
   });
@@ -312,7 +315,7 @@ export default function ClientDetail() {
                 <div className="flex items-center gap-3 text-sm">
                   <span className="text-muted-foreground">IP asignada:</span>
                   <span className="font-mono text-sky-400 font-medium">{clientLease.address}</span>
-                  {clientLease.expiresAfter && !clientLease.dynamic === false && (
+                  {clientLease.dynamic && clientLease.expiresAfter && (
                     <span className="text-xs text-muted-foreground">expira en {clientLease.expiresAfter}</span>
                   )}
                 </div>
@@ -320,7 +323,14 @@ export default function ClientDetail() {
                   <span>Servidor DHCP: <span className="font-mono">{clientLease.dhcpServer || "—"}</span></span>
                   <span>·</span>
                   <span>Estado: <span className="text-foreground">{clientLease.status}</span></span>
+                  <span>·</span>
+                  <span>Rate-limit: <span className="font-mono text-foreground">{clientLease.rateLimit || "sin límite"}</span></span>
                 </div>
+                {clientLease.comment && (
+                  <div className="text-xs text-muted-foreground">
+                    Comentario: <span className="text-foreground">{clientLease.comment}</span>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 {clientLease.dynamic && (
@@ -388,6 +398,7 @@ export default function ClientDetail() {
                   <TableHead>IP</TableHead>
                   <TableHead>MAC</TableHead>
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Velocidad DHCP</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -401,6 +412,7 @@ export default function ClientDetail() {
                       <TableCell className="font-mono text-sm">{lease.address}</TableCell>
                       <TableCell className="font-mono text-xs">{lease.macAddress}</TableCell>
                       <TableCell className="text-sm">{lease.hostName ?? lease.comment ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{lease.rateLimit ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={lease.dynamic ? "border-yellow-500/30 text-yellow-400 text-[10px]" : "border-emerald-500/30 text-emerald-400 text-[10px]"}>
                           {lease.dynamic ? "Dinámica" : "Estática"}

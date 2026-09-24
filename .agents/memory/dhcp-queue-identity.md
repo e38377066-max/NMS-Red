@@ -3,8 +3,8 @@ name: DHCP lease and queue identity
 description: The canonical relationship between registered clients, MikroTik DHCP leases, and Simple Queues.
 ---
 
-Treat the registered client name/comment as the stable queue identity; use the current static DHCP IP and MAC as matching and targeting data, not as the only identity.
+Treat the registered client name/comment as the stable DHCP identity; use the current lease IP and MAC as matching data, while the per-client speed is stored in the lease `rate-limit` under the global parent queue.
 
-**Why:** A client can receive a new lease address before it is made static, so matching only by its old IP leaves duplicate or orphaned Simple Queues.
+**Why:** The live router uses DHCP lease `rate-limit` values and one global `TOTAL` queue; creating per-client Simple Queues would diverge from the real traffic model. A client can also receive a new lease address before it is made static.
 
-**How to apply:** Set the DHCP comment to the client name, create or update the named queue when the lease becomes static, and match by IP, MAC, name, or comment during speed, suspension, and reactivation operations.
+**How to apply:** Set the DHCP comment to the client name, update the lease `rate-limit`, inherit the router's parent queue/address-list template for new leases, and match by IP, MAC, name, or comment during speed, suspension, and reactivation operations.

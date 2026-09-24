@@ -59,13 +59,13 @@ ${offlineInfo}
    - Si el PTP cae, todos los APs del nodo se verán afectados.
 
 2. Si solo ALGUNOS clientes de un nodo tienen problemas:
-   - Revisa el AP MikroTik con las Simple Queues (límites de velocidad).
+   - Revisa los leases DHCP del MikroTik central y su campo rate-limit (límite de velocidad).
    - Revisa la señal dBm del cliente en el AP Ubiquiti (si aplica).
    - Una señal menor a -80 dBm indica problema de radio, no de configuración.
 
 3. Si el MikroTik CHR está lento:
    - Verifica recursos en Proxmox (CPU/RAM de la VM).
-   - Revisa Simple Queues y Queue Trees en el CHR.
+   - Revisa la cola global TOTAL y los rate-limit de los leases DHCP.
    - El CHR gestiona TODO el encolamiento del enlace Starlink.
 
 4. Para cambios en Proxmox: confirma el vmid y los recursos antes de actuar.
@@ -145,7 +145,7 @@ function getFallbackResponse(message: string, context: NetworkContext): string {
   }
 
   if (lowerMsg.includes("velocidad") || lowerMsg.includes("queue") || lowerMsg.includes("ancho de banda")) {
-    return `Los límites de velocidad (Simple Queues) se gestionan en el MikroTik CHR. Para cambiar la velocidad de un cliente, usa el panel Clientes → selecciona el cliente → Cambiar Plan. La función Dry Run te mostrará una advertencia si el cambio reduce más del 50% del plan actual. El CHR aplica el límite via la API REST de RouterOS.`;
+    return `Los límites de velocidad se gestionan en los leases DHCP del MikroTik central mediante rate-limit, bajo la cola global TOTAL. Para cambiar la velocidad de un cliente, usa el panel Clientes → selecciona el cliente → Cambiar Plan. La función Dry Run te mostrará una advertencia si el cambio reduce más del 50% del plan actual. El router aplica el límite vía la API REST de RouterOS.`;
   }
 
   if (lowerMsg.includes("alerta") || lowerMsg.includes("problema")) {

@@ -257,7 +257,7 @@ async function executeTask(task: Task): Promise<string> {
     }
 
     case "dhcp_lease_create": {
-      const res = await createStaticDhcpLease(p.ip, p.username, p.password, p.mac, p.fixedIp, p.comment, p.dhcpServer);
+      const res = await createStaticDhcpLease(p.ip, p.username, p.password, p.mac, p.fixedIp, p.comment, p.dhcpServer, p.rateLimit);
       if (!res.success) throw new Error(res.message);
       return res.message;
     }
@@ -275,26 +275,8 @@ async function executeTask(task: Task): Promise<string> {
     }
 
     case "billing_suspend": {
-      const auth = Buffer.from(`${p.username}:${p.password}`).toString("base64");
-      const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
-      const baseUrl = `http://${p.ip}/rest`;
-
-      const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
-      if (!queuesResp.ok) throw new Error("No se pudo consultar las colas de MikroTik");
-       const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
-       const queue = queues.find(q =>
-         (p.clientIp && q.target?.includes(p.clientIp)) ||
-         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase() ||
-         q.name?.toLowerCase() === p.clientName?.toLowerCase() ||
-         q.comment?.toLowerCase().includes(p.clientName?.toLowerCase() ?? "")
-       );
-      if (queue) {
-        const r = await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
-          method: "PATCH", headers,
-           body: JSON.stringify({ "max-limit": "64k/64k", name: p.clientName, comment: `SUSPENDIDO | Cliente: ${p.clientName}` }),
-        });
-        if (!r.ok) throw new Error("No se pudo actualizar la cola de velocidad");
-      }
+      const limit = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, "64k/64k", p.clientIp, p.clientName);
+      if (!limit.success) throw new Error(limit.message);
       if (p.clientIp) {
         await addToAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Cortados", `SUSPENDIDO: ${p.clientName}`);
       }
@@ -302,26 +284,8 @@ async function executeTask(task: Task): Promise<string> {
     }
 
     case "billing_reactivate": {
-      const auth = Buffer.from(`${p.username}:${p.password}`).toString("base64");
-      const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
-      const baseUrl = `http://${p.ip}/rest`;
-
-      const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
-      if (!queuesResp.ok) throw new Error("No se pudo consultar las colas de MikroTik");
-       const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
-       const queue = queues.find(q =>
-         (p.clientIp && q.target?.includes(p.clientIp)) ||
-         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase() ||
-         q.name?.toLowerCase() === p.clientName?.toLowerCase() ||
-         q.comment?.toLowerCase().includes(p.clientName?.toLowerCase() ?? "")
-       );
-      if (queue) {
-        const r = await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
-          method: "PATCH", headers,
-           body: JSON.stringify({ "max-limit": p.planLimit, name: p.clientName, comment: `Cliente: ${p.clientName}` }),
-        });
-        if (!r.ok) throw new Error("No se pudo actualizar la cola de velocidad");
-      }
+      const limit = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, p.planLimit, p.clientIp, p.clientName);
+      if (!limit.success) throw new Error(limit.message);
       if (p.clientIp) {
         await removeFromAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Cortados");
       }
@@ -433,6 +397,7 @@ export async function enqueueDhcpLease(
       fixedIp,
       comment: `Cliente: ${client.name}`,
       dhcpServer: dhcpServer ?? "",
+      rateLimit: client.planLimit,
     },
     equip.id,
     `${equip.model} (${equip.ip})`
