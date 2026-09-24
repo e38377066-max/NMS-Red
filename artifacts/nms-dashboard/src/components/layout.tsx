@@ -43,6 +43,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { 
       name: "Seguridad y auditoría",
       items: [
+        { name: "Seguridad", href: "/security", icon: ShieldCheck },
         { name: "Audit Log", href: "/audit", icon: Activity },
       ] 
     },
