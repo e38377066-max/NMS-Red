@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, equipmentTable, clientsTable, auditLogsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { getMikroTikDhcpLeases, createStaticDhcpLease, deleteDhcpLease, makeLeaseStatic } from "../services/mikrotik.service";
+import { and, eq, sql } from "drizzle-orm";
+import { getMikroTikDhcpLeases, createStaticDhcpLease, deleteDhcpLease, makeLeaseStatic, setClientSpeedLimit } from "../services/mikrotik.service";
 
 const router: IRouter = Router();
 
@@ -81,23 +81,68 @@ router.delete("/equipment/:id/dhcp-leases/:leaseId", async (req, res): Promise<v
 router.patch("/equipment/:id/dhcp-leases/:leaseId/make-static", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const leaseId = req.params.leaseId;
+  const requestedClientId = Number((req.body as { clientId?: number } | undefined)?.clientId);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
 
   const [equip] = await db.select().from(equipmentTable).where(eq(equipmentTable.id, id));
   if (!equip) { res.status(404).json({ error: "Equipo no encontrado" }); return; }
 
-  const ok = await makeLeaseStatic(equip.ip, equip.username, equip.password, leaseId);
+  const leases = await getMikroTikDhcpLeases(equip.ip, equip.username, equip.password);
+  const lease = leases.find((item) => item.id === leaseId);
+  const [requestedClient] = Number.isInteger(requestedClientId) && requestedClientId > 0
+    ? await db.select().from(clientsTable).where(and(
+      eq(clientsTable.id, requestedClientId),
+      eq(clientsTable.equipmentId, id),
+    ))
+    : [];
+  const linkedClients = requestedClient
+    ? [requestedClient]
+    : lease?.macAddress
+      ? await db.select().from(clientsTable).where(and(
+      eq(clientsTable.equipmentId, id),
+      sql`lower(${clientsTable.mac}) = lower(${lease.macAddress})`,
+    ))
+      : [];
+  const linkedClient = linkedClients[0];
+  const clientComment = linkedClient ? `Cliente: ${linkedClient.name}` : undefined;
+  const ok = await makeLeaseStatic(equip.ip, equip.username, equip.password, leaseId, clientComment);
+  let queueConfigured: boolean | null = null;
+  let queueMessage: string | null = null;
   if (ok) {
+    if (linkedClient && lease?.address) {
+      await db.update(clientsTable)
+        .set({ ip: lease.address })
+        .where(eq(clientsTable.id, linkedClient.id));
+      const queue = await setClientSpeedLimit(
+        equip.ip,
+        equip.username,
+        equip.password,
+        linkedClient.mac,
+        linkedClient.planLimit,
+        lease.address,
+        linkedClient.name,
+      );
+      queueConfigured = queue.success;
+      queueMessage = queue.message;
+    }
     await db.insert(auditLogsTable).values({
       entity: "DHCP",
       action: "MAKE_STATIC_LEASE",
       commandSent: `/ip/dhcp-server/lease set ${leaseId} dynamic=false`,
       result: "Success",
-      details: `Lease ${leaseId} convertido a estático en ${equip.model} (${equip.ip})`,
+      details: `Lease ${leaseId} convertido a estático${linkedClient ? ` para ${linkedClient.name}` : ""} en ${equip.model} (${equip.ip})`,
       equipmentId: id,
     });
   }
-  res.json({ success: ok, message: ok ? "Lease convertido a estático" : "Error al convertir lease" });
+  res.json({
+    success: ok,
+    message: ok
+      ? linkedClient ? `Lease estático vinculado a ${linkedClient.name}` : "Lease convertido a estático"
+      : "Error al convertir lease",
+    clientName: linkedClient?.name ?? null,
+    queueConfigured,
+    queueMessage,
+  });
 });
 
 // POST /clients/:id/dhcp-lease — create static lease for a client on their equipment
@@ -123,6 +168,15 @@ router.post("/clients/:id/dhcp-lease", async (req, res): Promise<void> => {
 
   if (result.success) {
     await db.update(clientsTable).set({ ip: fixedIp }).where(eq(clientsTable.id, id));
+    const queue = await setClientSpeedLimit(
+      equip.ip,
+      equip.username,
+      equip.password,
+      client.mac,
+      client.planLimit,
+      fixedIp,
+      client.name,
+    );
     await db.insert(auditLogsTable).values({
       entity: "Client",
       action: "DHCP_STATIC_LEASE",
@@ -131,6 +185,15 @@ router.post("/clients/:id/dhcp-lease", async (req, res): Promise<void> => {
       details: `Lease estático para ${client.name}: ${client.mac} → ${fixedIp}`,
       equipmentId: equip.id,
     });
+    res.status(201).json({
+      ...result,
+      queueConfigured: queue.success,
+      queueMessage: queue.message,
+      message: queue.success
+        ? `${result.message}. Cola de ${client.name} sincronizada a ${fixedIp}.`
+        : `${result.message}. Advertencia: no se pudo sincronizar la cola: ${queue.message}`,
+    });
+    return;
   }
 
   res.status(result.success ? 201 : 400).json(result);

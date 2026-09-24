@@ -239,6 +239,7 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
     client.mac,
     parsed.data.newLimit,
     client.ip ?? undefined,
+    client.name,
   );
 
   await db.insert(auditLogsTable).values({

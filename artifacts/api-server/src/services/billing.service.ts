@@ -161,13 +161,18 @@ async function suspendClientOnMikroTik(
     // 1. Throttle Simple Queue to 64k/64k
     const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
     if (queuesResp.ok) {
-      const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
-      const queue = queues.find(q => (clientIp && q.target?.includes(clientIp)) || q["mac-src"]?.toLowerCase() === mac.toLowerCase());
+      const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
+      const queue = queues.find(q =>
+        (clientIp && q.target?.includes(clientIp)) ||
+        q["mac-src"]?.toLowerCase() === mac.toLowerCase() ||
+        q.name?.toLowerCase() === clientName.toLowerCase() ||
+        q.comment?.toLowerCase().includes(clientName.toLowerCase())
+      );
       if (queue) {
         await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({ "max-limit": "64k/64k", comment: `SUSPENDIDO-${clientName}` }),
+          body: JSON.stringify({ "max-limit": "64k/64k", name: clientName, comment: `SUSPENDIDO | Cliente: ${clientName}` }),
         });
       }
     }
@@ -201,13 +206,18 @@ async function reactivateClientOnMikroTik(
     // 1. Restore Simple Queue speed
     const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
     if (queuesResp.ok) {
-      const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
-      const queue = queues.find(q => (clientIp && q.target?.includes(clientIp)) || q["mac-src"]?.toLowerCase() === mac.toLowerCase());
+      const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
+      const queue = queues.find(q =>
+        (clientIp && q.target?.includes(clientIp)) ||
+        q["mac-src"]?.toLowerCase() === mac.toLowerCase() ||
+        q.name?.toLowerCase() === clientName.toLowerCase() ||
+        q.comment?.toLowerCase().includes(clientName.toLowerCase())
+      );
       if (queue) {
         await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({ "max-limit": planLimit, comment: clientName }),
+          body: JSON.stringify({ "max-limit": planLimit, name: clientName, comment: `Cliente: ${clientName}` }),
         });
       }
     }

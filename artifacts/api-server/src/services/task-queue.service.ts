@@ -235,7 +235,7 @@ async function executeTask(task: Task): Promise<string> {
 
   switch (task.type) {
     case "speed_change": {
-      const res = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, p.newLimit, p.clientIp);
+      const res = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, p.newLimit, p.clientIp, p.clientName);
       if (!res.success) throw new Error(res.message);
       // Update the client's planLimit in the DB
       if (p.clientId) {
@@ -281,15 +281,17 @@ async function executeTask(task: Task): Promise<string> {
 
       const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
       if (!queuesResp.ok) throw new Error("No se pudo consultar las colas de MikroTik");
-       const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
+       const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
        const queue = queues.find(q =>
          (p.clientIp && q.target?.includes(p.clientIp)) ||
-         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase()
+         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase() ||
+         q.name?.toLowerCase() === p.clientName?.toLowerCase() ||
+         q.comment?.toLowerCase().includes(p.clientName?.toLowerCase() ?? "")
        );
       if (queue) {
         const r = await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH", headers,
-          body: JSON.stringify({ "max-limit": "64k/64k", comment: `SUSPENDIDO-${p.clientName}` }),
+           body: JSON.stringify({ "max-limit": "64k/64k", name: p.clientName, comment: `SUSPENDIDO | Cliente: ${p.clientName}` }),
         });
         if (!r.ok) throw new Error("No se pudo actualizar la cola de velocidad");
       }
@@ -306,15 +308,17 @@ async function executeTask(task: Task): Promise<string> {
 
       const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
       if (!queuesResp.ok) throw new Error("No se pudo consultar las colas de MikroTik");
-       const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
+       const queues = await queuesResp.json() as Array<{ ".id": string; name?: string; comment?: string; target?: string; "mac-src"?: string }>;
        const queue = queues.find(q =>
          (p.clientIp && q.target?.includes(p.clientIp)) ||
-         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase()
+         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase() ||
+         q.name?.toLowerCase() === p.clientName?.toLowerCase() ||
+         q.comment?.toLowerCase().includes(p.clientName?.toLowerCase() ?? "")
        );
       if (queue) {
         const r = await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH", headers,
-          body: JSON.stringify({ "max-limit": p.planLimit, comment: p.clientName }),
+           body: JSON.stringify({ "max-limit": p.planLimit, name: p.clientName, comment: `Cliente: ${p.clientName}` }),
         });
         if (!r.ok) throw new Error("No se pudo actualizar la cola de velocidad");
       }

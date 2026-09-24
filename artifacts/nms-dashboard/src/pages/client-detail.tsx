@@ -121,13 +121,26 @@ export default function ClientDetail() {
   });
 
   const makeStatic = useMutation({
-    mutationFn: async (leaseId: string) => {
-      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}/make-static`, { method: "PATCH" });
+    mutationFn: async ({ leaseId, clientId }: { leaseId: string; clientId: number }) => {
+      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}/make-static`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
       return res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["dhcp-leases", client?.equipmentId] });
-      toast({ title: data.message });
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      toast({
+        title: data.message,
+        description: data.queueConfigured === false
+          ? `La cola no se pudo sincronizar: ${data.queueMessage ?? "revisa el RouterOS"}`
+          : data.queueConfigured
+            ? `Cola de velocidad sincronizada para ${data.clientName ?? client?.name}.`
+            : undefined,
+        variant: data.queueConfigured === false ? "destructive" : "default",
+      });
     },
   });
 
@@ -311,7 +324,7 @@ export default function ClientDetail() {
               </div>
               <div className="flex gap-2">
                 {clientLease.dynamic && (
-                  <Button size="sm" variant="outline" className="text-sky-400 border-sky-500/30 hover:bg-sky-500/10" onClick={() => makeStatic.mutate(clientLease.id)}>
+                   <Button size="sm" variant="outline" className="text-sky-400 border-sky-500/30 hover:bg-sky-500/10" onClick={() => makeStatic.mutate({ leaseId: clientLease.id, clientId: id })}>
                     Convertir a Estático
                   </Button>
                 )}
@@ -397,7 +410,7 @@ export default function ClientDetail() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {lease.dynamic && (
-                            <Button variant="ghost" size="sm" className="text-xs text-sky-400 h-7" onClick={() => makeStatic.mutate(lease.id)}>
+                             <Button variant="ghost" size="sm" className="text-xs text-sky-400 h-7" onClick={() => makeStatic.mutate({ leaseId: lease.id, clientId: id })}>
                               → Estático
                             </Button>
                           )}
