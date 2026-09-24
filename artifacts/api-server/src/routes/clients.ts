@@ -19,6 +19,8 @@ const CLIENT_SELECT = {
   id: clientsTable.id,
   equipmentId: clientsTable.equipmentId,
   equipmentModel: equipmentTable.model,
+  equipmentRole: equipmentTable.equipmentRole,
+  connectionType: equipmentTable.connectionType,
   mac: clientsTable.mac,
   ip: clientsTable.ip,
   name: clientsTable.name,
@@ -36,6 +38,8 @@ function serializeClient(row: {
   id: number;
   equipmentId: number;
   equipmentModel: string | null;
+  equipmentRole: string | null;
+  connectionType: string | null;
   mac: string;
   ip: string | null;
   name: string;
@@ -56,6 +60,18 @@ function serializeClient(row: {
   };
 }
 
+function isClientController(equipment: { equipmentRole: string; connectionType: string }): boolean {
+  return equipment.equipmentRole === "core_router" && equipment.connectionType === "mikrotik_routeros";
+}
+
+async function getClientController(equipmentId: number) {
+  const [equip] = await db
+    .select()
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, equipmentId));
+  return equip ?? null;
+}
+
 router.get("/clients", async (_req, res): Promise<void> => {
   const rows = await db
     .select(CLIENT_SELECT)
@@ -72,12 +88,22 @@ router.post("/clients", async (req, res): Promise<void> => {
     return;
   }
   const { dueDate, ...rest } = parsed.data;
+  const controller = await getClientController(rest.equipmentId);
+  if (!controller || !isClientController(controller)) {
+    res.status(400).json({ error: "El cliente debe estar asociado al Router central MikroTik (rol core_router)" });
+    return;
+  }
   const insertData = {
     ...rest,
     dueDate: dueDate ? new Date(dueDate) : undefined,
   };
   const [client] = await db.insert(clientsTable).values(insertData).returning();
-  res.status(201).json(serializeClient({ ...client, equipmentModel: null }));
+  res.status(201).json(serializeClient({
+    ...client,
+    equipmentModel: controller.model,
+    equipmentRole: controller.equipmentRole,
+    connectionType: controller.connectionType,
+  }));
 });
 
 router.get("/clients/:id", async (req, res): Promise<void> => {
@@ -124,7 +150,13 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-  res.json(serializeClient({ ...client, equipmentModel: null }));
+  const controller = await getClientController(client.equipmentId);
+  res.json(serializeClient({
+    ...client,
+    equipmentModel: controller?.model ?? null,
+    equipmentRole: controller?.equipmentRole ?? null,
+    connectionType: controller?.connectionType ?? null,
+  }));
 });
 
 router.delete("/clients/:id", async (req, res): Promise<void> => {
@@ -165,12 +197,13 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
     return;
   }
 
-  const [equip] = await db
-    .select()
-    .from(equipmentTable)
-    .where(eq(equipmentTable.id, client.equipmentId));
+  const equip = await getClientController(client.equipmentId);
   if (!equip) {
     res.status(404).json({ error: "Equipment not found for this client" });
+    return;
+  }
+  if (!isClientController(equip)) {
+    res.status(409).json({ error: "Este cliente no tiene un Router central MikroTik válido asignado" });
     return;
   }
 
@@ -199,7 +232,14 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
   }
 
   const authUser = extractUserFromRequest(req.headers.authorization);
-  const result = await setClientSpeedLimit(equip.ip, equip.username, equip.password, client.mac, parsed.data.newLimit);
+  const result = await setClientSpeedLimit(
+    equip.ip,
+    equip.username,
+    equip.password,
+    client.mac,
+    parsed.data.newLimit,
+    client.ip ?? undefined,
+  );
 
   await db.insert(auditLogsTable).values({
     userId: authUser?.id ?? parsed.data.userId ?? null,

@@ -75,24 +75,32 @@ export async function setClientSpeedLimit(
   username: string,
   password: string,
   mac: string,
-  newLimit: string
+  newLimit: string,
+  clientIp?: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const listRes = await mkFetch(ip, username, password, `/queue/simple?mac-src=${encodeURIComponent(mac)}`);
+    const listRes = await mkFetch(ip, username, password, "/queue/simple");
     if (!listRes.ok) return { success: false, message: "Could not query MikroTik queue" };
 
-    const queues = await listRes.json() as Array<{ ".id": string }>;
+    const queues = await listRes.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
+    const queue = queues.find((item) =>
+      (clientIp && item.target?.includes(clientIp)) ||
+      item["mac-src"]?.toLowerCase() === mac.toLowerCase()
+    );
 
-    if (queues.length === 0) {
+    if (!queue) {
+      const queueBody: Record<string, string> = { "max-limit": newLimit };
+      if (clientIp) queueBody.target = `${clientIp}/32`;
+      else queueBody["mac-src"] = mac;
       const createRes = await mkFetch(ip, username, password, "/queue/simple", {
         method: "POST",
-        body: JSON.stringify({ "mac-src": mac, "max-limit": newLimit }),
+        body: JSON.stringify(queueBody),
       });
       if (!createRes.ok) return { success: false, message: "Failed to create speed queue" };
       return { success: true, message: `Speed set to ${newLimit} for ${mac}` };
     }
 
-    const updateRes = await mkFetch(ip, username, password, `/queue/simple/${queues[0][".id"]}`, {
+    const updateRes = await mkFetch(ip, username, password, `/queue/simple/${queue[".id"]}`, {
       method: "PATCH",
       body: JSON.stringify({ "max-limit": newLimit }),
     });

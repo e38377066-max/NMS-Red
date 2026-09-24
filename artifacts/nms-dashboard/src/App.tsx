@@ -15,7 +15,6 @@ import Audit from "@/pages/audit";
 import Ai from "@/pages/ai";
 import Users from "@/pages/users";
 import Login from "@/pages/login";
-import Proxmox from "@/pages/proxmox";
 import Topology from "@/pages/topology";
 import Billing from "@/pages/billing";
 import Backups from "@/pages/backups";
@@ -54,9 +53,6 @@ function Router() {
       </Route>
       <Route path="/backups">
         <Layout><Backups /></Layout>
-      </Route>
-      <Route path="/proxmox">
-        <Layout><Proxmox /></Layout>
       </Route>
       <Route path="/audit">
         <Layout><Audit /></Layout>

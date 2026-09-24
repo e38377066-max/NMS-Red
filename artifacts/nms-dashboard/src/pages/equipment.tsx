@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const ROLE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   gateway: { label: "Gateway", icon: Globe, color: "text-cyan-400" },
-  core_router: { label: "Core Router", icon: ServerIcon, color: "text-violet-400" },
+  core_router: { label: "Router central", icon: ServerIcon, color: "text-violet-400" },
   ptp_link: { label: "Enlace PTP", icon: ArrowUpDown, color: "text-amber-400" },
   ap_distributor: { label: "AP / Repartidor", icon: Radio, color: "text-emerald-400" },
 };
@@ -129,11 +129,11 @@ export default function Equipment() {
                   <Input value={form.model} onChange={e => set("model", e.target.value)} placeholder="RB4011, NS-5AC, CHR..." />
                 </div>
                 <div className="space-y-2">
-                  <Label>Usuario API</Label>
+                  <Label>Usuario RouterOS / airOS</Label>
                   <Input value={form.username} onChange={e => set("username", e.target.value)} placeholder="admin" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Contraseña API</Label>
+                  <Label>Contraseña RouterOS / airOS</Label>
                   <Input type="password" value={form.password} onChange={e => set("password", e.target.value)} placeholder="••••••••" />
                 </div>
                 <div className="space-y-2">
@@ -141,8 +141,8 @@ export default function Equipment() {
                   <Select value={form.connectionType} onValueChange={(v) => set("connectionType", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mikrotik_routeros">MikroTik RouterOS (REST API)</SelectItem>
-                      <SelectItem value="ubiquiti_airos">Ubiquiti AirOS (SSH/HTTP)</SelectItem>
+                       <SelectItem value="mikrotik_routeros">MikroTik RouterOS (API / REST)</SelectItem>
+                       <SelectItem value="ubiquiti_airos">Ubiquiti airOS (SSH / HTTP)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -152,9 +152,9 @@ export default function Equipment() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="gateway">🌐 Gateway (recibe internet)</SelectItem>
-                      <SelectItem value="core_router">🖥 Core Router (CHR MikroTik)</SelectItem>
+                       <SelectItem value="core_router">🖥 Router central (MikroTik hEX)</SelectItem>
                       <SelectItem value="ptp_link">↕ Enlace Troncal PTP</SelectItem>
-                      <SelectItem value="ap_distributor">📡 AP / Repartidor</SelectItem>
+                       <SelectItem value="ap_distributor">📡 LiteAP / SXT (repartidor)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -166,8 +166,8 @@ export default function Equipment() {
                 )}
                 {form.connectionType === "mikrotik_routeros" && (
                   <div className="space-y-2">
-                    <Label>Puerto API <span className="text-muted-foreground">(opcional)</span></Label>
-                    <Input type="number" value={form.apiPort} onChange={e => set("apiPort", e.target.value)} placeholder="80" />
+                   <Label>Puerto RouterOS REST / API-SSL <span className="text-muted-foreground">(opcional)</span></Label>
+                   <Input type="number" value={form.apiPort} onChange={e => set("apiPort", e.target.value)} placeholder="80 o 443" />
                   </div>
                 )}
               </div>

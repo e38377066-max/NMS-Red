@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment } from "@workspace/api-client-react";
+import { useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment, useCreateClient, useListEquipment } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { SignalStrength } from "@/components/signal-strength";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Client = {
   id: number;
@@ -55,12 +56,23 @@ export default function Clients() {
   const { data: clients, isLoading } = useListClients({ query: { queryKey: getListClientsQueryKey() } });
   const deleteClient = useDeleteClient();
   const registerPayment = useRegisterClientPayment();
+  const createClient = useCreateClient();
+  const { data: equipment } = useListEquipment();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [paymentModal, setPaymentModal] = useState<Client | null>(null);
   const [fee, setFee] = useState("");
   const [days, setDays] = useState("30");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newClient, setNewClient] = useState({
+    equipmentId: "",
+    name: "",
+    mac: "",
+    ip: "",
+    planLimit: "10M/10M",
+    monthlyFee: "",
+  });
 
   const handleDelete = (id: number, name: string) => {
     if (!confirm(`¿Eliminar cliente "${name}"?`)) return;
@@ -93,6 +105,39 @@ export default function Clients() {
     );
   };
 
+  const centralRouters = (equipment ?? []).filter((item) =>
+    item.connectionType === "mikrotik_routeros" &&
+    item.equipmentRole === "core_router"
+  );
+
+  const submitClient = () => {
+    if (!newClient.equipmentId || !newClient.name || !newClient.mac || !newClient.planLimit) {
+      toast({ title: "Completa los campos requeridos", description: "Selecciona el router central y registra nombre, MAC y plan.", variant: "destructive" });
+      return;
+    }
+    createClient.mutate({
+      data: {
+        equipmentId: Number(newClient.equipmentId),
+        name: newClient.name,
+        mac: newClient.mac,
+        ...(newClient.ip ? { ip: newClient.ip } : {}),
+        planLimit: newClient.planLimit,
+        ...(newClient.monthlyFee ? { monthlyFee: newClient.monthlyFee } : {}),
+      },
+    }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        toast({ title: "Cliente registrado", description: `${newClient.name} quedó asociado al router central.` });
+        setCreateOpen(false);
+        setNewClient({ equipmentId: "", name: "", mac: "", ip: "", planLimit: "10M/10M", monthlyFee: "" });
+      },
+      onError: () => toast({ title: "No se pudo registrar el cliente", description: "Revisa los datos y la conexión con la API.", variant: "destructive" }),
+    });
+  };
+
+  const updateNewClient = (key: keyof typeof newClient, value: string) =>
+    setNewClient((current) => ({ ...current, [key]: value }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -100,7 +145,7 @@ export default function Clients() {
           <Users className="w-8 h-8 text-primary" />
           Clientes
         </h1>
-        <Button><Plus className="w-4 h-4 mr-2" /> Agregar Cliente</Button>
+        <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-2" /> Agregar Cliente</Button>
       </div>
 
       <div className="border border-border/50 rounded-md bg-card/50">
@@ -111,7 +156,7 @@ export default function Clients() {
               <TableHead>Cobro</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>MAC / IP</TableHead>
-              <TableHead>Equipo</TableHead>
+              <TableHead>Router controlador</TableHead>
               <TableHead>Señal</TableHead>
               <TableHead>Plan</TableHead>
               <TableHead>Vence</TableHead>
@@ -209,6 +254,65 @@ export default function Clients() {
             <Button variant="outline" onClick={() => setPaymentModal(null)}>Cancelar</Button>
             <Button onClick={submitPayment} disabled={!fee || registerPayment.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               {registerPayment.isPending ? "Guardando..." : "Confirmar Pago"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" /> Registrar cliente en el MikroTik central
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Router central</Label>
+              <Select value={newClient.equipmentId} onValueChange={(value) => updateNewClient("equipmentId", value)}>
+                <SelectTrigger><SelectValue placeholder="Selecciona el MikroTik que administra las colas..." /></SelectTrigger>
+                <SelectContent>
+                  {centralRouters.map((router) => (
+                    <SelectItem key={router.id} value={String(router.id)}>
+                      {router.model} — {router.ip}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {centralRouters.length === 0 && (
+                <p className="text-xs text-yellow-400">Registra primero el hEX con rol “Router central”.</p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Nombre completo</Label>
+                <Input value={newClient.name} onChange={(event) => updateNewClient("name", event.target.value)} placeholder="Cliente 001" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>MAC</Label>
+                <Input value={newClient.mac} onChange={(event) => updateNewClient("mac", event.target.value)} placeholder="AA:BB:CC:DD:EE:FF" className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>IP (opcional)</Label>
+                <Input value={newClient.ip} onChange={(event) => updateNewClient("ip", event.target.value)} placeholder="192.168.88.100" className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Plan / velocidad</Label>
+                <Input value={newClient.planLimit} onChange={(event) => updateNewClient("planLimit", event.target.value)} placeholder="10M/10M" className="font-mono" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Cuota mensual (opcional)</Label>
+              <Input type="number" value={newClient.monthlyFee} onChange={(event) => updateNewClient("monthlyFee", event.target.value)} placeholder="150.00" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Las velocidades, cortes, reconexiones y leases DHCP se aplicarán sobre el MikroTik seleccionado.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+            <Button onClick={submitClient} disabled={createClient.isPending || centralRouters.length === 0}>
+              {createClient.isPending ? "Registrando..." : "Registrar Cliente"}
             </Button>
           </DialogFooter>
         </DialogContent>

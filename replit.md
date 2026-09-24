@@ -1,6 +1,6 @@
-# ISP Cockpit — NMS Multi-Brand Platform
+# ISP Cockpit — CMS de red MikroTik + Ubiquiti
 
-Plataforma de gestión de red (NMS) para ISPs con soporte multi-marca: MikroTik RouterOS, Ubiquiti AirOS/AirMAX y Proxmox VE. Interfaz en español con monitoreo en tiempo real.
+Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central que administra clientes, velocidades, cortes, reconexiones, DHCP y colas; los equipos Ubiquiti LiteAP y MikroTik SXT 5 ax se administran como distribución inalámbrica. Interfaz en español con monitoreo en tiempo real.
 
 ## Run & Operate
 
@@ -11,6 +11,7 @@ Plataforma de gestión de red (NMS) para ISPs con soporte multi-marca: MikroTik 
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
 - `pnpm --filter @workspace/db run push` — push del schema DB (solo dev)
 - Env requerido: `DATABASE_URL` — conexión Postgres
+- Topología objetivo: `Router central MikroTik hEX → LiteAP / SXT 5 ax → clientes`
 
 ## Stack
 
@@ -37,7 +38,6 @@ Plataforma de gestión de red (NMS) para ISPs con soporte multi-marca: MikroTik 
 - **Contrato-first**: el spec OpenAPI define el contrato; codegen genera hooks y schemas automáticamente
 - **Multi-marca sin breaking change**: el campo `connectionType` en equipment determina qué servicio usa el backend (MikroTik REST o Ubiquiti SSH/HTTP)
 - **SSH/native modules en esbuild**: node-ssh, ssh2, cpu-features y net-snmp deben estar en la lista `external` del build.mjs Y en `onlyBuiltDependencies` del pnpm-workspace.yaml
-- **Proxmox**: usa HTTPS nativo con `rejectUnauthorized: false` para certs auto-firmados de red local. Auth via ticket (PVEAuthCookie + CSRFPreventionToken)
 - **Ubiquiti**: intenta HTTP primero (login.cgi → status.cgi / sta.cgi), fallback SSH con wstalist. Requiere algoritmos SSH legacy para equipos AirOS M-series
 
 ## Product
@@ -46,9 +46,9 @@ Plataforma de gestión de red (NMS) para ISPs con soporte multi-marca: MikroTik 
 - **Topología visual**: mapa de la red por capas con roles estrictos (Gateway → Enlace PTP → AP)
 - **Equipos multi-marca**: formulario con selector de protocolo (MikroTik RouterOS / Ubiquiti AirOS) y rol funcional
 - **Detalle de equipo**: estado en vivo + tabla de registro inalámbrico con señal dBm (Ubiquiti wstalist o MikroTik /wireless/registration-table)
-- **Proxmox VE**: salud del servidor (CPU/RAM/disco), lista de VMs, start/stop, snapshots, ajuste CPU/RAM
-- **Clientes**: gestión con cambio de velocidad (dry-run) aplicado via MikroTik CHR Simple Queues
-- **IA contextual**: conoce la jerarquía completa (Proxmox → CHR → PTP Ubiquiti → AP → Cliente)
+- **Clientes**: alta y gestión desde el CMS, cambio de velocidad (dry-run), DHCP estático, cobros, cortes y reconexiones aplicados al MikroTik central mediante Simple Queues y address-lists
+- **Equipos inalámbricos**: monitoreo y registro inalámbrico de LiteAP, airOS y MikroTik RouterOS
+- **IA contextual**: conoce la jerarquía completa (MikroTik central → enlace → LiteAP/SXT → cliente)
 - **Audit log + RBAC**: cada acción registrada con usuario, comando, resultado
 - **Monitoreo automático**: heartbeat cada 60s multi-marca (MikroTik + Ubiquiti + Proxmox)
 

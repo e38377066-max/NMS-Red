@@ -235,7 +235,7 @@ async function executeTask(task: Task): Promise<string> {
 
   switch (task.type) {
     case "speed_change": {
-      const res = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, p.newLimit);
+      const res = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, p.newLimit, p.clientIp);
       if (!res.success) throw new Error(res.message);
       // Update the client's planLimit in the DB
       if (p.clientId) {
@@ -281,8 +281,11 @@ async function executeTask(task: Task): Promise<string> {
 
       const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
       if (!queuesResp.ok) throw new Error("No se pudo consultar las colas de MikroTik");
-      const queues = await queuesResp.json() as Array<{ ".id": string; target: string }>;
-      const queue = queues.find(q => q.target?.includes(p.mac));
+       const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
+       const queue = queues.find(q =>
+         (p.clientIp && q.target?.includes(p.clientIp)) ||
+         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase()
+       );
       if (queue) {
         const r = await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH", headers,
@@ -303,8 +306,11 @@ async function executeTask(task: Task): Promise<string> {
 
       const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
       if (!queuesResp.ok) throw new Error("No se pudo consultar las colas de MikroTik");
-      const queues = await queuesResp.json() as Array<{ ".id": string; target: string }>;
-      const queue = queues.find(q => q.target?.includes(p.mac));
+       const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
+       const queue = queues.find(q =>
+         (p.clientIp && q.target?.includes(p.clientIp)) ||
+         q["mac-src"]?.toLowerCase() === p.mac?.toLowerCase()
+       );
       if (queue) {
         const r = await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH", headers,
@@ -377,7 +383,9 @@ export async function enqueueSpeedChange(
   if (!client) throw new Error("Cliente no encontrado");
 
   const [equip] = await db.select().from(equipmentTable).where(eq(equipmentTable.id, client.equipmentId));
-  if (!equip) throw new Error("Equipo no encontrado");
+  if (!equip || equip.equipmentRole !== "core_router" || equip.connectionType !== "mikrotik_routeros") {
+    throw new Error("El cliente debe estar asociado al Router central MikroTik");
+  }
 
   return enqueueTask(
     "speed_change",
@@ -390,6 +398,7 @@ export async function enqueueSpeedChange(
       newLimit,
       clientId: String(clientId),
       clientName: client.name,
+      clientIp: client.ip ?? "",
     },
     equip.id,
     `${equip.model} (${equip.ip})`
@@ -405,7 +414,9 @@ export async function enqueueDhcpLease(
   if (!client) throw new Error("Cliente no encontrado");
 
   const [equip] = await db.select().from(equipmentTable).where(eq(equipmentTable.id, client.equipmentId));
-  if (!equip) throw new Error("Equipo no encontrado");
+  if (!equip || equip.equipmentRole !== "core_router" || equip.connectionType !== "mikrotik_routeros") {
+    throw new Error("El cliente debe estar asociado al Router central MikroTik");
+  }
 
   return enqueueTask(
     "dhcp_lease_create",

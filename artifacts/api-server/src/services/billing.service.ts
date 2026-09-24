@@ -130,10 +130,17 @@ export async function registerPayment(
 
 async function getEquipmentConn(equipmentId: number) {
   const [equip] = await db
-    .select({ ip: equipmentTable.ip, username: equipmentTable.username, password: equipmentTable.password })
+    .select({
+      ip: equipmentTable.ip,
+      username: equipmentTable.username,
+      password: equipmentTable.password,
+      equipmentRole: equipmentTable.equipmentRole,
+      connectionType: equipmentTable.connectionType,
+    })
     .from(equipmentTable)
     .where(eq(equipmentTable.id, equipmentId));
-  return equip ?? null;
+  if (!equip || equip.equipmentRole !== "core_router" || equip.connectionType !== "mikrotik_routeros") return null;
+  return equip;
 }
 
 async function suspendClientOnMikroTik(
@@ -154,8 +161,8 @@ async function suspendClientOnMikroTik(
     // 1. Throttle Simple Queue to 64k/64k
     const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
     if (queuesResp.ok) {
-      const queues = await queuesResp.json() as Array<{ ".id": string; target: string }>;
-      const queue = queues.find(q => q.target?.includes(mac));
+      const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
+      const queue = queues.find(q => (clientIp && q.target?.includes(clientIp)) || q["mac-src"]?.toLowerCase() === mac.toLowerCase());
       if (queue) {
         await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH",
@@ -194,8 +201,8 @@ async function reactivateClientOnMikroTik(
     // 1. Restore Simple Queue speed
     const queuesResp = await fetch(`${baseUrl}/queue/simple`, { headers });
     if (queuesResp.ok) {
-      const queues = await queuesResp.json() as Array<{ ".id": string; target: string }>;
-      const queue = queues.find(q => q.target?.includes(mac));
+      const queues = await queuesResp.json() as Array<{ ".id": string; target?: string; "mac-src"?: string }>;
+      const queue = queues.find(q => (clientIp && q.target?.includes(clientIp)) || q["mac-src"]?.toLowerCase() === mac.toLowerCase());
       if (queue) {
         await fetch(`${baseUrl}/queue/simple/${queue[".id"]}`, {
           method: "PATCH",

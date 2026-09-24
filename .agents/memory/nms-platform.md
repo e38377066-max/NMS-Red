@@ -11,10 +11,6 @@ description: Key decisions and quirks for the ISP Cockpit NMS platform (MikroTik
 
 **How to apply:** For any package with native binaries, add BOTH the package AND all packages that import it to `external` in `build.mjs`. Also add `cpu-features`, `ssh2`, `net-snmp` to `onlyBuiltDependencies` in `pnpm-workspace.yaml`.
 
-## Proxmox API
-
-Uses HTTPS with self-signed certs (rejectUnauthorized: false) via native `https` module. Auth flow: POST /api2/json/access/ticket → get PVEAuthCookie + CSRFPreventionToken → use as Cookie + CSRFPreventionToken header for all subsequent requests.
-
 ## Ubiquiti AirOS
 
 HTTP approach (faster): POST /login.cgi → get cookie → GET /status.cgi or /sta.cgi for wireless table.
@@ -23,9 +19,14 @@ SSH fallback: `wstalist` command returns JSON. `mca-status` for device status. O
 ## Network Equipment Role Hierarchy
 
 Roles in DB: gateway | core_router | ptp_link | ap_distributor
-Diagnostic order: Proxmox VE → CHR MikroTik (core_router/gateway) → Enlace Troncal PTP Ubiquiti → AP/Repartidor → Cliente
+Operational order: Router central MikroTik hEX (core_router) → LiteAP/SXT (ap_distributor) → Cliente. Proxmox remains legacy backend support, not part of the primary network flow.
+
+**Rule:** A client must be assigned to a MikroTik equipment with role `core_router`; wireless equipment is monitored separately and must not control client queues, DHCP, suspension, or reactivation.
+
+**Why:** The hEX is the device that owns RouterOS queues, DHCP, and billing enforcement even when the client reaches the network through a LiteAP or SXT.
+
+**How to apply:** Keep `clients.equipmentId` pointing to the central hEX for current operations. Add a separate wireless-equipment relationship when client-to-AP/SXT association is needed without changing the controller.
 
 ## DB Schema Key Fields
 
 equipment table: connectionType (mikrotik_routeros | ubiquiti_airos), equipmentRole, snmpCommunity, apiPort
-proxmox_servers table: name, ip, port(8006), username, password, nodeName("pve"), lastSeenStatus

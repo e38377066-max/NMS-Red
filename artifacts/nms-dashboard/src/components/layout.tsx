@@ -12,7 +12,6 @@ import {
   LogOut,
   Network,
   Wifi,
-  HardDrive,
   Archive,
   DollarSign,
 } from "lucide-react";
@@ -35,16 +34,15 @@ export function Layout({ children }: { children: ReactNode }) {
       ]
     },
     {
-      name: "Infraestructura",
+      name: "Operaciones de red",
       items: [
-        { name: "Proxmox VE", href: "/proxmox", icon: HardDrive },
+        { name: "IA Diagnóstico", href: "/ai", icon: BotMessageSquare },
         { name: "Respaldos", href: "/backups", icon: Archive },
       ]
     },
     { 
-      name: "Operaciones", 
+      name: "Seguridad y auditoría",
       items: [
-        { name: "IA Diagnóstico", href: "/ai", icon: BotMessageSquare },
         { name: "Audit Log", href: "/audit", icon: Activity },
       ] 
     },

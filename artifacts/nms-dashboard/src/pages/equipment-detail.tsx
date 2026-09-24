@@ -18,7 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const ROLE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   gateway: { label: "Gateway (recibe internet)", icon: Globe, color: "text-cyan-400" },
-  core_router: { label: "Core Router (CHR MikroTik)", icon: Server, color: "text-violet-400" },
+  core_router: { label: "Router central (MikroTik hEX)", icon: Server, color: "text-violet-400" },
   ptp_link: { label: "Enlace Troncal PTP", icon: ArrowUpDown, color: "text-amber-400" },
   ap_distributor: { label: "AP / Repartidor", icon: Radio, color: "text-emerald-400" },
 };
@@ -178,7 +178,7 @@ export default function EquipmentDetail() {
                 ? "border-orange-500/30 text-orange-400 text-[10px]"
                 : "border-sky-500/30 text-sky-400 text-[10px]"
             }>
-              {equip.connectionType === "ubiquiti_airos" ? "Ubiquiti wstalist" : "MikroTik /wireless/reg-table"}
+               {equip.connectionType === "ubiquiti_airos" ? "Ubiquiti wstalist / airOS" : "MikroTik RouterOS"}
             </Badge>
             <span className="text-xs text-muted-foreground ml-auto">
               {wireless?.length ?? 0} estaciones conectadas
