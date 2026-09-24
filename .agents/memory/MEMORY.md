@@ -1,2 +1,3 @@
 - [NMS multi-brand platform](nms-platform.md) — SSH/native modules need externals list in esbuild + onlyBuiltDependencies in pnpm-workspace.yaml
 - [Workspace install firewall](workspace-install-firewall.md) — codegen-only packages may require a filtered runtime install when the package firewall blocks their tarball
+- [Multi-firmware device configuration](device-config-platform.md) — detect capabilities and require private backup plus reviewed confirmation before applying RouterOS/airOS changes

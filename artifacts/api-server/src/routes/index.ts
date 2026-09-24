@@ -12,6 +12,7 @@ import billingRouter from "./billing";
 import backupsRouter from "./backups";
 import metricsRouter from "./metrics";
 import dhcpRouter from "./dhcp";
+import deviceConfigRouter from "./device-config";
 
 const router: IRouter = Router();
 
@@ -23,6 +24,7 @@ router.use(billingRouter);
 router.use(backupsRouter);
 router.use(metricsRouter);
 router.use(dhcpRouter);
+router.use(deviceConfigRouter);
 router.use(usersRouter);
 router.use(auditLogsRouter);
 router.use(monitoringRouter);
