@@ -20,6 +20,10 @@ function isSecurityKind(value: string): value is SecurityKind {
   return value === "filter" || value === "nat";
 }
 
+function paramString(value: string | string[] | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 async function getCoreRouter(id: number) {
   const [equipment] = await db
     .select()
@@ -91,7 +95,7 @@ router.get("/equipment/:id/security", async (req, res): Promise<void> => {
 
   const result = await getCoreRouter(id);
   if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+    res.status(result.status ?? 500).json({ error: result.error });
     return;
   }
 
@@ -113,44 +117,6 @@ router.get("/equipment/:id/security", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/equipment/:id/security/:kind", async (req, res): Promise<void> => {
-  await mutateRule(req, res, "create");
-});
-
-router.patch("/equipment/:id/security/:kind/:ruleId", async (req, res): Promise<void> => {
-  await mutateRule(req, res, "update");
-});
-
-router.delete("/equipment/:id/security/:kind/:ruleId", async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  const kind = req.params.kind;
-  const ruleId = req.params.ruleId;
-  if (isNaN(id) || !isSecurityKind(kind) || !ruleId) {
-    res.status(400).json({ error: "Solicitud de regla inválida" });
-    return;
-  }
-
-  const result = await getCoreRouter(id);
-  if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
-    return;
-  }
-
-  try {
-    await deleteMikroTikSecurityRule(result.equipment.ip, result.equipment.username, result.equipment.password, kind, ruleId);
-    await writeAudit(
-      id,
-      `DELETE_${kind.toUpperCase()}_RULE`,
-      `/ip/firewall/${kind} remove ${ruleId}`,
-      `Regla ${ruleId} eliminada desde el CRM`,
-    );
-    res.json({ success: true, message: "La regla fue eliminada del RouterOS." });
-  } catch (error) {
-    logSecurityServiceError(error, { equipmentId: id, kind, ruleId, operation: "delete-rule" });
-    res.status(502).json({ error: error instanceof Error ? error.message : "No se pudo eliminar la regla" });
-  }
-});
-
 router.post("/equipment/:id/security/address-list", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) {
@@ -165,7 +131,7 @@ router.post("/equipment/:id/security/address-list", async (req, res): Promise<vo
 
   const result = await getCoreRouter(id);
   if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+    res.status(result.status ?? 500).json({ error: result.error });
     return;
   }
 
@@ -193,7 +159,7 @@ router.post("/equipment/:id/security/address-list", async (req, res): Promise<vo
 
 router.delete("/equipment/:id/security/address-list/:entryId", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
-  const entryId = req.params.entryId;
+  const entryId = paramString(req.params.entryId);
   if (isNaN(id) || !entryId) {
     res.status(400).json({ error: "Solicitud de dirección inválida" });
     return;
@@ -201,7 +167,7 @@ router.delete("/equipment/:id/security/address-list/:entryId", async (req, res):
 
   const result = await getCoreRouter(id);
   if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+    res.status(result.status ?? 500).json({ error: result.error });
     return;
   }
 
@@ -220,15 +186,53 @@ router.delete("/equipment/:id/security/address-list/:entryId", async (req, res):
   }
 });
 
+router.post("/equipment/:id/security/:kind", async (req, res): Promise<void> => {
+  await mutateRule(req, res, "create");
+});
+
+router.patch("/equipment/:id/security/:kind/:ruleId", async (req, res): Promise<void> => {
+  await mutateRule(req, res, "update");
+});
+
+router.delete("/equipment/:id/security/:kind/:ruleId", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const kind = paramString(req.params.kind);
+  const ruleId = paramString(req.params.ruleId);
+  if (isNaN(id) || !kind || !ruleId || !isSecurityKind(kind)) {
+    res.status(400).json({ error: "Solicitud de regla inválida" });
+    return;
+  }
+
+  const result = await getCoreRouter(id);
+  if ("error" in result) {
+    res.status(result.status ?? 500).json({ error: result.error });
+    return;
+  }
+
+  try {
+    await deleteMikroTikSecurityRule(result.equipment.ip, result.equipment.username, result.equipment.password, kind, ruleId);
+    await writeAudit(
+      id,
+      `DELETE_${kind.toUpperCase()}_RULE`,
+      `/ip/firewall/${kind} remove ${ruleId}`,
+      `Regla ${ruleId} eliminada desde el CRM`,
+    );
+    res.json({ success: true, message: "La regla fue eliminada del RouterOS." });
+  } catch (error) {
+    logSecurityServiceError(error, { equipmentId: id, kind, ruleId, operation: "delete-rule" });
+    res.status(502).json({ error: error instanceof Error ? error.message : "No se pudo eliminar la regla" });
+  }
+});
+
 async function mutateRule(
   req: Request,
   res: Response,
   operation: "create" | "update",
 ): Promise<void> {
   const id = Number(req.params.id);
-  const kind = req.params.kind;
-  const ruleId = req.params.ruleId;
-  if (isNaN(id) || !isSecurityKind(kind) || (operation === "update" && !ruleId)) {
+  const kind = paramString(req.params.kind);
+  const ruleId = paramString(req.params.ruleId);
+  if (isNaN(id) || !kind || !isSecurityKind(kind) || (operation === "update" && !ruleId)) {
     res.status(400).json({ error: "Solicitud de regla inválida" });
     return;
   }
@@ -239,17 +243,18 @@ async function mutateRule(
     res.status(400).json({ error: validationError });
     return;
   }
+  const targetRuleId = ruleId ?? "";
 
   const result = await getCoreRouter(id);
   if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+    res.status(result.status ?? 500).json({ error: result.error });
     return;
   }
 
   try {
     const item = operation === "create"
       ? await createMikroTikSecurityRule(result.equipment.ip, result.equipment.username, result.equipment.password, kind, input as SecurityRuleInput)
-      : await updateMikroTikSecurityRule(result.equipment.ip, result.equipment.username, result.equipment.password, kind, ruleId, input);
+      : await updateMikroTikSecurityRule(result.equipment.ip, result.equipment.username, result.equipment.password, kind, targetRuleId, input);
     await writeAudit(
       id,
       `${operation === "create" ? "CREATE" : "UPDATE"}_${kind.toUpperCase()}_RULE`,
