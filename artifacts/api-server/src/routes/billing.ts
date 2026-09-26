@@ -241,7 +241,11 @@ router.post("/billing/payment-proofs/:id/review", async (req, res): Promise<void
       return { kind: "rejected" as const, proof: updated };
     }
     const [invoice] = proof.invoiceId
-      ? await tx.select().from(invoicesTable).where(eq(invoicesTable.id, proof.invoiceId)).for("update")
+      ? await tx.select().from(invoicesTable).where(and(
+        eq(invoicesTable.id, proof.invoiceId),
+        eq(invoicesTable.clientId, proof.clientId),
+        gt(invoicesTable.balanceDue, "0"),
+      )).for("update")
       : await tx.select().from(invoicesTable).where(and(
         eq(invoicesTable.clientId, proof.clientId),
         gt(invoicesTable.balanceDue, "0"),
@@ -316,7 +320,10 @@ router.get("/billing/payment-proofs/:id/download", async (req, res): Promise<voi
   try {
     const file = await downloadPrivateObject(proof.storagePath);
     res.setHeader("Content-Type", proof.mimeType ?? "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${(proof.originalName ?? `comprobante-${proof.id}`).replaceAll('"', "")}"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename*=UTF-8''${encodeURIComponent(proof.originalName ?? `comprobante-${proof.id}`)}`,
+    );
     const buffer = Buffer.from(await file.arrayBuffer());
     res.send(buffer);
   } catch {

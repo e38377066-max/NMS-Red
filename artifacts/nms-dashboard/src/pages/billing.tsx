@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DollarSign, CheckCircle2, AlertCircle, XCircle, Scissors, TrendingUp, Users, FileText, WalletCards, Plus, RefreshCw } from "lucide-react";
+import { DollarSign, CheckCircle2, AlertCircle, XCircle, Scissors, TrendingUp, Users, FileText, WalletCards, Plus, RefreshCw, Download, FileCheck2 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthToken } from "@/lib/auth";
@@ -30,6 +30,23 @@ type Invoice = {
   amountPaid: string;
   balanceDue: string;
   status: string;
+};
+
+type PaymentProof = {
+  id: number;
+  clientId: number;
+  clientName: string;
+  invoiceId: number | null;
+  invoiceNumber: string | null;
+  amount: string;
+  currency: string;
+  method: string;
+  reference: string;
+  notes: string | null;
+  originalName: string | null;
+  mimeType: string | null;
+  status: string;
+  submittedAt: string;
 };
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -73,6 +90,9 @@ export default function Billing() {
   const [savingPayment, setSavingPayment] = useState(false);
   const [countedTotal, setCountedTotal] = useState("");
   const [closingCash, setClosingCash] = useState(false);
+  const [pendingProofs, setPendingProofs] = useState<PaymentProof[]>([]);
+  const [loadingProofs, setLoadingProofs] = useState(true);
+  const [reviewingProof, setReviewingProof] = useState<number | null>(null);
 
   const loadInvoices = async () => {
     setLoadingInvoices(true);
@@ -85,7 +105,21 @@ export default function Billing() {
     }
   };
 
-  useEffect(() => { void loadInvoices(); }, []);
+  const loadPendingProofs = async () => {
+    setLoadingProofs(true);
+    try {
+      setPendingProofs(await billingApi<PaymentProof[]>("/billing/payment-proofs?status=PENDING"));
+    } catch (error) {
+      toast({ title: "No se pudieron cargar los comprobantes", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    } finally {
+      setLoadingProofs(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadInvoices();
+    void loadPendingProofs();
+  }, []);
 
   const handleSuspend = () => {
     if (!confirm("¿Ejecutar corte manual de todos los clientes vencidos?")) return;
@@ -146,6 +180,47 @@ export default function Billing() {
     } catch (error) {
       toast({ title: "No se pudo cerrar la caja", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
     } finally { setClosingCash(false); }
+  };
+
+  const downloadProof = async (proof: PaymentProof) => {
+    try {
+      const response = await fetch(`${BASE}/api/billing/payment-proofs/${proof.id}/download`, {
+        credentials: "include",
+        headers: getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {},
+      });
+      if (!response.ok) throw new Error("No se pudo descargar el comprobante");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = proof.originalName ?? `comprobante-${proof.id}`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({ title: "No se pudo descargar", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    }
+  };
+
+  const reviewProof = async (proof: PaymentProof, status: "APPROVED" | "REJECTED") => {
+    const reason = status === "REJECTED"
+      ? window.prompt("Indica el motivo del rechazo:")
+      : "";
+    if (status === "REJECTED" && !reason?.trim()) return;
+    if (status === "APPROVED" && !window.confirm(`¿Aprobar el comprobante de ${proof.clientName} por ${proof.currency} ${proof.amount}?`)) return;
+    setReviewingProof(proof.id);
+    try {
+      await billingApi(`/billing/payment-proofs/${proof.id}/review`, {
+        method: "POST",
+        body: JSON.stringify({ status, reason: reason?.trim() ?? "" }),
+      });
+      await Promise.all([loadPendingProofs(), loadInvoices()]);
+      queryClient.invalidateQueries({ queryKey: getGetBillingSummaryQueryKey() });
+      toast({ title: status === "APPROVED" ? "Comprobante aprobado" : "Comprobante rechazado", description: status === "APPROVED" ? "El pago fue aplicado a la factura." : "El motivo quedó registrado." });
+    } catch (error) {
+      toast({ title: "No se pudo revisar el comprobante", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    } finally {
+      setReviewingProof(null);
+    }
   };
 
   const cards = [
@@ -314,6 +389,40 @@ export default function Billing() {
                   <TableCell className={Number(invoice.balanceDue) > 0 ? "text-yellow-400" : "text-emerald-400"}>Q {Number(invoice.balanceDue).toFixed(2)}</TableCell>
                   <TableCell><Badge variant="outline">{invoice.status}</Badge></TableCell>
                   <TableCell className="text-right">{Number(invoice.balanceDue) > 0 && <Button size="sm" className="gap-1" onClick={() => { setPaymentInvoice(invoice); setPaymentAmount(invoice.balanceDue); }}><WalletCards className="w-3 h-3" />Aplicar pago</Button>}</TableCell>
+                </TableRow>
+              ))}</TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileCheck2 className="w-4 h-4 text-yellow-400" />Comprobantes pendientes
+            <Badge variant="outline" className="border-yellow-500/30 text-yellow-400">{pendingProofs.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadingProofs ? <div className="p-5 text-sm text-muted-foreground">Cargando comprobantes...</div> : !pendingProofs.length ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">No hay comprobantes pendientes de revisión.</div>
+          ) : (
+            <Table>
+              <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Factura</TableHead><TableHead>Importe</TableHead><TableHead>Referencia</TableHead><TableHead>Enviado</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
+              <TableBody>{pendingProofs.map(proof => (
+                <TableRow key={proof.id}>
+                  <TableCell><div className="font-medium">{proof.clientName}</div><div className="text-xs text-muted-foreground">{proof.method} · {proof.originalName ?? "archivo"}</div></TableCell>
+                  <TableCell className="font-mono text-xs">{proof.invoiceNumber ?? "Automática"}</TableCell>
+                  <TableCell className="font-semibold">{proof.currency} {Number(proof.amount).toFixed(2)}</TableCell>
+                  <TableCell className="max-w-40 truncate text-xs">{proof.reference}</TableCell>
+                  <TableCell className="text-xs">{fmtDate(proof.submittedAt)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" title="Descargar comprobante" onClick={() => void downloadProof(proof)}><Download className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10" disabled={reviewingProof === proof.id} onClick={() => void reviewProof(proof, "REJECTED")}>Rechazar</Button>
+                      <Button size="sm" disabled={reviewingProof === proof.id} onClick={() => void reviewProof(proof, "APPROVED")}>{reviewingProof === proof.id ? "..." : "Aprobar"}</Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}</TableBody>
             </Table>
