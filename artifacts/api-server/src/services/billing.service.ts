@@ -1,7 +1,7 @@
 import { db, clientsTable, equipmentTable, auditLogsTable } from "@workspace/db";
 import { eq, isNotNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { addToAddressList, removeFromAddressList, setClientSpeedLimit } from "./mikrotik.service";
+import { enqueueTask } from "./task-queue.service";
 import type { Server as SocketServer } from "socket.io";
 
 const SUSPENSION_LIST = "Clientes_Cortados";
@@ -60,7 +60,25 @@ export async function runBillingCheck(): Promise<{ suspended: number; markedPend
           .set({ paymentStatus: "SUSPENDED", status: "SUSPENDED" })
           .where(eq(clientsTable.id, client.id));
 
-        await suspendClientOnMikroTik(client.equipmentId, client.mac, client.ip, client.name);
+        const equipment = await getEquipmentConn(client.equipmentId);
+        if (equipment) {
+          await enqueueTask(
+            "billing_suspend",
+            `Suspender cliente ${client.name} por vencimiento`,
+            {
+              ip: equipment.ip,
+              username: equipment.username,
+              password: equipment.password,
+              mac: client.mac,
+              clientIp: client.ip ?? "",
+              clientName: client.name,
+            },
+            client.equipmentId,
+            equipment.model,
+            3,
+            null,
+          );
+        }
         await db.insert(auditLogsTable).values({
           entity: "Client",
           action: "AUTO_SUSPEND",
@@ -114,13 +132,32 @@ export async function registerPayment(
 
   if (!client) return false;
 
-  await reactivateClientOnMikroTik(client.equipmentId, client.mac, client.ip, client.name, client.planLimit ?? "10M/10M");
+  const equipment = await getEquipmentConn(client.equipmentId);
+  if (equipment) {
+    await enqueueTask(
+      "billing_reactivate",
+      `Reactivar cliente ${client.name} tras registrar pago`,
+      {
+        ip: equipment.ip,
+        username: equipment.username,
+        password: equipment.password,
+        mac: client.mac,
+        clientIp: client.ip ?? "",
+        clientName: client.name,
+        planLimit: client.planLimit ?? "10M/10M",
+      },
+      client.equipmentId,
+      equipment.model,
+      3,
+      null,
+    );
+  }
 
   await db.insert(auditLogsTable).values({
     entity: "Client",
     action: "PAYMENT_REGISTERED",
     result: "Success",
-    details: `Pago registrado: ${client.name} | Q${monthlyFee} | Próximo vencimiento: ${nextDue.toLocaleDateString("es")}`,
+    details: `Pago registrado y reactivación encolada: ${client.name} | Q${monthlyFee} | Próximo vencimiento: ${nextDue.toLocaleDateString("es")}`,
     equipmentId: client.equipmentId,
   });
 
@@ -131,6 +168,7 @@ export async function registerPayment(
 async function getEquipmentConn(equipmentId: number) {
   const [equip] = await db
     .select({
+      model: equipmentTable.model,
       ip: equipmentTable.ip,
       username: equipmentTable.username,
       password: equipmentTable.password,
@@ -141,58 +179,6 @@ async function getEquipmentConn(equipmentId: number) {
     .where(eq(equipmentTable.id, equipmentId));
   if (!equip || equip.equipmentRole !== "core_router" || equip.connectionType !== "mikrotik_routeros") return null;
   return equip;
-}
-
-async function suspendClientOnMikroTik(
-  equipmentId: number,
-  mac: string,
-  clientIp: string | null,
-  clientName: string
-): Promise<void> {
-  try {
-    const equip = await getEquipmentConn(equipmentId);
-    if (!equip) return;
-
-    const { ip: rtrIp, username, password } = equip;
-    // 1. Throttle the DHCP lease to 64k/64k. The router uses one global
-    // parent queue (TOTAL) and per-client rate-limit values on leases.
-    const limitResult = await setClientSpeedLimit(rtrIp, username, password, mac, "64k/64k", clientIp ?? undefined, clientName);
-    if (!limitResult.success) logger.warn({ clientName, message: limitResult.message }, "Could not throttle DHCP lease");
-
-    // 2. Add IP to Address List for captive portal redirect
-    if (clientIp) {
-      await addToAddressList(rtrIp, username, password, clientIp, SUSPENSION_LIST, `SUSPENDIDO: ${clientName}`);
-      logger.info({ clientIp, clientName }, `Added to address list ${SUSPENSION_LIST} for portal redirect`);
-    }
-  } catch (err) {
-    logger.warn({ err, mac }, "Could not apply suspension on MikroTik");
-  }
-}
-
-async function reactivateClientOnMikroTik(
-  equipmentId: number,
-  mac: string,
-  clientIp: string | null,
-  clientName: string,
-  planLimit: string
-): Promise<void> {
-  try {
-    const equip = await getEquipmentConn(equipmentId);
-    if (!equip) return;
-
-    const { ip: rtrIp, username, password } = equip;
-    // 1. Restore the DHCP lease rate-limit under the global TOTAL queue.
-    const limitResult = await setClientSpeedLimit(rtrIp, username, password, mac, planLimit, clientIp ?? undefined, clientName);
-    if (!limitResult.success) logger.warn({ clientName, message: limitResult.message }, "Could not restore DHCP lease rate-limit");
-
-    // 2. Remove from suspension address list
-    if (clientIp) {
-      await removeFromAddressList(rtrIp, username, password, clientIp, SUSPENSION_LIST);
-      logger.info({ clientIp, clientName }, `Removed from address list ${SUSPENSION_LIST}`);
-    }
-  } catch (err) {
-    logger.warn({ err, mac }, "Could not reactivate client on MikroTik");
-  }
 }
 
 export async function getBillingSummary() {

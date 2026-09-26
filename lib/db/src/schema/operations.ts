@@ -174,3 +174,16 @@ export const organizationMembershipsTable = pgTable("organization_memberships", 
   siteId: integer("site_id").references(() => sitesTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const maintenanceNoticesTable = pgTable("maintenance_notices", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizationsTable.id, { onDelete: "cascade" }),
+  siteId: integer("site_id").references(() => sitesTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at"),
+  active: boolean("active").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

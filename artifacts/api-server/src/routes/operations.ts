@@ -16,6 +16,7 @@ import {
   clientsTable,
   usersTable,
   portalAccessTable,
+  maintenanceNoticesTable,
 } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -438,6 +439,64 @@ router.post("/sites", async (req, res): Promise<void> => {
   }).returning();
   await audit(res.locals.user, "Site", "CREATE", `Sede ${name} creada`);
   res.status(201).json(serializeDates(site));
+});
+
+router.get("/maintenance-notices", async (_req, res): Promise<void> => {
+  const rows = await db.select().from(maintenanceNoticesTable)
+    .orderBy(desc(maintenanceNoticesTable.startsAt));
+  res.json(rows.map(serializeDates));
+});
+
+router.post("/maintenance-notices", async (req, res): Promise<void> => {
+  const title = text(req.body?.title, 200);
+  const message = text(req.body?.message);
+  const startsAt = optionalDate(req.body?.startsAt);
+  const endsAt = optionalDate(req.body?.endsAt);
+  if (!title || !message || !(startsAt instanceof Date)) {
+    res.status(400).json({ error: "title, message y startsAt son obligatorios y válidos" });
+    return;
+  }
+  if (endsAt === undefined || (endsAt instanceof Date && endsAt <= startsAt)) {
+    res.status(400).json({ error: "endsAt debe ser posterior a startsAt" });
+    return;
+  }
+  const [notice] = await db.insert(maintenanceNoticesTable).values({
+    title,
+    message,
+    startsAt,
+    endsAt: endsAt ?? null,
+    active: req.body?.active !== false,
+    organizationId: asId(req.body?.organizationId),
+    siteId: asId(req.body?.siteId),
+    createdByUserId: res.locals.user?.id ?? null,
+  }).returning();
+  await audit(res.locals.user, "MaintenanceNotice", "CREATE", `Aviso ${title} creado`);
+  res.status(201).json(serializeDates(notice));
+});
+
+router.patch("/maintenance-notices/:id", async (req, res): Promise<void> => {
+  const id = asId(req.params.id);
+  if (!id) { res.status(400).json({ error: "Aviso inválido" }); return; }
+  const update: Record<string, unknown> = {};
+  for (const key of ["title", "message"]) {
+    if (req.body?.[key] !== undefined) {
+      const value = text(req.body[key], key === "title" ? 200 : 4000);
+      if (value) update[key] = value;
+    }
+  }
+  for (const key of ["startsAt", "endsAt"]) {
+    if (req.body?.[key] !== undefined) {
+      const value = optionalDate(req.body[key]);
+      if (value !== undefined) update[key] = value;
+    }
+  }
+  if (typeof req.body?.active === "boolean") update.active = req.body.active;
+  if (!Object.keys(update).length) { res.status(400).json({ error: "No hay cambios válidos" }); return; }
+  const [notice] = await db.update(maintenanceNoticesTable).set(update)
+    .where(eq(maintenanceNoticesTable.id, id)).returning();
+  if (!notice) { res.status(404).json({ error: "Aviso no encontrado" }); return; }
+  await audit(res.locals.user, "MaintenanceNotice", "UPDATE", `Aviso ${id} actualizado`);
+  res.json(serializeDates(notice));
 });
 
 router.get("/reports/operations", async (req, res): Promise<void> => {

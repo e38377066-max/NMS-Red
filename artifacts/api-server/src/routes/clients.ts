@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, or } from "drizzle-orm";
-import { db, clientsTable, equipmentTable, auditLogsTable, clientLifecycleEventsTable } from "@workspace/db";
+import { db, clientsTable, equipmentTable, clientLifecycleEventsTable } from "@workspace/db";
 import {
   CreateClientBody,
   UpdateClientBody,
@@ -10,8 +10,7 @@ import {
   ChangeClientSpeedParams,
   ChangeClientSpeedBody,
 } from "@workspace/api-zod";
-import { setClientSpeedLimit } from "../services/mikrotik.service";
-import { extractUserFromRequest } from "../services/auth.service";
+import { enqueueSpeedChange } from "../services/task-queue.service";
 
 const router: IRouter = Router();
 
@@ -249,38 +248,17 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
     return;
   }
 
-  const authUser = await extractUserFromRequest(req.headers.authorization);
-  const result = await setClientSpeedLimit(
-    equip.ip,
-    equip.username,
-    equip.password,
-    client.mac,
+  const task = await enqueueSpeedChange(
+    params.data.id,
     parsed.data.newLimit,
-    client.ip ?? undefined,
-    client.name,
+    res.locals.user?.id ?? parsed.data.userId ?? null,
   );
 
-  await db.insert(auditLogsTable).values({
-    userId: authUser?.id ?? parsed.data.userId ?? null,
-    username: authUser?.username ?? "operador",
-    equipmentId: equip.id,
-    entity: "Client",
-    action: "SPEED_CHANGE",
-    commandSent: `/ip/dhcp-server/lease set mac-address=${client.mac} rate-limit=${parsed.data.newLimit}`,
-    result: result.success ? "Success" : "Fail",
-    details: `Cliente: ${client.name} (${client.mac}) | Nuevo plan: ${parsed.data.newLimit} | ${result.message}`,
-  });
-
-  if (result.success) {
-    await db
-      .update(clientsTable)
-      .set({ planLimit: parsed.data.newLimit })
-      .where(eq(clientsTable.id, params.data.id));
-  }
-
-  res.json({
-    success: result.success,
-    message: result.message,
+  res.status(202).json({
+    success: true,
+    queued: true,
+    taskId: task.id,
+    message: `Cambio de velocidad encolado para ${client.name}.`,
     requiresConfirmation: null,
     warning: null,
   });
