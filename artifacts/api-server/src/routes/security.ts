@@ -10,14 +10,14 @@ import {
   logSecurityServiceError,
   updateMikroTikSecurityRule,
   validateSecurityRule,
+  type SecurityKind,
   type SecurityRuleInput,
 } from "../services/mikrotik-security.service";
 
 const router: IRouter = Router();
-type SecurityKind = "filter" | "nat";
 
 function isSecurityKind(value: string): value is SecurityKind {
-  return value === "filter" || value === "nat";
+  return value === "filter" || value === "nat" || value === "mangle" || value === "raw";
 }
 
 function paramString(value: string | string[] | undefined): string | undefined {
@@ -46,9 +46,13 @@ function cleanText(value: unknown, maxLength: number): string | undefined {
 function parseRuleInput(body: unknown): Partial<SecurityRuleInput> {
   const source = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const fields = [
-    "action", "chain", "comment", "protocol", "srcAddress", "dstAddress", "dstPort",
-    "srcAddressList", "dstAddressList", "connectionState", "toAddresses", "toPorts",
-    "outInterface", "placeBefore",
+    "action", "chain", "comment", "protocol", "srcAddress", "dstAddress", "srcPort", "dstPort",
+    "srcAddressList", "dstAddressList", "connectionState", "connectionNatState", "connectionMark",
+    "packetMark", "routingMark", "newConnectionMark", "newPacketMark", "newRoutingMark",
+    "inInterface", "toAddresses", "toPorts", "outInterface", "jumpTarget", "addressList",
+    "addressListTimeout", "layer7Protocol", "tcpFlags", "srcMacAddress", "dstMacAddress",
+    "connectionBytes", "connectionRate", "nth", "limit", "time", "hotspot", "fragment", "ttl",
+    "log", "logPrefix", "passthrough", "placeBefore",
   ] as const;
   const result: Partial<SecurityRuleInput> = {};
   for (const field of fields) {

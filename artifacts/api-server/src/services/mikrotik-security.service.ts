@@ -1,6 +1,6 @@
 import { logger } from "../lib/logger";
 
-type SecurityKind = "filter" | "nat";
+export type SecurityKind = "filter" | "nat" | "mangle" | "raw";
 
 export interface SecurityRuleInput {
   action: string;
@@ -9,13 +9,40 @@ export interface SecurityRuleInput {
   protocol?: string;
   srcAddress?: string;
   dstAddress?: string;
+  srcPort?: string;
   dstPort?: string;
   srcAddressList?: string;
   dstAddressList?: string;
   connectionState?: string;
+  connectionNatState?: string;
+  connectionMark?: string;
+  packetMark?: string;
+  routingMark?: string;
+  newConnectionMark?: string;
+  newPacketMark?: string;
+  newRoutingMark?: string;
+  inInterface?: string;
   toAddresses?: string;
   toPorts?: string;
   outInterface?: string;
+  jumpTarget?: string;
+  addressList?: string;
+  addressListTimeout?: string;
+  layer7Protocol?: string;
+  tcpFlags?: string;
+  srcMacAddress?: string;
+  dstMacAddress?: string;
+  connectionBytes?: string;
+  connectionRate?: string;
+  nth?: string;
+  limit?: string;
+  time?: string;
+  hotspot?: string;
+  fragment?: string;
+  ttl?: string;
+  log?: string;
+  logPrefix?: string;
+  passthrough?: string;
   placeBefore?: string;
 }
 
@@ -27,13 +54,40 @@ export interface SecurityRule {
   protocol: string | null;
   srcAddress: string | null;
   dstAddress: string | null;
+  srcPort: string | null;
   dstPort: string | null;
   srcAddressList: string | null;
   dstAddressList: string | null;
   connectionState: string | null;
+  connectionNatState: string | null;
+  connectionMark: string | null;
+  packetMark: string | null;
+  routingMark: string | null;
+  newConnectionMark: string | null;
+  newPacketMark: string | null;
+  newRoutingMark: string | null;
+  inInterface: string | null;
   toAddresses: string | null;
   toPorts: string | null;
   outInterface: string | null;
+  jumpTarget: string | null;
+  addressList: string | null;
+  addressListTimeout: string | null;
+  layer7Protocol: string | null;
+  tcpFlags: string | null;
+  srcMacAddress: string | null;
+  dstMacAddress: string | null;
+  connectionBytes: string | null;
+  connectionRate: string | null;
+  nth: string | null;
+  limit: string | null;
+  time: string | null;
+  hotspot: string | null;
+  fragment: string | null;
+  ttl: string | null;
+  log: string | null;
+  logPrefix: string | null;
+  passthrough: string | null;
 }
 
 export interface SecurityAddressEntry {
@@ -59,14 +113,48 @@ const RULE_FIELDS: Record<string, string> = {
   protocol: "protocol",
   srcAddress: "src-address",
   dstAddress: "dst-address",
+  srcPort: "src-port",
   dstPort: "dst-port",
   srcAddressList: "src-address-list",
   dstAddressList: "dst-address-list",
   connectionState: "connection-state",
+  connectionNatState: "connection-nat-state",
+  connectionMark: "connection-mark",
+  packetMark: "packet-mark",
+  routingMark: "routing-mark",
+  newConnectionMark: "new-connection-mark",
+  newPacketMark: "new-packet-mark",
+  newRoutingMark: "new-routing-mark",
+  inInterface: "in-interface",
   toAddresses: "to-addresses",
   toPorts: "to-ports",
   outInterface: "out-interface",
+  jumpTarget: "jump-target",
+  addressList: "address-list",
+  addressListTimeout: "address-list-timeout",
+  layer7Protocol: "layer7-protocol",
+  tcpFlags: "tcp-flags",
+  srcMacAddress: "src-mac-address",
+  dstMacAddress: "dst-mac-address",
+  connectionBytes: "connection-bytes",
+  connectionRate: "connection-rate",
+  nth: "nth",
+  limit: "limit",
+  time: "time",
+  hotspot: "hotspot",
+  fragment: "fragment",
+  ttl: "ttl",
+  log: "log",
+  logPrefix: "log-prefix",
+  passthrough: "passthrough",
   placeBefore: "place-before",
+};
+
+const SECURITY_PATHS: Record<SecurityKind, string> = {
+  filter: "/ip/firewall/filter",
+  nat: "/ip/firewall/nat",
+  mangle: "/ip/firewall/mangle",
+  raw: "/ip/firewall/raw",
 };
 
 function headers(username: string, password: string): Record<string, string> {
@@ -109,13 +197,40 @@ function serializeRule(raw: Record<string, string>): SecurityRule {
     protocol: raw.protocol ?? null,
     srcAddress: raw["src-address"] ?? null,
     dstAddress: raw["dst-address"] ?? null,
+    srcPort: raw["src-port"] ?? null,
     dstPort: raw["dst-port"] ?? null,
     srcAddressList: raw["src-address-list"] ?? null,
     dstAddressList: raw["dst-address-list"] ?? null,
     connectionState: raw["connection-state"] ?? null,
+    connectionNatState: raw["connection-nat-state"] ?? null,
+    connectionMark: raw["connection-mark"] ?? null,
+    packetMark: raw["packet-mark"] ?? null,
+    routingMark: raw["routing-mark"] ?? null,
+    newConnectionMark: raw["new-connection-mark"] ?? null,
+    newPacketMark: raw["new-packet-mark"] ?? null,
+    newRoutingMark: raw["new-routing-mark"] ?? null,
+    inInterface: raw["in-interface"] ?? null,
     toAddresses: raw["to-addresses"] ?? null,
     toPorts: raw["to-ports"] ?? null,
     outInterface: raw["out-interface"] ?? null,
+    jumpTarget: raw["jump-target"] ?? null,
+    addressList: raw["address-list"] ?? null,
+    addressListTimeout: raw["address-list-timeout"] ?? null,
+    layer7Protocol: raw["layer7-protocol"] ?? null,
+    tcpFlags: raw["tcp-flags"] ?? null,
+    srcMacAddress: raw["src-mac-address"] ?? null,
+    dstMacAddress: raw["dst-mac-address"] ?? null,
+    connectionBytes: raw["connection-bytes"] ?? null,
+    connectionRate: raw["connection-rate"] ?? null,
+    nth: raw.nth ?? null,
+    limit: raw.limit ?? null,
+    time: raw.time ?? null,
+    hotspot: raw.hotspot ?? null,
+    fragment: raw.fragment ?? null,
+    ttl: raw.ttl ?? null,
+    log: raw.log ?? null,
+    logPrefix: raw["log-prefix"] ?? null,
+    passthrough: raw.passthrough ?? null,
   };
 }
 
@@ -139,23 +254,13 @@ function serializeService(raw: Record<string, string>): SecurityService {
   };
 }
 
-export function toRouterOsRuleBody(input: SecurityRuleInput, kind: SecurityKind): Record<string, string> {
+export function toRouterOsRuleBody(input: Partial<SecurityRuleInput>, kind: SecurityKind): Record<string, string> {
   const body: Record<string, string> = {};
   for (const [field, routerField] of Object.entries(RULE_FIELDS)) {
     const value = input[field as keyof SecurityRuleInput];
     if (value !== undefined && value !== null && (value !== "" || field === "comment")) {
       body[routerField] = String(value).trim();
     }
-  }
-
-  if (kind === "filter") {
-    delete body["to-addresses"];
-    delete body["to-ports"];
-    delete body["out-interface"];
-  } else {
-    delete body["connection-state"];
-    delete body["src-address-list"];
-    delete body["dst-address-list"];
   }
 
   return body;
@@ -175,9 +280,11 @@ async function getCollection(
 }
 
 export async function getMikroTikSecurityConfig(ip: string, username: string, password: string) {
-  const [filters, nat, addresses, services] = await Promise.all([
+  const [filters, nat, mangle, raw, addresses, services] = await Promise.all([
     getCollection(ip, username, password, "/ip/firewall/filter"),
     getCollection(ip, username, password, "/ip/firewall/nat"),
+    getCollection(ip, username, password, "/ip/firewall/mangle"),
+    getCollection(ip, username, password, "/ip/firewall/raw"),
     getCollection(ip, username, password, "/ip/firewall/address-list"),
     getCollection(ip, username, password, "/ip/service"),
   ]);
@@ -185,6 +292,8 @@ export async function getMikroTikSecurityConfig(ip: string, username: string, pa
   return {
     filters: filters.map(serializeRule),
     nat: nat.map(serializeRule),
+    mangle: mangle.map(serializeRule),
+    raw: raw.map(serializeRule),
     addressLists: addresses.map(serializeAddress),
     services: services.map(serializeService),
   };
@@ -197,7 +306,7 @@ export async function createMikroTikSecurityRule(
   kind: SecurityKind,
   input: SecurityRuleInput,
 ) {
-  const path = kind === "filter" ? "/ip/firewall/filter" : "/ip/firewall/nat";
+  const path = SECURITY_PATHS[kind];
   const response = await restFetch(ip, username, password, path, {
     method: "POST",
     body: JSON.stringify(toRouterOsRuleBody(input, kind)),
@@ -218,10 +327,10 @@ export async function updateMikroTikSecurityRule(
   ruleId: string,
   input: Partial<SecurityRuleInput>,
 ) {
-  const path = `${kind === "filter" ? "/ip/firewall/filter" : "/ip/firewall/nat"}/${encodeURIComponent(ruleId)}`;
+  const path = `${SECURITY_PATHS[kind]}/${encodeURIComponent(ruleId)}`;
   const response = await restFetch(ip, username, password, path, {
     method: "PATCH",
-    body: JSON.stringify(toRouterOsRuleBody(input as SecurityRuleInput, kind)),
+    body: JSON.stringify(toRouterOsRuleBody(input, kind)),
   });
   if (!response.ok) {
     const details = await response.text().catch(() => "");
@@ -238,7 +347,7 @@ export async function deleteMikroTikSecurityRule(
   kind: SecurityKind,
   ruleId: string,
 ): Promise<void> {
-  const path = `${kind === "filter" ? "/ip/firewall/filter" : "/ip/firewall/nat"}/${encodeURIComponent(ruleId)}`;
+  const path = `${SECURITY_PATHS[kind]}/${encodeURIComponent(ruleId)}`;
   const response = await restFetch(ip, username, password, path, { method: "DELETE" });
   if (!response.ok && response.status !== 404) {
     const details = await response.text().catch(() => "");
@@ -281,21 +390,37 @@ export async function deleteMikroTikAddressEntry(
 }
 
 export function validateSecurityRule(kind: SecurityKind, input: Partial<SecurityRuleInput>, editing = false): string | null {
-  const allowedFilterActions = new Set(["accept", "drop", "reject", "jump", "return", "passthrough"]);
+  const allowedFilterActions = new Set(["accept", "drop", "reject", "jump", "return", "log", "passthrough", "add-src-to-address-list", "add-dst-to-address-list"]);
   const allowedNatActions = new Set(["masquerade", "src-nat", "dst-nat", "redirect", "netmap"]);
-  const allowedChains = kind === "filter" ? new Set(["input", "forward", "output"]) : new Set(["srcnat", "dstnat"]);
-  const actions = kind === "filter" ? allowedFilterActions : allowedNatActions;
+  const allowedMangleActions = new Set(["accept", "drop", "jump", "log", "passthrough", "mark-connection", "mark-packet", "mark-routing", "change-mss", "clear", "tarpit", "return"]);
+  const allowedRawActions = new Set(["accept", "drop", "notrack", "jump", "return"]);
+  const allowedChains = kind === "nat"
+    ? new Set(["srcnat", "dstnat"])
+    : new Set(["input", "forward", "output", "prerouting", "postrouting"]);
+  const actions = kind === "filter" ? allowedFilterActions : kind === "nat" ? allowedNatActions : kind === "mangle" ? allowedMangleActions : allowedRawActions;
 
   if (!input.action || !actions.has(input.action)) return "La acción seleccionada no es válida para este tipo de regla.";
   if (!input.chain || !allowedChains.has(input.chain)) return "La cadena seleccionada no es válida para este tipo de regla.";
   if (!editing && !input.comment?.trim()) return "Escribe una explicación para que otro operador entienda la regla.";
   if (input.comment && input.comment.length > 240) return "El comentario no puede superar 240 caracteres.";
-  if (kind === "filter" && input.chain === "input" && ["drop", "reject"].includes(input.action) &&
+  if (["filter", "raw"].includes(kind) && input.chain === "input" && ["drop", "reject"].includes(input.action) &&
       !input.srcAddress && !input.srcAddressList && !input.protocol && !input.connectionState) {
     return "Esta regla bloquearía todo el acceso al router. Indica una IP, una lista, un protocolo o un estado de conexión.";
   }
   if (kind === "nat" && ["dst-nat", "netmap"].includes(input.action) && !input.toAddresses) {
     return "Una redirección necesita indicar la IP interna de destino.";
+  }
+  if (kind === "mangle" && input.action === "jump" && !input.jumpTarget) {
+    return "Una regla jump necesita indicar la cadena personalizada a la que saltará.";
+  }
+  if (kind === "mangle" && input.action === "mark-connection" && !input.newConnectionMark) {
+    return "Indica el nombre de la marca que se aplicará a la conexión.";
+  }
+  if (kind === "mangle" && input.action === "mark-packet" && !input.newPacketMark) {
+    return "Indica el nombre de la marca que se aplicará al paquete.";
+  }
+  if (kind === "mangle" && input.action === "mark-routing" && !input.newRoutingMark) {
+    return "Indica el nombre de la marca que se aplicará al enrutamiento.";
   }
   return null;
 }
