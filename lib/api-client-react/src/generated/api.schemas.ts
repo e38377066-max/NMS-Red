@@ -304,6 +304,49 @@ export interface ClientUpdate {
   accessPointEquipmentId?: number | null;
 }
 
+export type ClientContractStatus = typeof ClientContractStatus[keyof typeof ClientContractStatus];
+
+
+export const ClientContractStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export interface ClientContract {
+  id: number;
+  clientId: number;
+  version: number;
+  status: ClientContractStatus;
+  isCurrent: boolean;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  /** @nullable */
+  uploadedByUserId?: number | null;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  /** @nullable */
+  reviewReason?: string | null;
+  uploadedAt: string;
+  /** @nullable */
+  reviewedAt?: string | null;
+}
+
+export type ClientContractReviewInputStatus = typeof ClientContractReviewInputStatus[keyof typeof ClientContractReviewInputStatus];
+
+
+export const ClientContractReviewInputStatus = {
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export interface ClientContractReviewInput {
+  status: ClientContractReviewInputStatus;
+  reason?: string;
+}
+
 export interface PaymentInput {
   monthlyFee: number;
   daysUntilNextDue?: number;

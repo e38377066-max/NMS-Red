@@ -46,6 +46,7 @@ function writeAudit(
   clientId: number,
   beforeState?: unknown,
   afterState?: unknown,
+  reason?: string | null,
 ): Promise<unknown> {
   return db.insert(auditLogsTable).values({
     userId: user?.id ?? null,
@@ -59,6 +60,7 @@ function writeAudit(
     device: req.get("user-agent")?.slice(0, 512) ?? null,
     beforeState: beforeState === undefined ? null : JSON.stringify(beforeState),
     afterState: afterState === undefined ? null : JSON.stringify(afterState),
+    reason: reason ?? null,
   });
 }
 
@@ -217,6 +219,7 @@ router.patch(
       clientId,
       { status: existing.status, isCurrent: existing.isCurrent },
       { status: contract.status, isCurrent: contract.isCurrent, reason: contract.reviewReason },
+      contract.reviewReason,
     );
     res.json(serializeContract(contract));
   },

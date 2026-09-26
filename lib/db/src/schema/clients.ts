@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, serial, text, timestamp, integer, numeric, jsonb, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -59,4 +60,7 @@ export const clientContractsTable = pgTable("client_contracts", {
   reviewedAt: timestamp("reviewed_at"),
 }, (table) => ({
   clientVersionUnique: uniqueIndex("client_contracts_client_version_idx").on(table.clientId, table.version),
+  clientCurrentUnique: uniqueIndex("client_contracts_current_idx")
+    .on(table.clientId)
+    .where(sql`${table.isCurrent} = true`),
 }));

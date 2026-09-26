@@ -16,6 +16,10 @@ export * from './backupFileType';
 export * from './billingSummary';
 export * from './cashClosureInput';
 export * from './client';
+export * from './clientContract';
+export * from './clientContractReviewInput';
+export * from './clientContractReviewInputStatus';
+export * from './clientContractStatus';
 export * from './clientInput';
 export * from './clientPaymentStatus';
 export * from './clientStatus';
@@ -29,8 +33,6 @@ export * from './equipmentLastSeenStatus';
 export * from './equipmentLiveStatus';
 export * from './equipmentLiveStatusStatus';
 export * from './equipmentUpdate';
-// These operation parameter schemas are exported from generated/api and would
-// otherwise create ambiguous barrel exports.
 export * from './getDailyBillingReportParams';
 export * from './healthStatus';
 export * from './invoice';

@@ -44,15 +44,21 @@ Este documento separa lo que ya tiene una base funcional de lo que todavía falt
 - Organizaciones y sedes como base de multisede.
 - Avisos de mantenimiento persistentes.
 - Expediente administrativo del cliente: referencia y notas de contrato, fecha y dirección de instalación, técnico responsable, AP/enlace asociado e historial de cambios con usuario, motivo y valores anterior/nuevo.
+- Contratos formales privados versionados: carga de PDF, hash, aprobación/rechazo, documento vigente, descarga protegida y auditoría.
 
 ## Pendientes reales
 
-## 1. Alta completa de clientes
+## 1. Alta completa de clientes — completada
 
-La creación básica, el aprovisionamiento de red y el expediente administrativo base ya existen. Todavía falta cerrar el archivo formal del contrato:
+La creación básica, el aprovisionamiento de red, el expediente administrativo base y el archivo formal del contrato ya están implementados:
 
-- Almacenar el contrato o documento del cliente como archivo.
-- Aprobar y versionar el documento desde la ficha del cliente.
+- Los contratos se almacenan fuera de PostgreSQL mediante el proveedor privado configurado (`filesystem` o `s3`).
+- Cada carga crea una versión inmutable con nombre original, MIME, tamaño, hash SHA-256, ruta privada y usuario de carga.
+- Las versiones pasan por `PENDING`, `APPROVED` o `REJECTED`; el rechazo exige motivo.
+- Solo puede existir un contrato vigente aprobado por cliente; una nueva aprobación sustituye lógicamente a la anterior sin borrar el historial.
+- Las descargas requieren autenticación y pertenencia al cliente indicado en la ruta.
+- La ficha del cliente permite cargar, descargar y revisar documentos cuando el usuario es administrador.
+- Las cargas, aprobaciones y rechazos quedan en auditoría con motivo, usuario, IP, dispositivo y estados anterior/nuevo.
 
 Guía general para avanzar todos los pendientes: `instrucciones-agente/00-guia-general-pendientes.md`.
 

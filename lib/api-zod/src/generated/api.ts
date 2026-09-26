@@ -7,8 +7,7 @@
  */
 import * as zodBase from 'zod';
 
-// Orval emits zod.int() for integer schemas. Keep the generated contract
-// compatible with this workspace's Zod 3 runtime.
+// Orval emits zod.int(), while this workspace intentionally stays on Zod 3.
 const zod = {
   ...zodBase,
   int: () => zodBase.number().int(),
@@ -792,6 +791,103 @@ export const ChangeClientSpeedResponse = zod.object({
   "requiresConfirmation": zod.boolean().nullish(),
   "warning": zod.string().nullish()
 })
+
+
+/**
+ * @summary Listar versiones del contrato formal del cliente
+ */
+export const ListClientContractsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListClientContractsResponseItem = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "version": zod.int(),
+  "status": zod.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  "isCurrent": zod.boolean(),
+  "originalName": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "sha256": zod.string(),
+  "uploadedByUserId": zod.int().nullish(),
+  "reviewedByUserId": zod.int().nullish(),
+  "reviewReason": zod.string().nullish(),
+  "uploadedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+export const ListClientContractsResponse = zod.array(ListClientContractsResponseItem)
+
+
+/**
+ * @summary Cargar una nueva versión PDF del contrato
+ */
+export const UploadClientContractParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UploadClientContractHeader = zod.object({
+  "X-Original-File-Name": zod.string()
+})
+
+export const UploadClientContractResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "version": zod.int(),
+  "status": zod.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  "isCurrent": zod.boolean(),
+  "originalName": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "sha256": zod.string(),
+  "uploadedByUserId": zod.int().nullish(),
+  "reviewedByUserId": zod.int().nullish(),
+  "reviewReason": zod.string().nullish(),
+  "uploadedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Aprobar o rechazar una versión pendiente del contrato
+ */
+export const ReviewClientContractParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "contractId": zod.coerce.number().int()
+})
+
+export const ReviewClientContractBody = zod.object({
+  "status": zod.enum(['APPROVED', 'REJECTED']),
+  "reason": zod.string().optional()
+})
+
+export const ReviewClientContractResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "version": zod.int(),
+  "status": zod.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  "isCurrent": zod.boolean(),
+  "originalName": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "sha256": zod.string(),
+  "uploadedByUserId": zod.int().nullish(),
+  "reviewedByUserId": zod.int().nullish(),
+  "reviewReason": zod.string().nullish(),
+  "uploadedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Descargar una versión protegida del contrato
+ */
+export const DownloadClientContractParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "contractId": zod.coerce.number().int()
+})
+
+export const DownloadClientContractResponse = zod.unknown()
 
 
 /**

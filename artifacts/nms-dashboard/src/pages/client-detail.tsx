@@ -5,6 +5,8 @@ import {
   useGetClientMetrics, getGetClientMetricsQueryKey,
   useRegisterClientPayment, getListClientsQueryKey,
   useChangeClientSpeed,
+  useListClientContracts, useReviewClientContract,
+  type ClientContract,
 } from "@workspace/api-client-react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,11 +22,13 @@ import { Link } from "wouter";
 import {
   ArrowLeft, DollarSign, CheckCircle2, AlertCircle, XCircle,
   Calendar, Zap, Signal, TrendingUp, User, Network, Trash2, ClipboardList, Pencil,
+  FileText, Upload, Download, Clock,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import { getCurrentUser } from "@/lib/auth";
 
 type DhcpLease = {
   id: string;
@@ -68,6 +72,24 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function contractStatusLabel(status: ClientContract["status"]) {
+  if (status === "APPROVED") return "Aprobado";
+  if (status === "REJECTED") return "Rechazado";
+  return "Pendiente de revisión";
+}
+
+function contractStatusClass(status: ClientContract["status"]) {
+  if (status === "APPROVED") return "border-emerald-500/30 text-emerald-400";
+  if (status === "REJECTED") return "border-red-500/30 text-red-400";
+  return "border-yellow-500/30 text-yellow-400";
+}
+
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export default function ClientDetail() {
@@ -103,9 +125,16 @@ export default function ClientDetail() {
       return response.json();
     },
   });
+  const contractsQuery = useListClientContracts(id, {
+    query: {
+      queryKey: ["client-contracts", id],
+      enabled: Number.isInteger(id) && id > 0,
+    },
+  });
 
   const registerPayment = useRegisterClientPayment();
   const changeSpeed = useChangeClientSpeed();
+  const reviewContract = useReviewClientContract();
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -116,6 +145,7 @@ export default function ClientDetail() {
   const [fixedIp, setFixedIp] = useState("");
   const [dhcpServer, setDhcpServer] = useState("");
   const [adminEditOpen, setAdminEditOpen] = useState(false);
+  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [adminForm, setAdminForm] = useState({
     contractReference: "",
     contractNotes: "",
@@ -221,6 +251,46 @@ export default function ClientDetail() {
     },
     onError: (error: Error) => toast({ title: "No se pudo actualizar", description: error.message, variant: "destructive" }),
   });
+
+  const uploadContract = useMutation({
+    mutationFn: async (file: File) => {
+      const response = await fetch(`${BASE}/api/clients/${id}/contracts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/pdf",
+          "X-Original-File-Name": file.name,
+        },
+        body: file,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar el contrato");
+      return payload as ClientContract;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-contracts", id] });
+      toast({ title: "Contrato cargado", description: "La nueva versión quedó pendiente de aprobación." });
+    },
+    onError: (error: Error) => toast({ title: "No se pudo cargar el contrato", description: error.message, variant: "destructive" }),
+  });
+
+  const handleReviewContract = (contract: ClientContract, status: "APPROVED" | "REJECTED") => {
+    const reason = rejectReasons[contract.id]?.trim() ?? "";
+    if (status === "REJECTED" && !reason) {
+      toast({ title: "Motivo requerido", description: "Indica por qué se rechaza el contrato.", variant: "destructive" });
+      return;
+    }
+    reviewContract.mutate(
+      { id, contractId: contract.id, data: { status, reason: reason || undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["client-contracts", id] });
+          setRejectReasons((current) => ({ ...current, [contract.id]: "" }));
+          toast({ title: status === "APPROVED" ? "Contrato aprobado" : "Contrato rechazado" });
+        },
+        onError: (error: Error) => toast({ title: "No se pudo revisar el contrato", description: error.message, variant: "destructive" }),
+      },
+    );
+  };
 
   const submitPayment = () => {
     registerPayment.mutate(
@@ -553,6 +623,97 @@ export default function ClientDetail() {
             <div className="md:col-span-2"><p className="text-xs text-muted-foreground">Dirección de instalación</p><p>{client.installationAddress ?? "Sin registrar"}</p></div>
           </div>
           {client.contractNotes && <p className="mt-4 pt-3 border-t border-border/40 text-sm text-muted-foreground">{client.contractNotes}</p>}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" />
+              Contratos formales
+              <span className="text-xs text-muted-foreground ml-auto">{contractsQuery.data?.length ?? 0} versiones</span>
+            </CardTitle>
+            <label className="inline-flex items-center">
+              <Input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                disabled={uploadContract.isPending}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.currentTarget.value = "";
+                  if (file) uploadContract.mutate(file);
+                }}
+              />
+              <span className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+                <Upload className="w-3.5 h-3.5" />
+                {uploadContract.isPending ? "Cargando..." : "Cargar PDF"}
+              </span>
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {contractsQuery.isLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : contractsQuery.isError ? (
+            <p className="text-sm text-destructive">No se pudieron cargar las versiones del contrato.</p>
+          ) : (contractsQuery.data ?? []).length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-sm text-muted-foreground">
+              <FileText className="h-8 w-8 opacity-50" />
+              <p>No hay contrato formal cargado.</p>
+              <p className="text-xs">Solo se aceptan archivos PDF de hasta 10 MB.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(contractsQuery.data ?? []).map((contract) => (
+                <div key={contract.id} className="rounded-md border border-border/40 p-3">
+                  <div className="flex flex-wrap items-start gap-3">
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{contract.originalName}</span>
+                        <Badge variant="outline" className={contractStatusClass(contract.status)}>
+                          {contract.status === "PENDING" ? <Clock className="mr-1 h-3 w-3" /> : contract.status === "APPROVED" ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <XCircle className="mr-1 h-3 w-3" />}
+                          {contractStatusLabel(contract.status)}
+                        </Badge>
+                        {contract.isCurrent && <Badge variant="secondary">Vigente</Badge>}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Versión {contract.version} · {formatBytes(contract.sizeBytes)} · {fmt(contract.uploadedAt)}
+                      </p>
+                      {contract.reviewReason && <p className="mt-1 text-xs text-muted-foreground">Motivo: {contract.reviewReason}</p>}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0"
+                      onClick={() => window.open(`${BASE}/api/clients/${id}/contracts/${contract.id}/download`, "_blank", "noopener,noreferrer")}
+                    >
+                      <Download className="mr-2 h-3.5 w-3.5" /> Descargar
+                    </Button>
+                  </div>
+                  {contract.status === "PENDING" && getCurrentUser()?.role === "admin" && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+                      <Input
+                        value={rejectReasons[contract.id] ?? ""}
+                        onChange={(event) => setRejectReasons((current) => ({ ...current, [contract.id]: event.target.value }))}
+                        placeholder="Motivo obligatorio si se rechaza"
+                        className="min-w-56 flex-1"
+                        maxLength={500}
+                      />
+                      <Button size="sm" onClick={() => handleReviewContract(contract, "APPROVED")} disabled={reviewContract.isPending}>
+                        <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> Aprobar
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleReviewContract(contract, "REJECTED")} disabled={reviewContract.isPending}>
+                        <XCircle className="mr-2 h-3.5 w-3.5" /> Rechazar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
