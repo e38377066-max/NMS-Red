@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20", "web", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -33,3 +33,8 @@ externalPort = 80
 [[ports]]
 localPort = 19346
 externalPort = 3000
+
+[userenv]
+
+[userenv.development]
+INITIAL_ADMIN_USERNAME = "superadmin"
