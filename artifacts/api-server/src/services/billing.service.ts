@@ -15,6 +15,48 @@ export const DEFAULT_BILLING_SETTINGS = {
   updatedByUserId: null,
 };
 
+export type ProrationReason = "activation" | "relocation" | "plan_change";
+
+export type ProrationInput = {
+  currentMonthlyFee?: number;
+  newMonthlyFee: number;
+  effectiveDate: Date;
+  reason: ProrationReason;
+};
+
+export function calculateProration(input: ProrationInput) {
+  const year = input.effectiveDate.getUTCFullYear();
+  const month = input.effectiveDate.getUTCMonth();
+  const day = input.effectiveDate.getUTCDate();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const billableDays = daysInMonth - day + 1;
+  const currentMonthlyFee = Math.max(0, input.currentMonthlyFee ?? 0);
+  const newMonthlyFee = Math.max(0, input.newMonthlyFee);
+  const basis = input.reason === "plan_change" ? newMonthlyFee - currentMonthlyFee : newMonthlyFee;
+  const proratedAmount = Math.round((basis * billableDays / daysInMonth) * 100) / 100;
+  const charge = Math.max(0, proratedAmount);
+  const credit = Math.max(0, -proratedAmount);
+  const baseAmount = Math.round((newMonthlyFee * billableDays / daysInMonth) * 100) / 100;
+  const discount = Math.min(baseAmount, credit);
+  const total = Math.max(0, Math.round((baseAmount - discount) * 100) / 100);
+  const periodEnd = new Date(Date.UTC(year, month, daysInMonth, 23, 59, 59, 999));
+
+  return {
+    reason: input.reason,
+    effectiveDate: input.effectiveDate,
+    periodEnd,
+    daysInMonth,
+    billableDays,
+    currentMonthlyFee: Number(currentMonthlyFee.toFixed(2)),
+    newMonthlyFee: Number(newMonthlyFee.toFixed(2)),
+    baseAmount,
+    discount,
+    charge,
+    credit,
+    total,
+  };
+}
+
 let io: SocketServer | null = null;
 let billingInterval: ReturnType<typeof setInterval> | null = null;
 

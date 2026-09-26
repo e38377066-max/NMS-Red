@@ -414,6 +414,210 @@ paths:
               schema:
                 $ref: "#/components/schemas/CommandResult"
 
+  /billing/settings:
+    get:
+      operationId: getBillingSettings
+      tags: [billing]
+      summary: Obtener reglas de facturación
+      responses:
+        "200":
+          description: Billing settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSettings"
+    patch:
+      operationId: updateBillingSettings
+      tags: [billing]
+      summary: Actualizar avisos y reglas de suspensión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingSettingsInput"
+      responses:
+        "200":
+          description: Updated billing settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSettings"
+
+  /billing/proration/preview:
+    post:
+      operationId: previewBillingProration
+      tags: [billing]
+      summary: Calcular el importe proporcional de un cambio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProrationInput"
+      responses:
+        "200":
+          description: Proration preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProrationPreview"
+
+  /billing/proration/invoices:
+    post:
+      operationId: createProrationInvoice
+      tags: [billing]
+      summary: Crear una factura prorrateada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProrationInput"
+      responses:
+        "201":
+          description: Prorated invoice created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invoice, calculation]
+                properties:
+                  invoice:
+                    $ref: "#/components/schemas/Invoice"
+                  calculation:
+                    $ref: "#/components/schemas/ProrationPreview"
+
+  /billing/reports/arrears:
+    get:
+      operationId: getArrearsReport
+      tags: [billing]
+      summary: Obtener morosidad por antigüedad y cliente
+      parameters:
+        - name: asOf
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Arrears report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArrearsReport"
+
+  /billing/reports/accounting-export:
+    get:
+      operationId: exportBillingAccounting
+      tags: [billing]
+      summary: Exportar pagos para contabilidad
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: CSV accounting export
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /billing/clients/{id}/debt-history:
+    get:
+      operationId: getClientDebtHistory
+      tags: [billing]
+      summary: Consultar historial de deuda de un cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Debt history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebtHistory"
+
+  /billing/payment-proofs:
+    get:
+      operationId: listPaymentProofs
+      tags: [billing]
+      summary: Listar comprobantes de pago
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED]
+      responses:
+        "200":
+          description: Payment proofs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentProof"
+
+  /billing/payment-proofs/{id}/review:
+    post:
+      operationId: reviewPaymentProof
+      tags: [billing]
+      summary: Aprobar o rechazar un comprobante
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentProofReviewInput"
+      responses:
+        "200":
+          description: Reviewed payment proof
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentProof"
+
+  /billing/payment-proofs/{id}/download:
+    get:
+      operationId: downloadPaymentProof
+      tags: [billing]
+      summary: Descargar un comprobante privado
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Private proof file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
   /billing/invoices:
     get:
       operationId: listBillingInvoices

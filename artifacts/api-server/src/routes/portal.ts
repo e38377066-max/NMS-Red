@@ -93,10 +93,12 @@ router.get("/session", async (req, res): Promise<void> => {
       currency: paymentProofsTable.currency,
       method: paymentProofsTable.method,
       reference: paymentProofsTable.reference,
+      notes: paymentProofsTable.notes,
       originalName: paymentProofsTable.originalName,
       mimeType: paymentProofsTable.mimeType,
       status: paymentProofsTable.status,
       rejectionReason: paymentProofsTable.rejectionReason,
+      resubmissionOfId: paymentProofsTable.resubmissionOfId,
       submittedAt: paymentProofsTable.submittedAt,
       reviewedAt: paymentProofsTable.reviewedAt,
     }).from(paymentProofsTable)
@@ -214,10 +216,14 @@ router.post("/payment-proof", async (req, res): Promise<void> => {
   const invoiceId = req.body?.invoiceId === undefined || req.body?.invoiceId === ""
     ? null
     : id(req.body?.invoiceId);
+  const resubmissionOfId = req.body?.resubmitProofId === undefined || req.body?.resubmitProofId === ""
+    ? null
+    : id(req.body?.resubmitProofId);
   if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
   const file = decodeProofFile(req.body?.file, req.body?.mimeType);
   if (!reference || reference.length > 160 || !amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0 ||
-      !proofMethods.has(method) || !file || (req.body?.invoiceId !== undefined && !invoiceId)) {
+      !proofMethods.has(method) || !file || (req.body?.invoiceId !== undefined && !invoiceId) ||
+      (req.body?.resubmitProofId !== undefined && !resubmissionOfId)) {
     res.status(400).json({ error: "Referencia, importe, método y archivo válido son obligatorios" });
     return;
   }
@@ -233,6 +239,28 @@ router.post("/payment-proof", async (req, res): Promise<void> => {
     ));
     if (!invoice) {
       res.status(400).json({ error: "La factura seleccionada no pertenece a tu cuenta o ya está pagada" });
+      return;
+    }
+  }
+  if (resubmissionOfId) {
+    const [rejectedProof] = await db.select({
+      id: paymentProofsTable.id,
+      status: paymentProofsTable.status,
+    }).from(paymentProofsTable).where(and(
+      eq(paymentProofsTable.id, resubmissionOfId),
+      eq(paymentProofsTable.clientId, clientId),
+    ));
+    if (!rejectedProof || rejectedProof.status !== "REJECTED") {
+      res.status(400).json({ error: "Solo puedes reenviar un comprobante rechazado de tu cuenta" });
+      return;
+    }
+    const [existingResubmission] = await db.select({ id: paymentProofsTable.id })
+      .from(paymentProofsTable).where(and(
+        eq(paymentProofsTable.resubmissionOfId, resubmissionOfId),
+        eq(paymentProofsTable.status, "PENDING"),
+      ));
+    if (existingResubmission) {
+      res.status(409).json({ error: "Ya existe un reenvío pendiente para este comprobante" });
       return;
     }
   }
@@ -264,6 +292,7 @@ router.post("/payment-proof", async (req, res): Promise<void> => {
     sizeBytes: file.data.length,
     sha256: createHash("sha256").update(file.data).digest("hex"),
     storagePath,
+    resubmissionOfId,
   }).returning();
   res.status(201).json({
     ...proof,

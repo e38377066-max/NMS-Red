@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Response } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { RegisterClientPaymentParams, RegisterClientPaymentBody } from "@workspace/api-zod";
 import { and, desc, eq, gte, gt, lt, lte, or, isNull } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
@@ -12,7 +12,14 @@ import {
   billingSettingsTable,
   auditLogsTable,
 } from "@workspace/db";
-import { registerPayment, getBillingSummary, getBillingSettings, queueClientReactivation, runBillingCheck } from "../services/billing.service";
+import {
+  calculateProration,
+  registerPayment,
+  getBillingSummary,
+  getBillingSettings,
+  queueClientReactivation,
+  runBillingCheck,
+} from "../services/billing.service";
 import { downloadPrivateObject, uploadPrivateObject } from "../services/object-storage.service";
 
 const router: IRouter = Router();
@@ -117,6 +124,94 @@ router.patch("/billing/settings", async (req, res): Promise<void> => {
   }).returning();
   await audit(res, "SETTINGS_UPDATE", `Configuración actualizada: aviso ${reminderDaysBefore} días, gracia ${graceDays} días`, undefined);
   res.json(serialize(settings));
+});
+
+const prorationReasons = new Set(["activation", "relocation", "plan_change"]);
+
+async function getProrationInput(req: Request) {
+  const clientId = Number(req.body?.clientId);
+  const newMonthlyFee = asMoney(req.body?.newMonthlyFee);
+  const effectiveDate = asDate(req.body?.effectiveDate);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  const requestedCurrentFee = req.body?.currentMonthlyFee === undefined
+    ? null
+    : asMoney(req.body?.currentMonthlyFee);
+  if (!Number.isInteger(clientId) || clientId <= 0 || newMonthlyFee === null || newMonthlyFee <= 0 ||
+      !effectiveDate || !prorationReasons.has(reason)) {
+    return { error: "Cliente, plan nuevo, fecha efectiva y motivo son obligatorios y válidos" } as const;
+  }
+  const [client] = await db.select({
+    id: clientsTable.id,
+    name: clientsTable.name,
+    monthlyFee: clientsTable.monthlyFee,
+  }).from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!client) return { error: "Cliente no encontrado" } as const;
+  if (req.body?.currentMonthlyFee !== undefined && requestedCurrentFee === null) {
+    return { error: "La cuota actual no es válida" } as const;
+  }
+  const currentMonthlyFee = reason === "plan_change"
+    ? requestedCurrentFee ?? Number(client.monthlyFee ?? 0)
+    : 0;
+  return {
+    client,
+    calculation: calculateProration({
+      currentMonthlyFee,
+      newMonthlyFee,
+      effectiveDate,
+      reason: reason as "activation" | "relocation" | "plan_change",
+    }),
+  } as const;
+}
+
+router.post("/billing/proration/preview", async (req, res): Promise<void> => {
+  const result = await getProrationInput(req);
+  if ("error" in result) {
+    res.status(result.error === "Cliente no encontrado" ? 404 : 400).json({ error: result.error });
+    return;
+  }
+  res.json({
+    clientId: result.client.id,
+    clientName: result.client.name,
+    ...serialize(result.calculation),
+  });
+});
+
+router.post("/billing/proration/invoices", async (req, res): Promise<void> => {
+  const result = await getProrationInput(req);
+  if ("error" in result) {
+    res.status(result.error === "Cliente no encontrado" ? 404 : 400).json({ error: result.error });
+    return;
+  }
+  const calculation = result.calculation;
+  if (calculation.total <= 0) {
+    res.status(400).json({ error: "El prorrateo genera un crédito y no una factura cobrable", credit: calculation.credit });
+    return;
+  }
+  const [invoice] = await db.insert(invoicesTable).values({
+    clientId: result.client.id,
+    number: invoiceNumber(result.client.id),
+    periodStart: calculation.effectiveDate,
+    periodEnd: calculation.periodEnd,
+    dueDate: calculation.effectiveDate,
+    subtotal: calculation.baseAmount.toFixed(2),
+    discount: calculation.discount.toFixed(2),
+    surcharge: "0.00",
+    total: calculation.total.toFixed(2),
+    balanceDue: calculation.total.toFixed(2),
+    kind: "PRORATED",
+    metadata: {
+      reason: calculation.reason,
+      effectiveDate: calculation.effectiveDate.toISOString(),
+      periodEnd: calculation.periodEnd.toISOString(),
+      daysInMonth: calculation.daysInMonth,
+      billableDays: calculation.billableDays,
+      currentMonthlyFee: calculation.currentMonthlyFee,
+      newMonthlyFee: calculation.newMonthlyFee,
+      credit: calculation.credit,
+    },
+  }).returning();
+  await audit(res, "PRORATION_INVOICE_CREATED", `Factura prorrateada ${invoice.number} creada para ${result.client.name}`, result.client.id);
+  res.status(201).json({ invoice: serialize(invoice), calculation: serialize(calculation) });
 });
 
 router.get("/billing/reports/arrears", async (req, res): Promise<void> => {
@@ -349,6 +444,60 @@ router.get("/billing/invoices", async (req, res): Promise<void> => {
     clientName: row.clientName,
     clientMac: row.clientMac,
   })));
+});
+
+router.get("/billing/clients/:id/debt-history", async (req, res): Promise<void> => {
+  const clientId = Number(req.params.id);
+  if (!Number.isInteger(clientId) || clientId <= 0) {
+    res.status(400).json({ error: "Cliente inválido" });
+    return;
+  }
+  const [client] = await db.select({ id: clientsTable.id, name: clientsTable.name })
+    .from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!client) {
+    res.status(404).json({ error: "Cliente no encontrado" });
+    return;
+  }
+  const [invoices, payments] = await Promise.all([
+    db.select().from(invoicesTable).where(eq(invoicesTable.clientId, clientId)).orderBy(desc(invoicesTable.dueDate)),
+    db.select().from(paymentsTable).where(eq(paymentsTable.clientId, clientId)).orderBy(desc(paymentsTable.paidAt)),
+  ]);
+  const events = [
+    ...invoices.map(invoice => ({
+      type: "invoice" as const,
+      date: invoice.dueDate,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.number,
+      periodStart: invoice.periodStart,
+      periodEnd: invoice.periodEnd,
+      amount: invoice.total,
+      amountPaid: invoice.amountPaid,
+      balanceDue: invoice.balanceDue,
+      status: invoice.status,
+      paymentId: null,
+      method: null,
+    })),
+    ...payments.map(payment => ({
+      type: "payment" as const,
+      date: payment.paidAt,
+      invoiceId: payment.invoiceId,
+      invoiceNumber: null,
+      periodStart: null,
+      periodEnd: null,
+      amount: payment.amount,
+      amountPaid: payment.amount,
+      balanceDue: null,
+      status: payment.status,
+      paymentId: payment.id,
+      method: payment.method,
+    })),
+  ].sort((a, b) => b.date.getTime() - a.date.getTime());
+  res.json({
+    client,
+    currentBalance: invoices.reduce((total, invoice) => total + Number(invoice.balanceDue), 0),
+    invoices: invoices.map(serialize),
+    events: events.map(serialize),
+  });
 });
 
 router.post("/billing/invoices", async (req, res): Promise<void> => {

@@ -114,6 +114,7 @@ export const paymentProofsTable = pgTable("payment_proofs", {
   submittedAt: timestamp("submitted_at").defaultNow().notNull(),
   reviewedByUserId: integer("reviewed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   reviewedAt: timestamp("reviewed_at"),
+  resubmissionOfId: integer("resubmission_of_id"),
   approvedPaymentId: integer("approved_payment_id").references(() => paymentsTable.id, { onDelete: "set null" }),
 });
 
