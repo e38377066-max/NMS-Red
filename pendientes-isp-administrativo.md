@@ -27,6 +27,7 @@ Este documento separa lo que ya tiene una base funcional de lo que todavía falt
 - Reporte diario de ingresos y cierre diario de caja.
 - Suspensión y reactivación automática de facturación.
 - Portal básico con token independiente.
+- Portal web del cliente con acceso por token, estado del servicio, saldo real de facturas, pagos y recibos descargables, avisos, tickets y solicitudes operativas.
 - Tickets y comentarios.
 - Órdenes de campo.
 - Inventario básico.
@@ -68,22 +69,19 @@ La emisión básica, el cobro y el cierre diario ya existen. Falta:
 
 ## 3. Portal del cliente
 
-El backend tiene token, sesión, pagos, tickets, avisos y recibos HTML. Falta la interfaz completa para el cliente:
+La interfaz web y el backend base ya están conectados:
 
 - Pantalla real para iniciar sesión con el token.
-- Ver el plan actual.
-- Ver la velocidad contratada.
-- Ver el saldo pendiente.
-- Ver el vencimiento.
-- Ver el historial de pagos y descargar recibos desde una pantalla del portal.
-- Consultar y crear tickets desde una pantalla del portal.
+- Ver el plan actual, la velocidad contratada, el vencimiento y el estado del servicio.
+- Ver el saldo real de facturas, no solo el estado de pago del cliente.
+- Ver el historial de pagos y descargar recibos desde el portal.
+- Consultar y crear tickets desde el portal.
 - Ver avisos de mantenimiento.
-- Solicitar cambio de plan, traslado y reconexión desde una pantalla del portal.
-- Confirmar el cierre de un ticket.
-- Ver el AP o enlace asociado.
-- Ver el saldo real de facturas y no solo el estado de pago del cliente.
+- Solicitar cambio de plan, traslado y reconexión.
+- Confirmar el cierre de un ticket atendido.
+- Ver el router central y el AP/enlace asociado cuando están registrados.
 
-Actualmente el comprobante se registra como ticket; falta el flujo formal de aprobación y almacenamiento del archivo.
+Todavía falta cerrar el flujo formal de comprobantes: almacenamiento del archivo, aprobación o rechazo y aplicación del pago cuando corresponda.
 
 ## 4. Soporte y tickets
 

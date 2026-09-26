@@ -22,6 +22,7 @@ import Security from "@/pages/security";
 import Monitoring from "@/pages/monitoring";
 import Reconciliation from "@/pages/reconciliation";
 import Operations from "@/pages/operations";
+import ClientPortal from "@/pages/client-portal";
 import { getCurrentUser } from "@/lib/auth";
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/portal" component={ClientPortal} />
       <Route path="/">
         <Protected><Layout><Dashboard /></Layout></Protected>
       </Route>

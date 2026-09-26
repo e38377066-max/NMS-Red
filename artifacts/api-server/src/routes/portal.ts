@@ -1,7 +1,16 @@
 import { Router, type IRouter, type Request } from "express";
 import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { db, clientsTable, portalAccessTable, ticketsTable, paymentsTable, maintenanceNoticesTable } from "@workspace/db";
+import {
+  db,
+  clientsTable,
+  equipmentTable,
+  invoicesTable,
+  portalAccessTable,
+  ticketsTable,
+  paymentsTable,
+  maintenanceNoticesTable,
+} from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -38,14 +47,34 @@ router.get("/session", async (req, res): Promise<void> => {
     id: clientsTable.id, name: clientsTable.name, planLimit: clientsTable.planLimit,
     status: clientsTable.status, paymentStatus: clientsTable.paymentStatus,
     monthlyFee: clientsTable.monthlyFee, dueDate: clientsTable.dueDate,
+    equipmentId: clientsTable.equipmentId, accessPointEquipmentId: clientsTable.accessPointEquipmentId,
   }).from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) { res.status(404).json({ error: "Cliente no encontrado" }); return; }
-  const payments = await db.select().from(paymentsTable)
-    .where(eq(paymentsTable.clientId, clientId)).orderBy(paymentsTable.paidAt);
-  const tickets = await db.select().from(ticketsTable)
-    .where(eq(ticketsTable.clientId, clientId)).orderBy(ticketsTable.updatedAt);
+  const [payments, tickets, invoices, equipment] = await Promise.all([
+    db.select().from(paymentsTable)
+      .where(eq(paymentsTable.clientId, clientId)).orderBy(paymentsTable.paidAt),
+    db.select().from(ticketsTable)
+      .where(eq(ticketsTable.clientId, clientId)).orderBy(ticketsTable.updatedAt),
+    db.select().from(invoicesTable)
+      .where(eq(invoicesTable.clientId, clientId)).orderBy(invoicesTable.dueDate),
+    db.select({
+      id: equipmentTable.id,
+      model: equipmentTable.model,
+      ip: equipmentTable.ip,
+      equipmentRole: equipmentTable.equipmentRole,
+      lastSeenStatus: equipmentTable.lastSeenStatus,
+    }).from(equipmentTable),
+  ]);
+  const equipmentById = new Map(equipment.map(item => [item.id, item]));
   res.json({
-    client: { ...client, dueDate: client.dueDate?.toISOString() ?? null },
+    client: {
+      ...client,
+      dueDate: client.dueDate?.toISOString() ?? null,
+      network: {
+        coreRouter: equipmentById.get(client.equipmentId) ?? null,
+        accessPoint: client.accessPointEquipmentId ? equipmentById.get(client.accessPointEquipmentId) ?? null : null,
+      },
+    },
     payments: payments.map(payment => ({ ...payment, paidAt: payment.paidAt.toISOString(), createdAt: payment.createdAt.toISOString() })),
     tickets: tickets.map(ticket => ({
       ...ticket,
@@ -54,6 +83,13 @@ router.get("/session", async (req, res): Promise<void> => {
       closedAt: ticket.closedAt?.toISOString() ?? null,
       createdAt: ticket.createdAt.toISOString(),
       updatedAt: ticket.updatedAt.toISOString(),
+    })),
+    invoices: invoices.map(invoice => ({
+      ...invoice,
+      periodStart: invoice.periodStart.toISOString(),
+      periodEnd: invoice.periodEnd.toISOString(),
+      dueDate: invoice.dueDate.toISOString(),
+      createdAt: invoice.createdAt.toISOString(),
     })),
   });
 });
@@ -94,6 +130,30 @@ router.post("/plan-change", async (req, res): Promise<void> => {
   res.status(201).json({ ...ticket, createdAt: ticket.createdAt.toISOString() });
 });
 
+router.post("/service-request", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  const requestedType = typeof req.body?.type === "string" ? req.body.type : "";
+  const type = requestedType === "relocation" || requestedType === "reconnection"
+    ? requestedType as "relocation" | "reconnection"
+    : null;
+  const details = typeof req.body?.details === "string" ? req.body.details.trim() : "";
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  if (!type || !details || details.length > 4000) {
+    res.status(400).json({ error: "Tipo y detalle de la solicitud son obligatorios" });
+    return;
+  }
+  const labels: Record<"relocation" | "reconnection", string> = { relocation: "traslado", reconnection: "reconexión" };
+  const [ticket] = await db.insert(ticketsTable).values({
+    clientId,
+    subject: `Solicitud de ${labels[type]}`,
+    description: details,
+    category: type,
+    priority: "normal",
+    status: "open",
+  }).returning({ id: ticketsTable.id, status: ticketsTable.status, createdAt: ticketsTable.createdAt });
+  res.status(201).json({ ...ticket, createdAt: ticket.createdAt.toISOString() });
+});
+
 router.post("/payment-proof", async (req, res): Promise<void> => {
   const clientId = await getPortalClient(req);
   const reference = typeof req.body?.reference === "string" ? req.body.reference.trim() : "";
@@ -114,6 +174,24 @@ router.post("/payment-proof", async (req, res): Promise<void> => {
     status: "open",
   }).returning({ id: ticketsTable.id, status: ticketsTable.status, createdAt: ticketsTable.createdAt });
   res.status(201).json({ ...ticket, createdAt: ticket.createdAt.toISOString() });
+});
+
+router.post("/tickets/:id/close", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  const ticketId = id(req.params.id);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  if (!ticketId) { res.status(400).json({ error: "Ticket inválido" }); return; }
+  const [ticket] = await db.update(ticketsTable).set({
+    status: "closed",
+    closedByClient: true,
+    closedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(and(
+    eq(ticketsTable.id, ticketId),
+    eq(ticketsTable.clientId, clientId),
+  )).returning({ id: ticketsTable.id, status: ticketsTable.status });
+  if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  res.json(ticket);
 });
 
 router.get("/notices", async (req, res): Promise<void> => {
