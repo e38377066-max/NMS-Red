@@ -54,7 +54,7 @@ La creación básica, el aprovisionamiento de red y el expediente administrativo
 - Almacenar el contrato o documento del cliente como archivo.
 - Aprobar y versionar el documento desde la ficha del cliente.
 
-Instrucción para el siguiente agente: `instrucciones-agente/01-contrato-cliente.md`.
+Guía general para avanzar todos los pendientes: `instrucciones-agente/00-guia-general-pendientes.md`.
 
 ## 2. Facturación administrativa completa
 
