@@ -7,6 +7,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { clientsTable } from "./clients";
 import { equipmentTable } from "./equipment";
@@ -69,8 +70,11 @@ export const paymentsTable = pgTable("payments", {
   notes: text("notes"),
   paidAt: timestamp("paid_at").defaultNow().notNull(),
   receivedByUserId: integer("received_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  idempotencyKey: text("idempotency_key"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  idempotencyKeyUnique: uniqueIndex("payments_idempotency_key_idx").on(table.idempotencyKey),
+}));
 
 export const invoicesTable = pgTable("invoices", {
   id: serial("id").primaryKey(),
@@ -86,7 +90,42 @@ export const invoicesTable = pgTable("invoices", {
   amountPaid: numeric("amount_paid", { precision: 12, scale: 2 }).notNull().default("0"),
   balanceDue: numeric("balance_due", { precision: 12, scale: 2 }).notNull(),
   status: text("status").notNull().default("OPEN"),
+  kind: text("kind").notNull().default("RECURRING"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const paymentProofsTable = pgTable("payment_proofs", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clientsTable.id, { onDelete: "cascade" }),
+  invoiceId: integer("invoice_id").references(() => invoicesTable.id, { onDelete: "set null" }),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  method: text("method").notNull(),
+  reference: text("reference").notNull(),
+  notes: text("notes"),
+  originalName: text("original_name"),
+  mimeType: text("mime_type"),
+  sizeBytes: integer("size_bytes"),
+  sha256: text("sha256"),
+  storagePath: text("storage_path"),
+  status: text("status").notNull().default("PENDING"),
+  rejectionReason: text("rejection_reason"),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at"),
+  approvedPaymentId: integer("approved_payment_id").references(() => paymentsTable.id, { onDelete: "set null" }),
+});
+
+export const billingSettingsTable = pgTable("billing_settings", {
+  id: serial("id").primaryKey(),
+  reminderDaysBefore: integer("reminder_days_before").notNull().default(3),
+  graceDays: integer("grace_days").notNull().default(0),
+  autoSuspend: boolean("auto_suspend").notNull().default(true),
+  reminderEnabled: boolean("reminder_enabled").notNull().default(true),
+  currency: text("currency").notNull().default("USD"),
+  updatedByUserId: integer("updated_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const cashClosuresTable = pgTable("cash_closures", {

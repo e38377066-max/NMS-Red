@@ -1,10 +1,19 @@
-import { db, clientsTable, equipmentTable, auditLogsTable } from "@workspace/db";
+import { db, clientsTable, equipmentTable, auditLogsTable, billingSettingsTable } from "@workspace/db";
 import { eq, isNotNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { enqueueTask } from "./task-queue.service";
 import type { Server as SocketServer } from "socket.io";
 
 const SUSPENSION_LIST = "Clientes_Cortados";
+export const DEFAULT_BILLING_SETTINGS = {
+  id: 1,
+  reminderDaysBefore: 3,
+  graceDays: 0,
+  autoSuspend: true,
+  reminderEnabled: true,
+  currency: "USD",
+  updatedByUserId: null,
+};
 
 let io: SocketServer | null = null;
 let billingInterval: ReturnType<typeof setInterval> | null = null;
@@ -27,12 +36,18 @@ export function stopBillingCron(): void {
   }
 }
 
+export async function getBillingSettings() {
+  const [settings] = await db.select().from(billingSettingsTable).where(eq(billingSettingsTable.id, 1));
+  return settings ?? DEFAULT_BILLING_SETTINGS;
+}
+
 export async function runBillingCheck(): Promise<{ suspended: number; markedPending: number }> {
   const now = new Date();
   let suspended = 0;
   let markedPending = 0;
 
   try {
+    const settings = await getBillingSettings();
     const allClients = await db
       .select({
         id: clientsTable.id,
@@ -51,10 +66,12 @@ export async function runBillingCheck(): Promise<{ suspended: number; markedPend
       if (!client.dueDate) continue;
       const due = new Date(client.dueDate);
 
-      const isPastDue = due <= now;
-      const isNearDue = !isPastDue && (due.getTime() - now.getTime()) < 3 * 24 * 60 * 60 * 1000;
+      const suspensionDate = new Date(due.getTime() + settings.graceDays * 24 * 60 * 60 * 1000);
+      const isPastDue = suspensionDate <= now;
+      const isNearDue = !isPastDue && settings.reminderEnabled &&
+        (due.getTime() - now.getTime()) <= settings.reminderDaysBefore * 24 * 60 * 60 * 1000;
 
-      if (isPastDue && client.paymentStatus !== "SUSPENDED") {
+      if (isPastDue && settings.autoSuspend && client.paymentStatus !== "SUSPENDED") {
         await db
           .update(clientsTable)
           .set({ paymentStatus: "SUSPENDED", status: "SUSPENDED" })
@@ -84,7 +101,7 @@ export async function runBillingCheck(): Promise<{ suspended: number; markedPend
           action: "AUTO_SUSPEND",
           commandSent: `/ip/firewall/address-list add address=${client.ip ?? client.mac} list=${SUSPENSION_LIST}`,
           result: "Success",
-          details: `Cliente ${client.name} suspendido automáticamente (venció: ${due.toLocaleDateString("es")})`,
+          details: `Cliente ${client.name} suspendido automáticamente (vencimiento: ${due.toLocaleDateString("es")}, gracia: ${settings.graceDays} días)`,
           equipmentId: client.equipmentId,
         });
 
