@@ -1,0 +1,21 @@
+mira todo lo pendiente por aser necesito que implementes todo de manera detallada sin dejar nada a media y todo funcinal no con datos de prueba ni modo simulacion si no funcional listo para produccion
+
+Free 7 minutes ago Voy a revisar el documento adjunto como especificación, contrastarlo con el estado real del código y localizar lo que esté incompleto antes de tocar nada. Después priorizaré la implementación por bloques funcionales y validaré cada flujo contra servicios reales, no contra datos simulados.
+
+4 actions El documento no describe una sola mejora: enumera 20 áreas de producción, desde conexión segura y ejecución de comandos hasta facturación, soporte, inventario, multisede y recuperación. Voy a separar lo que ya existe de lo que falta, empezando por el núcleo de riesgo: autenticación/credenciales, conexión, cola de operaciones, backups y reconciliación. También comprobaré si hay módulos ya implementados para no duplicarlos.
+
+Show less Loaded skill pnpm-workspace
+
+Opened nms-platform.md
+
+Free
+8 minutes ago
+Voy a convertir los tres adjuntos en una lista verificable de requisitos y contrastarla con el código actual. Primero localizaré qué existe, qué está incompleto y qué depende de servicios reales; todavía no asumiré que una pantalla o endpoint sea funcional solo porque esté escrito.
+
+
+4 actions
+Los adjuntos confirman que el alcance es un producto completo de operación ISP, no un único arreglo. También dejan una restricción importante: no usar almacenamiento ni servicios específicos de Replit, porque el despliegue será externo. Ahora revisaré el estado real del código y las dependencias para no rehacer trabajo ni dejar integraciones “simuladas”.
+
+Agent activity Como rechazaste definir proveedores y conectividad, no voy a inventar integraciones ni marcar el sistema como “listo para producción”. Haré una última verificación de los cambios ya realizados, registraré las decisiones técnicas duraderas y dejaré claramente separado lo que ya está funcional de lo que requiere tus servicios reales. Agent activity Agent activity Agent activity
+
+S
