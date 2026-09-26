@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, numeric, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, jsonb, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { equipmentTable } from "./equipment";
@@ -40,3 +40,23 @@ export const clientChangeHistoryTable = pgTable("client_change_history", {
   newData: jsonb("new_data").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const clientContractsTable = pgTable("client_contracts", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clientsTable.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  status: text("status").notNull().default("PENDING"),
+  isCurrent: boolean("is_current").notNull().default(false),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  sha256: text("sha256").notNull(),
+  storagePath: text("storage_path").notNull(),
+  uploadedByUserId: integer("uploaded_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  reviewReason: text("review_reason"),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+}, (table) => ({
+  clientVersionUnique: uniqueIndex("client_contracts_client_version_idx").on(table.clientId, table.version),
+}));

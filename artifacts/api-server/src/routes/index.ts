@@ -19,6 +19,7 @@ import tasksRouter from "./tasks";
 import { requireAuth } from "../middlewares/auth";
 import operationsRouter from "./operations";
 import portalRouter from "./portal";
+import clientContractsRouter from "./client-contracts";
 
 const router: IRouter = Router();
 
@@ -29,6 +30,7 @@ router.use(requireAuth);
 router.use(nodesRouter);
 router.use(equipmentRouter);
 router.use(clientsRouter);
+router.use(clientContractsRouter);
 router.use(billingRouter);
 router.use(backupsRouter);
 router.use(metricsRouter);

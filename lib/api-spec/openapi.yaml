@@ -641,6 +641,117 @@ paths:
               schema:
                 $ref: "#/components/schemas/CommandResult"
 
+  /clients/{id}/contracts:
+    get:
+      operationId: listClientContracts
+      tags: [clients]
+      summary: Listar versiones del contrato formal del cliente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contract versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientContract"
+    post:
+      operationId: uploadClientContract
+      tags: [clients]
+      summary: Cargar una nueva versión PDF del contrato
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-Original-File-Name
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Contract uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientContract"
+        "400":
+          description: Invalid PDF
+
+  /clients/{id}/contracts/{contractId}/review:
+    patch:
+      operationId: reviewClientContract
+      tags: [clients]
+      summary: Aprobar o rechazar una versión pendiente del contrato
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientContractReviewInput"
+      responses:
+        "200":
+          description: Contract reviewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientContract"
+
+  /clients/{id}/contracts/{contractId}/download:
+    get:
+      operationId: downloadClientContract
+      tags: [clients]
+      summary: Descargar una versión protegida del contrato
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Private contract PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
   # USERS (RBAC)
   /users:
     get:
@@ -1345,6 +1456,52 @@ components:
           type: ["integer", "null"]
         accessPointEquipmentId:
           type: ["integer", "null"]
+
+    ClientContract:
+      type: object
+      required: [id, clientId, version, status, isCurrent, originalName, mimeType, sizeBytes, sha256, uploadedAt]
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        version:
+          type: integer
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        isCurrent:
+          type: boolean
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        sha256:
+          type: string
+        uploadedByUserId:
+          type: ["integer", "null"]
+        reviewedByUserId:
+          type: ["integer", "null"]
+        reviewReason:
+          type: ["string", "null"]
+        uploadedAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    ClientContractReviewInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [APPROVED, REJECTED]
+        reason:
+          type: string
 
     PaymentInput:
       type: object

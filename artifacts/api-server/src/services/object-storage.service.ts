@@ -124,8 +124,9 @@ export async function uploadPrivateObject(
   data: Buffer,
   contentType: string,
   extension: string,
+  prefix = "backups",
 ): Promise<string> {
-  const key = `backups/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${extension}`;
+  const key = `${objectKey(prefix)}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${extension}`;
   if (provider() === "filesystem") {
     const target = filesystemPath(key);
     await mkdir(path.dirname(target), { recursive: true });
