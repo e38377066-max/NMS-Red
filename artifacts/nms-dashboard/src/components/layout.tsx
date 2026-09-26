@@ -15,6 +15,7 @@ import {
   Wifi,
   Archive,
   DollarSign,
+  BriefcaseBusiness,
   Menu,
   X,
 } from "lucide-react";
@@ -40,6 +41,7 @@ export function Layout({ children }: { children: ReactNode }) {
         { name: "Equipos", href: "/equipment", icon: RouterIcon },
         { name: "Clientes", href: "/clients", icon: Users },
         { name: "Facturación", href: "/billing", icon: DollarSign },
+        { name: "Operaciones ISP", href: "/operations", icon: BriefcaseBusiness },
       ]
     },
     {

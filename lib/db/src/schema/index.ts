@@ -9,3 +9,4 @@ export * from "./metricHistory";
 export * from "./backups";
 export * from "./authSessions";
 export * from "./taskQueue";
+export * from "./operations";

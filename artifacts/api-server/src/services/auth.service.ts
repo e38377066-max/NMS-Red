@@ -1,8 +1,8 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
-import { authSessionsTable, db } from "@workspace/db";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { authSessionsTable, db, usersTable } from "@workspace/db";
 import { hashSessionToken } from "./credentials.service";
 
 const SALT_ROUNDS = 10;
@@ -25,6 +25,24 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
+}
+
+/**
+ * Creates the first administrator only when both explicit bootstrap variables
+ * are present. There is intentionally no default username or password.
+ */
+export async function bootstrapInitialAdmin(): Promise<void> {
+  const username = process.env.INITIAL_ADMIN_USERNAME?.trim();
+  const password = process.env.INITIAL_ADMIN_PASSWORD;
+  if (!username || !password) return;
+  if (password.length < 12) throw new Error("INITIAL_ADMIN_PASSWORD must contain at least 12 characters");
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
+  if (count > 0) return;
+  await db.insert(usersTable).values({
+    username,
+    passwordHash: await hashPassword(password),
+    role: "admin",
+  });
 }
 
 export function signToken(payload: AuthUser): string {

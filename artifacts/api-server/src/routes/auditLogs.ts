@@ -21,7 +21,10 @@ router.get("/audit-logs", async (req, res): Promise<void> => {
     .orderBy(desc(auditLogsTable.timestamp))
     .limit(limit);
 
-  res.json(rows);
+  res.json(rows.map(row => ({
+    ...row,
+    timestamp: row.timestamp.toISOString(),
+  })));
 });
 
 export default router;

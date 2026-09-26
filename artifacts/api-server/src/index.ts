@@ -7,6 +7,7 @@ import { startBillingCron, setBillingSocketServer } from "./services/billing.ser
 import { startBackupCron } from "./services/backup.service";
 import { setNetworkMonitoringSocket, startNetworkMonitoring } from "./services/network-monitoring.service";
 import { setTaskQueueSocket, startTaskQueue } from "./services/task-queue.service";
+import { bootstrapInitialAdmin } from "./services/auth.service";
 
 const rawPort = process.env["PORT"];
 
@@ -42,6 +43,11 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     logger.info({ socketId: socket.id }, "Client disconnected from WebSocket");
   });
+});
+
+void bootstrapInitialAdmin().catch((err) => {
+  logger.error({ err }, "Initial administrator bootstrap failed");
+  process.exit(1);
 });
 
 httpServer.listen(port, (err?: Error) => {

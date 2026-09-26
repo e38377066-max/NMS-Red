@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, clientsTable, equipmentTable, auditLogsTable } from "@workspace/db";
+import { eq, or } from "drizzle-orm";
+import { db, clientsTable, equipmentTable, auditLogsTable, clientLifecycleEventsTable } from "@workspace/db";
 import {
   CreateClientBody,
   UpdateClientBody,
@@ -93,11 +93,29 @@ router.post("/clients", async (req, res): Promise<void> => {
     res.status(400).json({ error: "El cliente debe estar asociado al Router central MikroTik (rol core_router)" });
     return;
   }
+  const duplicate = await db
+    .select({ id: clientsTable.id })
+    .from(clientsTable)
+    .where(or(
+      eq(clientsTable.mac, rest.mac),
+      rest.ip ? eq(clientsTable.ip, rest.ip) : undefined,
+    ))
+    .limit(1);
+  if (duplicate[0]) {
+    res.status(409).json({ error: "Ya existe un cliente con esa MAC o IP; la operación es idempotente y no crea duplicados" });
+    return;
+  }
   const insertData = {
     ...rest,
     dueDate: dueDate ? new Date(dueDate) : undefined,
   };
   const [client] = await db.insert(clientsTable).values(insertData).returning();
+  await db.insert(clientLifecycleEventsTable).values({
+    clientId: client.id,
+    status: client.status,
+    notes: "Alta de cliente",
+    equipmentId: client.equipmentId,
+  });
   res.status(201).json(serializeClient({
     ...client,
     equipmentModel: controller.model,

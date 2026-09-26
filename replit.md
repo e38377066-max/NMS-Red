@@ -11,7 +11,8 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
 - `pnpm --filter @workspace/db run push` — push del schema DB (solo dev)
 - Env requerido: `DATABASE_URL` — conexión Postgres
-- Configuración de producción externa: copiar `.env.example` y usar un PostgreSQL y un almacenamiento S3-compatible propios; el API no depende de Replit Object Storage.
+- Primer arranque: define `INITIAL_ADMIN_USERNAME` y `INITIAL_ADMIN_PASSWORD` (mínimo 12 caracteres) para crear un único administrador en una base vacía; no existe una contraseña por defecto y esas variables se pueden retirar después del primer arranque.
+- Configuración de producción externa: copiar `.env.example` y usar un PostgreSQL y un almacenamiento S3-compatible propios; el API no depende de Replit Object Storage. `BACKUP_STORAGE_PROVIDER=filesystem` también funciona para una instalación de un solo servidor.
 - `BACKUP_STORAGE_PROVIDER=s3` requiere `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT` y `S3_BUCKET`. Para una instalación de un solo servidor se puede usar `filesystem` con `BACKUP_STORAGE_DIR` absoluto.
 - En producción `MIKROTIK_API_SCHEME=https` es el valor recomendado; el acceso a las sedes debe resolverse con WireGuard, red privada o un conector propio antes de exponer el API.
 - Topología objetivo: `Router central MikroTik hEX → LiteAP / SXT 5 ax → clientes`
@@ -54,6 +55,10 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - **IA contextual**: conoce la jerarquía completa (MikroTik central → enlace → LiteAP/SXT → cliente)
 - **Audit log + RBAC**: cada acción registrada con usuario, comando, resultado
 - **Monitoreo automático**: heartbeat cada 60s multi-marca (MikroTik + Ubiquiti + Proxmox)
+- **Operación ISP**: `/operations` centraliza tickets, órdenes de campo, inventario, planes, alertas e informes persistidos en PostgreSQL.
+- **Portal de cliente**: el API expone `/api/portal/session` y `/api/portal/tickets` mediante tokens hashados con expiración; un administrador rota el acceso desde `/api/portal/access/:clientId`.
+- **Facturación operativa**: pagos numerados, historial, próximo vencimiento y recibo HTML consultable en `/api/payments/:id/receipt`.
+- **Ciclo de vida**: altas idempotentes por MAC/IP y eventos de prospecto, instalación, activo, suspensión, traslado, cancelación y reactivación en `client_lifecycle_events`.
 
 ## User preferences
 
@@ -65,6 +70,7 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - Proxmox API usa HTTPS con cert auto-firmado: usar módulo nativo `https` con `rejectUnauthorized: false`
 - Ubiquiti AirOS M-series requiere algoritmos SSH legacy para compatibilidad
 - El CHR MikroTik gestiona todas las Simple Queues; las IPs de clientes deben coincidir con las MACs en las colas
+- La conectividad hacia la red local (WireGuard, agente, CGNAT y rutas entre sedes) no está inventada en el código: debe configurarse en la infraestructura externa antes de habilitar operaciones sobre equipos.
 
 ## Pointers
 

@@ -16,11 +16,14 @@ import deviceConfigRouter from "./device-config";
 import securityRouter from "./security";
 import reconciliationRouter from "./reconciliation";
 import { requireAuth } from "../middlewares/auth";
+import operationsRouter from "./operations";
+import portalRouter from "./portal";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(usersRouter);
+router.use("/portal", portalRouter);
 router.use(requireAuth);
 router.use(nodesRouter);
 router.use(equipmentRouter);
@@ -36,5 +39,6 @@ router.use(auditLogsRouter);
 router.use(monitoringRouter);
 router.use(aiRouter);
 router.use(proxmoxRouter);
+router.use(operationsRouter);
 
 export default router;

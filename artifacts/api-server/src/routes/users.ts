@@ -22,10 +22,22 @@ router.post("/users/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Credenciales invalidas" });
     return;
   }
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    res.status(423).json({ error: "Cuenta bloqueada temporalmente por intentos fallidos" });
+    return;
+  }
   const valid = await verifyPassword(parsed.data.password, user.passwordHash);
   if (!valid) {
+    const attempts = user.failedLoginAttempts + 1;
+    await db.update(usersTable).set({
+      failedLoginAttempts: attempts >= 5 ? 0 : attempts,
+      lockedUntil: attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null,
+    }).where(eq(usersTable.id, user.id));
     res.status(401).json({ error: "Credenciales invalidas" });
     return;
+  }
+  if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+    await db.update(usersTable).set({ failedLoginAttempts: 0, lockedUntil: null }).where(eq(usersTable.id, user.id));
   }
   const token = signToken({ id: user.id, username: user.username, role: user.role });
   await createSession(token, { id: user.id, username: user.username, role: user.role }, {
