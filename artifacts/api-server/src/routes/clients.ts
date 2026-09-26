@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, or } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { db, clientsTable, equipmentTable, clientLifecycleEventsTable } from "@workspace/db";
 import {
   CreateClientBody,
@@ -11,6 +11,7 @@ import {
   ChangeClientSpeedBody,
 } from "@workspace/api-zod";
 import { enqueueSpeedChange } from "../services/task-queue.service";
+import { provisionClient } from "../services/client-provisioning.service";
 
 const router: IRouter = Router();
 
@@ -123,6 +124,60 @@ router.post("/clients", async (req, res): Promise<void> => {
   }));
 });
 
+router.post("/clients/provision", async (req, res): Promise<void> => {
+  const body = req.body as Record<string, unknown> | undefined;
+  const equipmentId = Number(body?.equipmentId);
+  const name = typeof body?.name === "string" ? body.name : "";
+  const mac = typeof body?.mac === "string" ? body.mac : "";
+  const fixedIp = typeof body?.fixedIp === "string" ? body.fixedIp : "";
+  const planLimit = typeof body?.planLimit === "string" ? body.planLimit : "";
+  if (!Number.isInteger(equipmentId) || equipmentId <= 0 || !name.trim() || !mac.trim() || !fixedIp.trim() || !planLimit.trim()) {
+    res.status(400).json({ error: "equipmentId, name, mac, fixedIp y planLimit son obligatorios" });
+    return;
+  }
+  const optionalString = (key: string): string | undefined =>
+    typeof body?.[key] === "string" && body[key].trim() ? body[key].trim() : undefined;
+  const dueDate = optionalString("dueDate");
+  if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
+    res.status(400).json({ error: "dueDate no es una fecha válida" });
+    return;
+  }
+
+  try {
+    const result = await provisionClient({
+      equipmentId,
+      name,
+      mac,
+      fixedIp,
+      planLimit,
+      monthlyFee: optionalString("monthlyFee"),
+      dueDate,
+      status: optionalString("status"),
+      paymentStatus: optionalString("paymentStatus"),
+      notes: optionalString("notes"),
+      dhcpServer: optionalString("dhcpServer"),
+    }, res.locals.user?.id ?? null);
+    const controller = await getClientController(result.client.equipmentId);
+    res.status(201).json({
+      client: serializeClient({
+        ...result.client,
+        equipmentModel: controller?.model ?? null,
+        equipmentRole: controller?.equipmentRole ?? null,
+        connectionType: controller?.connectionType ?? null,
+      }),
+      equipment: result.equipment,
+      router: result.router,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No se pudo aprovisionar el cliente";
+    const status = message.includes("Ya existe") || message.includes("más de un lease") ? 409 : 502;
+    res.status(status).json({
+      error: message,
+      rolledBack: true,
+    });
+  }
+});
+
 router.get("/clients/:id", async (req, res): Promise<void> => {
   const params = GetClientParams.safeParse(req.params);
   if (!params.success) {
@@ -153,11 +208,36 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [existingClient] = await db
+    .select()
+    .from(clientsTable)
+    .where(eq(clientsTable.id, params.data.id));
+  if (!existingClient) {
+    res.status(404).json({ error: "Client not found" });
+    return;
+  }
   const { dueDate: ud, ...updateRest } = parsed.data;
   const updateData = {
     ...updateRest,
     ...(ud !== undefined ? { dueDate: ud ? new Date(ud) : null } : {}),
   };
+  if (updateRest.mac || updateRest.ip) {
+    const conflicts = await db
+      .select({ id: clientsTable.id })
+      .from(clientsTable)
+      .where(and(
+        or(
+          updateRest.mac ? eq(clientsTable.mac, updateRest.mac) : undefined,
+          updateRest.ip ? eq(clientsTable.ip, updateRest.ip) : undefined,
+        ),
+        sql`${clientsTable.id} <> ${params.data.id}`,
+      ))
+      .limit(1);
+    if (conflicts[0]) {
+      res.status(409).json({ error: "La MAC o IP ya pertenece a otro cliente" });
+      return;
+    }
+  }
   const [client] = await db
     .update(clientsTable)
     .set(updateData)
@@ -166,6 +246,18 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
+  }
+  if (client.status !== existingClient.status) {
+    await db.insert(clientLifecycleEventsTable).values({
+      clientId: client.id,
+      status: client.status,
+      notes: "Cambio de estado desde la ficha del cliente",
+      equipmentId: client.equipmentId,
+      metadata: {
+        previousStatus: existingClient.status,
+        changedByUserId: res.locals.user?.id ?? null,
+      },
+    });
   }
   const controller = await getClientController(client.equipmentId);
   res.json(serializeClient({

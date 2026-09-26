@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment, useCreateClient, useListEquipment } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment, useListEquipment } from "@workspace/api-client-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,8 @@ type Client = {
   lastSeenDbm?: string | null;
 };
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 function PaymentBadge({ status }: { status: string }) {
   if (status === "PAID") return (
     <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 gap-1">
@@ -56,10 +58,28 @@ export default function Clients() {
   const { data: clients, isLoading } = useListClients({ query: { queryKey: getListClientsQueryKey() } });
   const deleteClient = useDeleteClient();
   const registerPayment = useRegisterClientPayment();
-  const createClient = useCreateClient();
   const { data: equipment } = useListEquipment();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const provisionClient = useMutation({
+    mutationFn: async (data: typeof newClient) => {
+      const res = await fetch(`${BASE}/api/clients/provision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          equipmentId: Number(data.equipmentId),
+          name: data.name,
+          mac: data.mac,
+          fixedIp: data.ip,
+          planLimit: data.planLimit,
+          ...(data.monthlyFee ? { monthlyFee: data.monthlyFee } : {}),
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error ?? "No se pudo aprovisionar el cliente");
+      return payload as { router?: { verified?: boolean } };
+    },
+  });
 
   const [paymentModal, setPaymentModal] = useState<Client | null>(null);
   const [fee, setFee] = useState("");
@@ -111,27 +131,18 @@ export default function Clients() {
   );
 
   const submitClient = () => {
-    if (!newClient.equipmentId || !newClient.name || !newClient.mac || !newClient.planLimit) {
-      toast({ title: "Completa los campos requeridos", description: "Selecciona el router central y registra nombre, MAC y plan.", variant: "destructive" });
+    if (!newClient.equipmentId || !newClient.name || !newClient.mac || !newClient.ip || !newClient.planLimit) {
+      toast({ title: "Completa los campos requeridos", description: "Selecciona el router central y registra nombre, MAC, IP fija y plan.", variant: "destructive" });
       return;
     }
-    createClient.mutate({
-      data: {
-        equipmentId: Number(newClient.equipmentId),
-        name: newClient.name,
-        mac: newClient.mac,
-        ...(newClient.ip ? { ip: newClient.ip } : {}),
-        planLimit: newClient.planLimit,
-        ...(newClient.monthlyFee ? { monthlyFee: newClient.monthlyFee } : {}),
-      },
-    }, {
-      onSuccess: () => {
+    provisionClient.mutate(newClient, {
+      onSuccess: (result) => {
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
-        toast({ title: "Cliente registrado", description: `${newClient.name} quedó asociado al router central.` });
+        toast({ title: "Cliente aprovisionado", description: result.router?.verified ? `${newClient.name} quedó verificado en DHCP, Simple Queue y address-list.` : `${newClient.name} quedó registrado.` });
         setCreateOpen(false);
         setNewClient({ equipmentId: "", name: "", mac: "", ip: "", planLimit: "10M/10M", monthlyFee: "" });
       },
-      onError: () => toast({ title: "No se pudo registrar el cliente", description: "Revisa los datos y la conexión con la API.", variant: "destructive" }),
+      onError: (error: Error) => toast({ title: "No se pudo aprovisionar el cliente", description: `${error.message}. No se guardó un alta parcial.`, variant: "destructive" }),
     });
   };
 
@@ -293,7 +304,7 @@ export default function Clients() {
                 <Input value={newClient.mac} onChange={(event) => updateNewClient("mac", event.target.value)} placeholder="AA:BB:CC:DD:EE:FF" className="font-mono" />
               </div>
               <div className="space-y-1.5">
-                <Label>IP (opcional)</Label>
+                <Label>IP fija requerida</Label>
                 <Input value={newClient.ip} onChange={(event) => updateNewClient("ip", event.target.value)} placeholder="192.168.88.100" className="font-mono" />
               </div>
               <div className="space-y-1.5">
@@ -306,13 +317,13 @@ export default function Clients() {
               <Input type="number" value={newClient.monthlyFee} onChange={(event) => updateNewClient("monthlyFee", event.target.value)} placeholder="150.00" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Las velocidades, cortes, reconexiones y leases DHCP se aplicarán sobre el MikroTik seleccionado.
+              El alta verifica MAC/IP, lease DHCP estático, Simple Queue y address-list en el MikroTik. Si falla una etapa, intenta revertir los cambios del router.
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-            <Button onClick={submitClient} disabled={createClient.isPending || centralRouters.length === 0}>
-              {createClient.isPending ? "Registrando..." : "Registrar Cliente"}
+            <Button onClick={submitClient} disabled={provisionClient.isPending || centralRouters.length === 0}>
+              {provisionClient.isPending ? "Aprovisionando..." : "Aprovisionar Cliente"}
             </Button>
           </DialogFooter>
         </DialogContent>

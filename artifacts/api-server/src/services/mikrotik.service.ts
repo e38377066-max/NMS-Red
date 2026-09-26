@@ -38,6 +38,21 @@ export interface MikroTikDhcpLease {
   expiresAfter: string | null;
 }
 
+export interface MikroTikSimpleQueue {
+  id: string;
+  name: string;
+  target: string;
+  maxLimit: string | null;
+  comment: string | null;
+}
+
+export interface MikroTikAddressListEntry {
+  id: string;
+  address: string;
+  list: string;
+  comment: string | null;
+}
+
 function mkHeaders(username: string, password: string) {
   return {
     Authorization: `Basic ${Buffer.from(`${username}:${decryptSecret(password)}`).toString("base64")}`,
@@ -201,7 +216,14 @@ export async function setClientSpeedLimit(
       const errBody = await updateRes.text().catch(() => "");
       return { success: false, message: `No se pudo actualizar rate-limit del lease: ${updateRes.status} ${errBody}` };
     }
-    return { success: true, message: `Límite DHCP de ${clientName ?? mac} actualizado a ${newLimit}` };
+    const queue = await upsertSimpleQueue(ip, username, password, {
+      target: clientIp ?? lease.address,
+      name: clientName ?? mac,
+      maxLimit: newLimit,
+      comment: clientName ? `Cliente: ${clientName}` : undefined,
+    });
+    if (!queue.success) return queue;
+    return { success: true, message: `Límite DHCP y Simple Queue de ${clientName ?? mac} actualizado a ${newLimit}` };
   } catch (err) {
     logger.error({ ip, mac, err }, "Error setting speed limit on MikroTik");
     return { success: false, message: "Connection error" };
@@ -209,6 +231,116 @@ export async function setClientSpeedLimit(
 }
 
 // ─── Firewall Address List ──────────────────────────────────────────────────
+
+export async function getMikroTikSimpleQueues(
+  ip: string,
+  username: string,
+  password: string,
+): Promise<MikroTikSimpleQueue[]> {
+  try {
+    const res = await mkFetch(ip, username, password, "/queue/simple");
+    if (!res.ok) return [];
+    const raw = await res.json() as Array<Record<string, unknown>>;
+    return raw.map(entry => ({
+      id: String(entry[".id"] ?? ""),
+      name: String(entry.name ?? ""),
+      target: String(entry.target ?? ""),
+      maxLimit: typeof entry["max-limit"] === "string" ? entry["max-limit"] : null,
+      comment: typeof entry.comment === "string" ? entry.comment : null,
+    }));
+  } catch (err) {
+    logger.warn({ ip, err }, "Failed to fetch MikroTik simple queues");
+    return [];
+  }
+}
+
+export async function upsertSimpleQueue(
+  ip: string,
+  username: string,
+  password: string,
+  input: { target: string; name: string; maxLimit: string; comment?: string },
+): Promise<{ success: boolean; message: string; id?: string; created?: boolean }> {
+  const target = input.target.trim().replace(/\/32$/, "");
+  if (!target) return { success: false, message: "La Simple Queue requiere una IP objetivo" };
+  try {
+    const queues = await getMikroTikSimpleQueues(ip, username, password);
+    const normalizedName = input.name.trim().toLowerCase();
+    const existing = queues.find(queue =>
+      queue.target.split(",")[0]?.trim().replace(/\/32$/, "") === target ||
+      queue.name.trim().toLowerCase() === normalizedName ||
+      queue.comment?.trim().toLowerCase() === `cliente: ${normalizedName}`,
+    );
+    const body = {
+      name: input.name.trim(),
+      target: `${target}/32`,
+      "max-limit": input.maxLimit.trim(),
+      ...(input.comment ? { comment: input.comment.trim() } : {}),
+    };
+    if (existing?.id) {
+      const res = await mkFetch(ip, username, password, `/queue/simple/${existing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return { success: false, message: `No se pudo actualizar la Simple Queue: ${res.status}` };
+      return { success: true, message: `Simple Queue ${input.name} actualizada`, id: existing.id, created: false };
+    }
+    const res = await mkFetch(ip, username, password, "/queue/simple", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      return { success: false, message: `No se pudo crear la Simple Queue: ${res.status} ${detail}` };
+    }
+    const created = await res.json().catch(() => ({})) as Record<string, string>;
+    return { success: true, message: `Simple Queue ${input.name} creada`, id: created[".id"], created: true };
+  } catch (err) {
+    logger.warn({ ip, target, err }, "Failed to upsert MikroTik simple queue");
+    return { success: false, message: "Error de conexión al configurar la Simple Queue" };
+  }
+}
+
+export async function deleteSimpleQueue(
+  ip: string,
+  username: string,
+  password: string,
+  queueId: string,
+): Promise<boolean> {
+  try {
+    const res = await mkFetch(ip, username, password, `/queue/simple/${queueId}`, { method: "DELETE" });
+    return res.ok || res.status === 404;
+  } catch (err) {
+    logger.warn({ ip, queueId, err }, "Failed to delete MikroTik simple queue");
+    return false;
+  }
+}
+
+export async function getMikroTikAddressList(
+  ip: string,
+  username: string,
+  password: string,
+  listName?: string,
+  address?: string,
+): Promise<MikroTikAddressListEntry[]> {
+  try {
+    const params = new URLSearchParams();
+    if (listName) params.set("list", listName);
+    if (address) params.set("address", address);
+    const query = params.toString() ? `?${params}` : "";
+    const res = await mkFetch(ip, username, password, `/ip/firewall/address-list${query}`);
+    if (!res.ok) return [];
+    const raw = await res.json() as Array<Record<string, unknown>>;
+    return raw.map(entry => ({
+      id: String(entry[".id"] ?? ""),
+      address: String(entry.address ?? ""),
+      list: String(entry.list ?? ""),
+      comment: typeof entry.comment === "string" ? entry.comment : null,
+    }));
+  } catch (err) {
+    logger.warn({ ip, listName, address, err }, "Failed to fetch MikroTik address list");
+    return [];
+  }
+}
 
 export async function addToAddressList(
   ip: string,
@@ -219,6 +351,8 @@ export async function addToAddressList(
   comment?: string
 ): Promise<boolean> {
   try {
+    const existing = await getMikroTikAddressList(ip, username, password, listName, address);
+    if (existing.length > 0) return true;
     const res = await mkFetch(ip, username, password, "/ip/firewall/address-list", {
       method: "POST",
       body: JSON.stringify({
@@ -332,6 +466,81 @@ export async function createStaticDhcpLease(
   } catch (err) {
     logger.error({ ip, macAddress, fixedIp, err }, "Error creating static DHCP lease");
     return { success: false, message: "Error de conexión con MikroTik" };
+  }
+}
+
+export async function upsertStaticDhcpLease(
+  ip: string,
+  username: string,
+  password: string,
+  macAddress: string,
+  fixedIp: string,
+  comment: string,
+  dhcpServer?: string,
+  rateLimit?: string,
+): Promise<{ success: boolean; message: string; id?: string; created?: boolean; previous?: MikroTikDhcpLease }> {
+  const leases = await getMikroTikDhcpLeases(ip, username, password);
+  const normalizedMac = macAddress.replace(/[^0-9a-f]/gi, "").toLowerCase();
+  const matches = leases.filter(lease =>
+    lease.macAddress.replace(/[^0-9a-f]/gi, "").toLowerCase() === normalizedMac ||
+    lease.address === fixedIp,
+  );
+  if (matches.length > 1 && new Set(matches.map(item => item.id)).size > 1) {
+    return { success: false, message: "MikroTik tiene más de un lease para la MAC o IP indicada" };
+  }
+  const existing = matches[0];
+  if (!existing) {
+    const created = await createStaticDhcpLease(ip, username, password, macAddress, fixedIp, comment, dhcpServer, rateLimit);
+    return { ...created, created: true };
+  }
+  try {
+    const body: Record<string, string> = {
+      "mac-address": macAddress,
+      address: fixedIp,
+      comment,
+      dynamic: "false",
+      ...(dhcpServer ? { server: dhcpServer } : {}),
+      ...(rateLimit ? { "rate-limit": rateLimit } : {}),
+    };
+    const res = await mkFetch(ip, username, password, `/ip/dhcp-server/lease/${existing.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return { success: false, message: `No se pudo actualizar el lease DHCP: ${res.status}` };
+    return {
+      success: true,
+      message: `Lease estático actualizado: ${macAddress} → ${fixedIp}`,
+      id: existing.id,
+      created: false,
+      previous: existing,
+    };
+  } catch (err) {
+    logger.warn({ ip, macAddress, fixedIp, err }, "Failed to upsert static DHCP lease");
+    return { success: false, message: "Error de conexión al configurar el lease DHCP" };
+  }
+}
+
+export async function restoreDhcpLease(
+  ip: string,
+  username: string,
+  password: string,
+  lease: MikroTikDhcpLease,
+): Promise<boolean> {
+  try {
+    const res = await mkFetch(ip, username, password, `/ip/dhcp-server/lease/${lease.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        address: lease.address,
+        "mac-address": lease.macAddress,
+        comment: lease.comment ?? "",
+        dynamic: lease.dynamic ? "true" : "false",
+        ...(lease.rateLimit ? { "rate-limit": lease.rateLimit } : {}),
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    logger.warn({ ip, leaseId: lease.id, err }, "Failed to restore DHCP lease");
+    return false;
   }
 }
 

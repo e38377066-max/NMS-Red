@@ -17,6 +17,8 @@ import {
   removeFromAddressList,
   createStaticDhcpLease,
   deleteDhcpLease,
+  getMikroTikAddressList,
+  getMikroTikDhcpLeases,
   makeLeaseStatic,
 } from "./mikrotik.service";
 import { logger } from "../lib/logger";
@@ -374,8 +376,12 @@ async function executeTask(task: Task): Promise<string> {
       const limit = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, "64k/64k", p.clientIp, p.clientName);
       if (!limit.success) throw new Error(limit.message);
       if (p.clientIp) {
-        await addToAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Cortados", `SUSPENDIDO: ${p.clientName}`);
+        const suspended = await addToAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Cortados", `SUSPENDIDO: ${p.clientName}`);
+        if (!suspended) throw new Error(`No se pudo agregar ${p.clientIp} a Clientes_Cortados`);
+        const active = await removeFromAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Activos");
+        if (!active) throw new Error(`No se pudo retirar ${p.clientIp} de Clientes_Activos`);
       }
+      await verifyBillingState(p.ip, p.username, p.password, p.mac, p.clientIp, "suspended");
       return `Cliente ${p.clientName} suspendido`;
     }
 
@@ -383,13 +389,45 @@ async function executeTask(task: Task): Promise<string> {
       const limit = await setClientSpeedLimit(p.ip, p.username, p.password, p.mac, p.planLimit, p.clientIp, p.clientName);
       if (!limit.success) throw new Error(limit.message);
       if (p.clientIp) {
-        await removeFromAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Cortados");
+        const suspended = await removeFromAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Cortados");
+        if (!suspended) throw new Error(`No se pudo retirar ${p.clientIp} de Clientes_Cortados`);
+        const active = await addToAddressList(p.ip, p.username, p.password, p.clientIp, "Clientes_Activos", `ACTIVO: ${p.clientName}`);
+        if (!active) throw new Error(`No se pudo agregar ${p.clientIp} a Clientes_Activos`);
       }
+      await verifyBillingState(p.ip, p.username, p.password, p.mac, p.clientIp, "active");
       return `Cliente ${p.clientName} reactivado`;
     }
 
     default:
       throw new Error(`Tipo de tarea no soportado: ${task.type}`);
+  }
+}
+
+async function verifyBillingState(
+  ip: string,
+  username: string,
+  password: string,
+  mac: string,
+  clientIp: string,
+  expected: "suspended" | "active",
+): Promise<void> {
+  const leases = await getMikroTikDhcpLeases(ip, username, password);
+  const lease = leases.find(item =>
+    (clientIp && item.address === clientIp) ||
+    item.macAddress.replace(/[^0-9a-f]/gi, "").toLowerCase() === mac.replace(/[^0-9a-f]/gi, "").toLowerCase(),
+  );
+  if (!lease) throw new Error(`No se pudo verificar el lease DHCP de ${mac}`);
+  const suspended = clientIp
+    ? (await getMikroTikAddressList(ip, username, password, "Clientes_Cortados", clientIp)).length > 0
+    : false;
+  const active = clientIp
+    ? (await getMikroTikAddressList(ip, username, password, "Clientes_Activos", clientIp)).length > 0
+    : false;
+  if (expected === "suspended" && (!suspended || active)) {
+    throw new Error("El estado suspendido no coincide con las address-lists del MikroTik");
+  }
+  if (expected === "active" && (suspended || !active)) {
+    throw new Error("El estado activo no coincide con las address-lists del MikroTik");
   }
 }
 

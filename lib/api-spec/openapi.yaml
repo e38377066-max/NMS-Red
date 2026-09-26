@@ -287,6 +287,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Client"
 
+  /clients/provision:
+    post:
+      operationId: provisionClient
+      tags: [clients]
+      summary: Alta idempotente y aprovisionamiento verificado en MikroTik
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionClientInput"
+      responses:
+        "201":
+          description: Cliente creado y aprovisionado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionClientResponse"
+        "409":
+          description: Conflicto de identidad o estado
+
   /clients/{id}:
     get:
       operationId: getClient
@@ -1062,7 +1083,7 @@ components:
           type: string
         status:
           type: string
-          enum: [ACTIVE, SUSPENDED, OFFLINE]
+          enum: [PROSPECT, INSTALLATION_PENDING, ACTIVE, SUSPENDED, TRANSFERRED, CANCELLED, OFFLINE]
         lastSeenDbm:
           type: ["string", "null"]
         paymentStatus:
@@ -1099,6 +1120,62 @@ components:
           type: string
         dueDate:
           type: string
+
+    ProvisionClientInput:
+      type: object
+      required: [equipmentId, name, mac, fixedIp, planLimit]
+      properties:
+        equipmentId:
+          type: integer
+        name:
+          type: string
+        mac:
+          type: string
+        fixedIp:
+          type: string
+        planLimit:
+          type: string
+        monthlyFee:
+          type: string
+        dueDate:
+          type: string
+        status:
+          type: string
+        paymentStatus:
+          type: string
+        notes:
+          type: string
+        dhcpServer:
+          type: string
+
+    ProvisionClientResponse:
+      type: object
+      required: [client, equipment, router]
+      properties:
+        client:
+          $ref: "#/components/schemas/Client"
+        equipment:
+          type: object
+          required: [id, model, ip]
+          properties:
+            id:
+              type: integer
+            model:
+              type: string
+            ip:
+              type: string
+        router:
+          type: object
+          required: [leaseId, queueId, addressList, verified]
+          properties:
+            leaseId:
+              type: string
+            queueId:
+              type: string
+            addressList:
+              type: string
+            verified:
+              type: boolean
 
     ClientUpdate:
       type: object
