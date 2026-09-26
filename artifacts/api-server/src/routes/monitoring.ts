@@ -1,8 +1,14 @@
 import { Router, type IRouter } from "express";
 import { db, nodesTable, equipmentTable, clientsTable, alertsTable, auditLogsTable, proxmoxServersTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { getNetworkMonitoringSnapshot } from "../services/network-monitoring.service";
 
 const router: IRouter = Router();
+
+router.get("/monitoring/overview", async (_req, res): Promise<void> => {
+  const snapshot = await getNetworkMonitoringSnapshot();
+  res.json(snapshot);
+});
 
 router.get("/monitoring/summary", async (_req, res): Promise<void> => {
   const [nodeStat] = await db

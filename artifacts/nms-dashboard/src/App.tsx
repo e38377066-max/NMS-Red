@@ -19,6 +19,7 @@ import Topology from "@/pages/topology";
 import Billing from "@/pages/billing";
 import Backups from "@/pages/backups";
 import Security from "@/pages/security";
+import Monitoring from "@/pages/monitoring";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } }
@@ -33,6 +34,9 @@ function Router() {
       </Route>
       <Route path="/topology">
         <Layout><Topology /></Layout>
+      </Route>
+      <Route path="/monitoring">
+        <Layout><Monitoring /></Layout>
       </Route>
       <Route path="/nodes">
         <Layout><Nodes /></Layout>

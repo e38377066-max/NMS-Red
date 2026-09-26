@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { 
@@ -14,18 +14,22 @@ import {
   Wifi,
   Archive,
   DollarSign,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { isConnected } = useWebSocket();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navigation = [
     { name: "General", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
     { 
       name: "Red", 
       items: [
+        { name: "Monitoreo", href: "/monitoring", icon: Activity },
         { name: "Topología", href: "/topology", icon: Network },
         { name: "Nodos", href: "/nodes", icon: Server },
         { name: "Equipos", href: "/equipment", icon: RouterIcon },
@@ -57,10 +61,27 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden selection:bg-primary/30">
-      <aside className="w-64 border-r border-border bg-card flex flex-col z-20">
+      {mobileMenuOpen && (
+        <button
+          aria-label="Cerrar menú"
+          className="fixed inset-0 z-20 bg-black/60 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-border bg-card transition-transform duration-200 md:static md:translate-x-0",
+        mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
+      )}>
         <div className="h-14 border-b border-border flex items-center px-4 gap-2 text-primary font-bold tracking-widest uppercase">
           <Wifi className="w-5 h-5" />
           <span>ISP Cockpit</span>
+          <button
+            aria-label="Cerrar menú"
+            className="ml-auto rounded p-1 text-muted-foreground hover:bg-white/5 hover:text-foreground md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
         
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-5 scrollbar-thin">
@@ -76,6 +97,7 @@ export function Layout({ children }: { children: ReactNode }) {
                     <Link
                       key={item.name}
                       href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "flex items-center gap-3 px-2 py-2 rounded-md text-sm transition-colors",
                         isActive 
@@ -102,8 +124,15 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-border bg-card/50 backdrop-blur flex items-center justify-between px-6 z-10 sticky top-0">
+        <header className="h-14 border-b border-border bg-card/50 backdrop-blur flex items-center justify-between px-4 md:px-6 z-10 sticky top-0">
           <div className="flex items-center gap-4">
+            <button
+              aria-label="Abrir menú"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-white/5 hover:text-foreground md:hidden"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="flex items-center gap-2">
               <div className={cn("w-2 h-2 rounded-full", isConnected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "bg-red-500")} />
               <span className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
@@ -119,7 +148,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
         
-        <main className="flex-1 overflow-auto p-6 scrollbar-thin">
+        <main className="flex-1 overflow-auto p-4 md:p-6 scrollbar-thin">
           <div className="max-w-7xl mx-auto h-full animate-in fade-in duration-300">
             {children}
           </div>

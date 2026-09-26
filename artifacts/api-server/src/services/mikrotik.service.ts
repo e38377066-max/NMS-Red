@@ -8,6 +8,19 @@ export interface MikroTikResourceResult {
   reachable: boolean;
 }
 
+export interface MikroTikTrafficClient {
+  key: string;
+  rxMbps: number | null;
+  txMbps: number | null;
+}
+
+export interface MikroTikTrafficSnapshot {
+  reachable: boolean;
+  rxMbps: number | null;
+  txMbps: number | null;
+  clients: MikroTikTrafficClient[];
+}
+
 export interface MikroTikDhcpLease {
   id: string;
   address: string;
@@ -70,6 +83,76 @@ export async function getMikroTikResource(ip: string, username: string, password
   } catch (err) {
     logger.warn({ ip, err }, "Failed to reach MikroTik device");
     return { cpuLoad: null, freeMemory: null, uptime: null, boardName: null, reachable: false };
+  }
+}
+
+function parseRateMbps(value: unknown): number | null {
+  if (typeof value === "number") return value / 1_000_000;
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/^([0-9.]+)\s*(bps|kbps|mbps|gbps)?$/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  const unit = (match[2] ?? "bps").toLowerCase();
+  const multiplier = unit === "gbps" ? 1000 : unit === "mbps" ? 1 : unit === "kbps" ? 0.001 : 0.000001;
+  return amount * multiplier;
+}
+
+function parseRatePair(value: unknown): { rxMbps: number | null; txMbps: number | null } {
+  if (typeof value !== "string") return { rxMbps: null, txMbps: null };
+  const [first, second] = value.split("/");
+  return { rxMbps: parseRateMbps(first), txMbps: parseRateMbps(second) };
+}
+
+function parseTarget(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const first = value.split(",")[0]?.trim() ?? "";
+  return first.replace(/\/32$/, "") || null;
+}
+
+export async function getMikroTikTrafficSnapshot(
+  ip: string,
+  username: string,
+  password: string,
+): Promise<MikroTikTrafficSnapshot> {
+  try {
+    const [interfaceResponse, queueResponse] = await Promise.all([
+      mkFetch(ip, username, password, "/interface"),
+      mkFetch(ip, username, password, "/queue/simple"),
+    ]);
+
+    if (!interfaceResponse.ok) {
+      return { reachable: false, rxMbps: null, txMbps: null, clients: [] };
+    }
+
+    const interfaces = await interfaceResponse.json() as Array<Record<string, unknown>>;
+    const activeInterfaces = interfaces.filter((entry) => {
+      const name = String(entry.name ?? "").toLowerCase();
+      return entry.running !== "false" && !name.includes("loopback");
+    });
+    const rxValues = activeInterfaces.map((entry) => parseRateMbps(entry["rx-bits-per-second"])).filter((value): value is number => value !== null);
+    const txValues = activeInterfaces.map((entry) => parseRateMbps(entry["tx-bits-per-second"])).filter((value): value is number => value !== null);
+
+    const clients: MikroTikTrafficClient[] = [];
+    if (queueResponse.ok) {
+      const queues = await queueResponse.json() as Array<Record<string, unknown>>;
+      for (const queue of queues) {
+        const key = parseTarget(queue.target) ?? String(queue.name ?? "").trim();
+        if (!key) continue;
+        const rates = parseRatePair(queue.rate ?? queue["rate-bytes"]);
+        clients.push({ key, ...rates });
+      }
+    }
+
+    return {
+      reachable: true,
+      rxMbps: rxValues.length ? rxValues.reduce((sum, value) => sum + value, 0) : null,
+      txMbps: txValues.length ? txValues.reduce((sum, value) => sum + value, 0) : null,
+      clients,
+    };
+  } catch (error) {
+    logger.warn({ ip, error }, "Failed to fetch MikroTik traffic snapshot");
+    return { reachable: false, rxMbps: null, txMbps: null, clients: [] };
   }
 }
 
