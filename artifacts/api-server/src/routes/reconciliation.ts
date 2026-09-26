@@ -1,8 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, clientsTable, auditLogsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { enqueueDhcpLease, enqueueSpeedChange } from "../services/task-queue.service";
-import { reconcileEquipment } from "../services/reconciliation.service";
+import { db, auditLogsTable } from "@workspace/db";
+import { applyReconciliationDifference, reconcileEquipment } from "../services/reconciliation.service";
 
 const router: IRouter = Router();
 
@@ -44,20 +42,14 @@ router.post("/reconciliation/equipment/:id/apply", async (req, res): Promise<voi
       return;
     }
 
-    const tasks: string[] = [];
     const applied: string[] = [];
+    const skipped: Array<{ id: string; reason: string }> = [];
     for (const difference of selected) {
-      if (difference.kind === "rate_mismatch" && difference.clientId && difference.routerRateLimit) {
-        const task = await enqueueSpeedChange(difference.clientId, difference.routerRateLimit, res.locals.user?.id ?? null);
-        tasks.push(task.id);
+      const result = await applyReconciliationDifference(equipmentId, difference);
+      if (result.applied) {
         applied.push(difference.id);
-      } else if (difference.kind === "crm_only" && difference.clientId && difference.ip) {
-        const task = await enqueueDhcpLease(difference.clientId, difference.ip, undefined, res.locals.user?.id ?? null);
-        tasks.push(task.id);
-        applied.push(difference.id);
-      } else if (difference.kind === "ip_mismatch" && difference.clientId && difference.routerIp) {
-        await db.update(clientsTable).set({ ip: difference.routerIp }).where(eq(clientsTable.id, difference.clientId));
-        applied.push(difference.id);
+      } else {
+        skipped.push({ id: difference.id, reason: result.message });
       }
     }
 
@@ -67,10 +59,16 @@ router.post("/reconciliation/equipment/:id/apply", async (req, res): Promise<voi
       entity: "Reconciliation",
       action: "APPLY_APPROVED",
       result: "Success",
-      details: `Equipo ${equipmentId}; diferencias aprobadas: ${applied.join(",")}; tareas: ${tasks.join(",")}`,
+      details: `Equipo ${equipmentId}; aplicadas: ${applied.join(",")}; omitidas: ${skipped.map(item => `${item.id} (${item.reason})`).join(", ")}`,
       equipmentId,
     });
-    res.json({ success: true, applied, taskIds: tasks, skipped: selected.filter(item => !applied.includes(item.id)).map(item => item.id) });
+    const verification = await reconcileEquipment(equipmentId);
+    res.json({
+      success: skipped.length === 0,
+      applied,
+      skipped,
+      verification,
+    });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "No se pudieron aplicar las diferencias" });
   }

@@ -18,14 +18,18 @@ type Difference = {
   mac: string;
   ip: string | null;
   routerIp: string | null;
+  routerQueueId: string | null;
   routerRateLimit: string | null;
+  expectedRateLimit?: string | null;
+  expectedAddressList?: string | null;
+  actualAddressLists?: string[];
   message: string;
 };
 
 type Report = {
   equipment: { id: number; model: string; ip: string; checkedAt: string };
   routerReachable: boolean;
-  totals: { clients: number; routerLeases: number; differences: number; critical: number };
+  totals: { clients: number; routerLeases: number; routerQueues: number; routerAddressLists: number; differences: number; critical: number };
   differences: Difference[];
 };
 
@@ -80,8 +84,12 @@ export default function Reconciliation() {
       const result = await apiRequest(`/api/reconciliation/equipment/${selectedEquipmentId}/apply`, {
         method: "POST",
         body: JSON.stringify({ confirm: true, differenceIds: selected }),
-      }) as { applied: string[]; taskIds: string[]; skipped: string[] };
-      toast.success(`${result.applied.length} diferencias aplicadas; ${result.taskIds.length} operaciones encoladas`);
+      }) as { applied: string[]; skipped: Array<{ id: string; reason: string }>; verification: Report };
+      toast[result.skipped.length === 0 ? "success" : "warning"](
+        `${result.applied.length} diferencias aplicadas; ${result.skipped.length} requieren revisión`,
+      );
+      setReport(result.verification);
+      setSelected([]);
       await loadReport();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudieron aplicar las diferencias");
@@ -153,7 +161,7 @@ export default function Reconciliation() {
                       <Checkbox
                         checked={selected.includes(item.id)}
                         onCheckedChange={checked => toggle(item.id, checked === true)}
-                        disabled={item.kind === "duplicate" || item.kind === "router_only"}
+                       disabled={["duplicate", "router_only", "orphan_queue", "orphan_address_list"].includes(item.kind)}
                         aria-label={`Seleccionar ${item.id}`}
                       />
                       <div className="min-w-0 flex-1">
@@ -162,9 +170,11 @@ export default function Reconciliation() {
                           <span className="font-mono text-xs text-muted-foreground">{item.mac || "sin MAC"}</span>
                         </div>
                         <p className="mt-1 text-sm">{item.message}</p>
-                        {(item.routerIp || item.routerRateLimit) && (
+                         {(item.routerIp || item.routerRateLimit || item.expectedRateLimit || item.expectedAddressList) && (
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Router: {item.routerIp ?? "—"} · {item.routerRateLimit ?? "sin límite"}
+                             Router: {item.routerIp ?? "—"} · {item.routerRateLimit ?? "sin límite"}
+                             {item.expectedRateLimit ? ` · CRM: ${item.expectedRateLimit}` : ""}
+                             {item.expectedAddressList ? ` · Esperada: ${item.expectedAddressList}` : ""}
                           </p>
                         )}
                       </div>
