@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment, useListEquipment } from "@workspace/api-client-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,12 @@ type Client = {
   monthlyFee?: string | null;
   dueDate?: string | null;
   lastSeenDbm?: string | null;
+  contractReference?: string | null;
+  contractNotes?: string | null;
+  installationDate?: string | null;
+  installationAddress?: string | null;
+  assignedTechnicianId?: number | null;
+  accessPointEquipmentId?: number | null;
 };
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -59,6 +65,14 @@ export default function Clients() {
   const deleteClient = useDeleteClient();
   const registerPayment = useRegisterClientPayment();
   const { data: equipment } = useListEquipment();
+  const { data: users } = useQuery<Array<{ id: number; username: string; role: string }>>({
+    queryKey: ["users-for-client-assignment"],
+    queryFn: async () => {
+      const response = await fetch(`${BASE}/api/users`);
+      if (!response.ok) throw new Error("No se pudieron cargar los técnicos");
+      return response.json();
+    },
+  });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const provisionClient = useMutation({
@@ -73,6 +87,12 @@ export default function Clients() {
           fixedIp: data.ip,
           planLimit: data.planLimit,
           ...(data.monthlyFee ? { monthlyFee: data.monthlyFee } : {}),
+          ...(data.contractReference ? { contractReference: data.contractReference } : {}),
+          ...(data.contractNotes ? { contractNotes: data.contractNotes } : {}),
+          ...(data.installationDate ? { installationDate: `${data.installationDate}T00:00:00.000Z` } : {}),
+          ...(data.installationAddress ? { installationAddress: data.installationAddress } : {}),
+          ...(data.assignedTechnicianId ? { assignedTechnicianId: Number(data.assignedTechnicianId) } : {}),
+          ...(data.accessPointEquipmentId ? { accessPointEquipmentId: Number(data.accessPointEquipmentId) } : {}),
         }),
       });
       const payload = await res.json().catch(() => ({}));
@@ -92,6 +112,12 @@ export default function Clients() {
     ip: "",
     planLimit: "10M/10M",
     monthlyFee: "",
+    contractReference: "",
+    contractNotes: "",
+    installationDate: "",
+    installationAddress: "",
+    assignedTechnicianId: "",
+    accessPointEquipmentId: "",
   });
 
   const handleDelete = (id: number, name: string) => {
@@ -129,6 +155,10 @@ export default function Clients() {
     item.connectionType === "mikrotik_routeros" &&
     item.equipmentRole === "core_router"
   );
+  const accessPoints = (equipment ?? []).filter((item) =>
+    item.id !== Number(newClient.equipmentId) &&
+    (item.equipmentRole === "ap_distributor" || item.connectionType === "ubiquiti_airos")
+  );
 
   const submitClient = () => {
     if (!newClient.equipmentId || !newClient.name || !newClient.mac || !newClient.ip || !newClient.planLimit) {
@@ -140,7 +170,11 @@ export default function Clients() {
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
         toast({ title: "Cliente aprovisionado", description: result.router?.verified ? `${newClient.name} quedó verificado en DHCP, Simple Queue y address-list.` : `${newClient.name} quedó registrado.` });
         setCreateOpen(false);
-        setNewClient({ equipmentId: "", name: "", mac: "", ip: "", planLimit: "10M/10M", monthlyFee: "" });
+         setNewClient({
+           equipmentId: "", name: "", mac: "", ip: "", planLimit: "10M/10M", monthlyFee: "",
+           contractReference: "", contractNotes: "", installationDate: "", installationAddress: "",
+           assignedTechnicianId: "", accessPointEquipmentId: "",
+         });
       },
       onError: (error: Error) => toast({ title: "No se pudo aprovisionar el cliente", description: `${error.message}. No se guardó un alta parcial.`, variant: "destructive" }),
     });
@@ -315,6 +349,45 @@ export default function Clients() {
             <div className="space-y-1.5">
               <Label>Cuota mensual (opcional)</Label>
               <Input type="number" value={newClient.monthlyFee} onChange={(event) => updateNewClient("monthlyFee", event.target.value)} placeholder="150.00" />
+            </div>
+            <div className="border-t border-border/40 pt-4 space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Expediente administrativo</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Referencia de contrato</Label>
+                  <Input value={newClient.contractReference} onChange={(event) => updateNewClient("contractReference", event.target.value)} placeholder="CTR-2026-001" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fecha de instalación</Label>
+                  <Input type="date" value={newClient.installationDate} onChange={(event) => updateNewClient("installationDate", event.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Técnico responsable</Label>
+                  <Select value={newClient.assignedTechnicianId} onValueChange={(value) => updateNewClient("assignedTechnicianId", value)}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona un técnico..." /></SelectTrigger>
+                    <SelectContent>
+                      {(users ?? []).map((user) => <SelectItem key={user.id} value={String(user.id)}>{user.username} · {user.role}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>AP / LiteAP / SXT / enlace</Label>
+                  <Select value={newClient.accessPointEquipmentId} onValueChange={(value) => updateNewClient("accessPointEquipmentId", value)}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona el equipo de acceso..." /></SelectTrigger>
+                    <SelectContent>
+                      {accessPoints.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Dirección de instalación</Label>
+                <Input value={newClient.installationAddress} onChange={(event) => updateNewClient("installationAddress", event.target.value)} placeholder="Dirección o referencia del domicilio" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Notas del contrato <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                <Input value={newClient.contractNotes} onChange={(event) => updateNewClient("contractNotes", event.target.value)} placeholder="Condiciones o referencia del documento" />
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
               El alta verifica MAC/IP, lease DHCP estático, Simple Queue y address-list en el MikroTik. Si falla una etapa, intenta revertir los cambios del router.

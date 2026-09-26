@@ -1,6 +1,7 @@
 import { eq, or } from "drizzle-orm";
 import {
   clientLifecycleEventsTable,
+  clientChangeHistoryTable,
   clientsTable,
   db,
   equipmentTable,
@@ -33,6 +34,12 @@ export interface ProvisionClientInput {
   paymentStatus?: string;
   notes?: string;
   dhcpServer?: string;
+  contractReference?: string;
+  contractNotes?: string;
+  installationDate?: string;
+  installationAddress?: string;
+  assignedTechnicianId?: number;
+  accessPointEquipmentId?: number;
 }
 
 export async function provisionClient(input: ProvisionClientInput, requestedByUserId: number | null) {
@@ -172,6 +179,12 @@ export async function provisionClient(input: ProvisionClientInput, requestedByUs
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
         status: input.status ?? "ACTIVE",
         paymentStatus: input.paymentStatus ?? "PAID",
+        contractReference: input.contractReference,
+        contractNotes: input.contractNotes,
+        installationDate: input.installationDate ? new Date(input.installationDate) : undefined,
+        installationAddress: input.installationAddress,
+        assignedTechnicianId: input.assignedTechnicianId,
+        accessPointEquipmentId: input.accessPointEquipmentId,
       }).returning();
       if (!client) throw new Error("No se pudo crear el cliente en el CRM");
 
@@ -186,6 +199,22 @@ export async function provisionClient(input: ProvisionClientInput, requestedByUs
           queueId: verifiedQueue.id,
           activeList: ACTIVE_LIST,
           provisionedAt: new Date().toISOString(),
+        },
+      });
+      await tx.insert(clientChangeHistoryTable).values({
+        clientId: client.id,
+        changedByUserId: requestedByUserId,
+        changeType: "CREATED",
+        reason: "Alta y aprovisionamiento de cliente",
+        previousData: {},
+        newData: {
+          name: client.name,
+          equipmentId: client.equipmentId,
+          accessPointEquipmentId: client.accessPointEquipmentId,
+          assignedTechnicianId: client.assignedTechnicianId,
+          installationDate: client.installationDate?.toISOString() ?? null,
+          installationAddress: client.installationAddress,
+          contractReference: client.contractReference,
         },
       });
       return client;

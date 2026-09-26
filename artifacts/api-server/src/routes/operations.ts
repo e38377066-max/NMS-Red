@@ -5,6 +5,7 @@ import {
   db,
   servicePlansTable,
   clientLifecycleEventsTable,
+  clientChangeHistoryTable,
   paymentsTable,
   ticketsTable,
   ticketCommentsTable,
@@ -134,6 +135,29 @@ router.get("/clients/:id/lifecycle", async (req, res): Promise<void> => {
   const rows = await db.select().from(clientLifecycleEventsTable)
     .where(eq(clientLifecycleEventsTable.clientId, clientId))
     .orderBy(desc(clientLifecycleEventsTable.createdAt));
+  res.json(rows.map(serializeDates));
+});
+
+router.get("/clients/:id/history", async (req, res): Promise<void> => {
+  const clientId = asId(req.params.id);
+  if (!clientId) { res.status(400).json({ error: "Cliente inválido" }); return; }
+  const [client] = await db.select({ id: clientsTable.id }).from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!client) { res.status(404).json({ error: "Cliente no encontrado" }); return; }
+  const rows = await db.select({
+    id: clientChangeHistoryTable.id,
+    clientId: clientChangeHistoryTable.clientId,
+    changedByUserId: clientChangeHistoryTable.changedByUserId,
+    username: usersTable.username,
+    changeType: clientChangeHistoryTable.changeType,
+    reason: clientChangeHistoryTable.reason,
+    previousData: clientChangeHistoryTable.previousData,
+    newData: clientChangeHistoryTable.newData,
+    createdAt: clientChangeHistoryTable.createdAt,
+  })
+    .from(clientChangeHistoryTable)
+    .leftJoin(usersTable, eq(usersTable.id, clientChangeHistoryTable.changedByUserId))
+    .where(eq(clientChangeHistoryTable.clientId, clientId))
+    .orderBy(desc(clientChangeHistoryTable.createdAt));
   res.json(rows.map(serializeDates));
 });
 

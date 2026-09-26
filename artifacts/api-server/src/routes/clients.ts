@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, or, sql } from "drizzle-orm";
-import { db, clientsTable, equipmentTable, clientLifecycleEventsTable } from "@workspace/db";
+import { db, clientsTable, equipmentTable, clientLifecycleEventsTable, clientChangeHistoryTable } from "@workspace/db";
 import {
   CreateClientBody,
   UpdateClientBody,
@@ -31,6 +31,12 @@ const CLIENT_SELECT = {
   monthlyFee: clientsTable.monthlyFee,
   dueDate: clientsTable.dueDate,
   lastPaymentDate: clientsTable.lastPaymentDate,
+  contractReference: clientsTable.contractReference,
+  contractNotes: clientsTable.contractNotes,
+  installationDate: clientsTable.installationDate,
+  installationAddress: clientsTable.installationAddress,
+  assignedTechnicianId: clientsTable.assignedTechnicianId,
+  accessPointEquipmentId: clientsTable.accessPointEquipmentId,
   createdAt: clientsTable.createdAt,
 } as const;
 
@@ -50,12 +56,19 @@ function serializeClient(row: {
   monthlyFee: string | null;
   dueDate: Date | null;
   lastPaymentDate: Date | null;
+  contractReference: string | null;
+  contractNotes: string | null;
+  installationDate: Date | null;
+  installationAddress: string | null;
+  assignedTechnicianId: number | null;
+  accessPointEquipmentId: number | null;
   createdAt: Date;
 }) {
   return {
     ...row,
     dueDate: row.dueDate?.toISOString() ?? null,
     lastPaymentDate: row.lastPaymentDate?.toISOString() ?? null,
+    installationDate: row.installationDate?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -116,6 +129,22 @@ router.post("/clients", async (req, res): Promise<void> => {
     notes: "Alta de cliente",
     equipmentId: client.equipmentId,
   });
+  await db.insert(clientChangeHistoryTable).values({
+    clientId: client.id,
+    changedByUserId: res.locals.user?.id ?? null,
+    changeType: "CREATED",
+    reason: "Alta de cliente",
+    previousData: {},
+    newData: {
+      name: client.name,
+      equipmentId: client.equipmentId,
+      accessPointEquipmentId: client.accessPointEquipmentId,
+      assignedTechnicianId: client.assignedTechnicianId,
+      installationDate: client.installationDate?.toISOString() ?? null,
+      installationAddress: client.installationAddress,
+      contractReference: client.contractReference,
+    },
+  });
   res.status(201).json(serializeClient({
     ...client,
     equipmentModel: controller.model,
@@ -156,6 +185,12 @@ router.post("/clients/provision", async (req, res): Promise<void> => {
       paymentStatus: optionalString("paymentStatus"),
       notes: optionalString("notes"),
       dhcpServer: optionalString("dhcpServer"),
+      contractReference: optionalString("contractReference"),
+      contractNotes: optionalString("contractNotes"),
+      installationDate: optionalString("installationDate"),
+      installationAddress: optionalString("installationAddress"),
+      assignedTechnicianId: body?.assignedTechnicianId ? Number(body.assignedTechnicianId) : undefined,
+      accessPointEquipmentId: body?.accessPointEquipmentId ? Number(body.accessPointEquipmentId) : undefined,
     }, res.locals.user?.id ?? null);
     const controller = await getClientController(result.client.equipmentId);
     res.status(201).json({
@@ -246,6 +281,28 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
+  }
+  const changedFields = Object.fromEntries(
+    Object.keys(updateData).map((key) => [
+      key,
+      (client as Record<string, unknown>)[key],
+    ]),
+  );
+  const previousFields = Object.fromEntries(
+    Object.keys(updateData).map((key) => [
+      key,
+      (existingClient as Record<string, unknown>)[key],
+    ]),
+  );
+  if (JSON.stringify(previousFields) !== JSON.stringify(changedFields)) {
+    await db.insert(clientChangeHistoryTable).values({
+      clientId: client.id,
+      changedByUserId: res.locals.user?.id ?? null,
+      changeType: "UPDATED",
+      reason: typeof req.body?.changeReason === "string" ? req.body.changeReason.trim() || null : null,
+      previousData: serializeHistoryValue(previousFields),
+      newData: serializeHistoryValue(changedFields),
+    });
   }
   if (client.status !== existingClient.status) {
     await db.insert(clientLifecycleEventsTable).values({
@@ -359,6 +416,13 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
 function parseMbps(limit: string): number {
   const match = limit.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : 0;
+}
+
+function serializeHistoryValue(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [
+    key,
+    entry instanceof Date ? entry.toISOString() : entry,
+  ]));
 }
 
 export default router;

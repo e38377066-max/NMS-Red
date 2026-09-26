@@ -1190,6 +1190,19 @@ components:
           type: ["string", "null"]
         lastPaymentDate:
           type: ["string", "null"]
+        contractReference:
+          type: ["string", "null"]
+        contractNotes:
+          type: ["string", "null"]
+        installationDate:
+          type: ["string", "null"]
+          format: date-time
+        installationAddress:
+          type: ["string", "null"]
+        assignedTechnicianId:
+          type: ["integer", "null"]
+        accessPointEquipmentId:
+          type: ["integer", "null"]
         createdAt:
           type: string
 
@@ -1215,6 +1228,19 @@ components:
           type: string
         dueDate:
           type: string
+        contractReference:
+          type: ["string", "null"]
+        contractNotes:
+          type: ["string", "null"]
+        installationDate:
+          type: ["string", "null"]
+          format: date-time
+        installationAddress:
+          type: ["string", "null"]
+        assignedTechnicianId:
+          type: ["integer", "null"]
+        accessPointEquipmentId:
+          type: ["integer", "null"]
 
     ProvisionClientInput:
       type: object
@@ -1234,6 +1260,19 @@ components:
           type: string
         dueDate:
           type: string
+        contractReference:
+          type: ["string", "null"]
+        contractNotes:
+          type: ["string", "null"]
+        installationDate:
+          type: ["string", "null"]
+          format: date-time
+        installationAddress:
+          type: ["string", "null"]
+        assignedTechnicianId:
+          type: ["integer", "null"]
+        accessPointEquipmentId:
+          type: ["integer", "null"]
         status:
           type: string
         paymentStatus:
@@ -1293,6 +1332,19 @@ components:
           type: string
         dueDate:
           type: string
+        contractReference:
+          type: ["string", "null"]
+        contractNotes:
+          type: ["string", "null"]
+        installationDate:
+          type: ["string", "null"]
+          format: date-time
+        installationAddress:
+          type: ["string", "null"]
+        assignedTechnicianId:
+          type: ["integer", "null"]
+        accessPointEquipmentId:
+          type: ["integer", "null"]
 
     PaymentInput:
       type: object

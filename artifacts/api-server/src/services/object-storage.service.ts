@@ -99,7 +99,7 @@ async function s3Request(
       "x-amz-date": amzDate,
       Authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
     },
-    body,
+    body: body as unknown as BodyInit | undefined,
     signal: AbortSignal.timeout(120_000),
   });
 }

@@ -13,12 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "wouter";
 import {
   ArrowLeft, DollarSign, CheckCircle2, AlertCircle, XCircle,
-  Calendar, Zap, Signal, TrendingUp, User, Network, Trash2,
+  Calendar, Zap, Signal, TrendingUp, User, Network, Trash2, ClipboardList, Pencil,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -39,6 +40,17 @@ type DhcpLease = {
   blocked: boolean;
   dhcpServer: string;
   expiresAfter: string | null;
+};
+
+type ClientHistory = {
+  id: number;
+  changedByUserId: number | null;
+  username: string | null;
+  changeType: string;
+  reason: string | null;
+  previousData: Record<string, unknown>;
+  newData: Record<string, unknown>;
+  createdAt: string;
 };
 
 function PaymentBadge({ status }: { status: string }) {
@@ -66,6 +78,31 @@ export default function ClientDetail() {
 
   const { data: client, isLoading } = useGetClient(id, { query: { queryKey: getGetClientQueryKey(id) } });
   const { data: metrics } = useGetClientMetrics(id, { hours: 24 }, { query: { queryKey: getGetClientMetricsQueryKey(id, { hours: 24 }) } });
+  const historyQuery = useQuery<ClientHistory[]>({
+    queryKey: ["client-history", id],
+    queryFn: async () => {
+      const response = await fetch(`${BASE}/api/clients/${id}/history`);
+      if (!response.ok) throw new Error("No se pudo cargar el historial");
+      return response.json();
+    },
+    enabled: Number.isInteger(id) && id > 0,
+  });
+  const { data: equipment } = useQuery<Array<{ id: number; model: string; ip: string }>>({
+    queryKey: ["equipment-for-client-detail"],
+    queryFn: async () => {
+      const response = await fetch(`${BASE}/api/equipment`);
+      if (!response.ok) throw new Error("No se pudo cargar el inventario de red");
+      return response.json();
+    },
+  });
+  const { data: users } = useQuery<Array<{ id: number; username: string }>>({
+    queryKey: ["users-for-client-detail"],
+    queryFn: async () => {
+      const response = await fetch(`${BASE}/api/users`);
+      if (!response.ok) throw new Error("No se pudieron cargar los técnicos");
+      return response.json();
+    },
+  });
 
   const registerPayment = useRegisterClientPayment();
   const changeSpeed = useChangeClientSpeed();
@@ -78,6 +115,16 @@ export default function ClientDetail() {
   const [newPlan, setNewPlan] = useState("");
   const [fixedIp, setFixedIp] = useState("");
   const [dhcpServer, setDhcpServer] = useState("");
+  const [adminEditOpen, setAdminEditOpen] = useState(false);
+  const [adminForm, setAdminForm] = useState({
+    contractReference: "",
+    contractNotes: "",
+    installationDate: "",
+    installationAddress: "",
+    assignedTechnicianId: "",
+    accessPointEquipmentId: "",
+    changeReason: "",
+  });
 
   // DHCP leases for the client's equipment
   const dhcpQuery = useQuery<DhcpLease[]>({
@@ -145,6 +192,34 @@ export default function ClientDetail() {
         variant: data.rateLimitConfigured === false ? "destructive" : "default",
       });
     },
+  });
+
+  const updateAdministrativeRecord = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`${BASE}/api/clients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contractReference: adminForm.contractReference || null,
+          contractNotes: adminForm.contractNotes || null,
+          installationDate: adminForm.installationDate ? `${adminForm.installationDate}T00:00:00.000Z` : null,
+          installationAddress: adminForm.installationAddress || null,
+          assignedTechnicianId: adminForm.assignedTechnicianId ? Number(adminForm.assignedTechnicianId) : null,
+          accessPointEquipmentId: adminForm.accessPointEquipmentId ? Number(adminForm.accessPointEquipmentId) : null,
+          changeReason: adminForm.changeReason || undefined,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo actualizar el expediente");
+      return payload;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: ["client-history", id] });
+      toast({ title: "Expediente actualizado", description: "El cambio quedó registrado en el historial." });
+      setAdminEditOpen(false);
+    },
+    onError: (error: Error) => toast({ title: "No se pudo actualizar", description: error.message, variant: "destructive" }),
   });
 
   const submitPayment = () => {
@@ -441,6 +516,135 @@ export default function ClientDetail() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-primary" />
+              Expediente administrativo
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAdminForm({
+                  contractReference: client.contractReference ?? "",
+                  contractNotes: client.contractNotes ?? "",
+                  installationDate: client.installationDate ? new Date(client.installationDate).toISOString().slice(0, 10) : "",
+                  installationAddress: client.installationAddress ?? "",
+                  assignedTechnicianId: client.assignedTechnicianId ? String(client.assignedTechnicianId) : "",
+                  accessPointEquipmentId: client.accessPointEquipmentId ? String(client.accessPointEquipmentId) : "",
+                  changeReason: "",
+                });
+                setAdminEditOpen(true);
+              }}
+            >
+              <Pencil className="w-3 h-3 mr-2" /> Editar expediente
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div><p className="text-xs text-muted-foreground">Contrato</p><p>{client.contractReference ?? "Sin referencia"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Instalación</p><p>{fmt(client.installationDate)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Técnico responsable</p><p>{users?.find((user) => user.id === client.assignedTechnicianId)?.username ?? (client.assignedTechnicianId ? `Usuario #${client.assignedTechnicianId}` : "Sin asignar")}</p></div>
+            <div><p className="text-xs text-muted-foreground">AP / LiteAP / SXT / enlace</p><p>{equipment?.find((item) => item.id === client.accessPointEquipmentId)?.model ?? (client.accessPointEquipmentId ? `Equipo #${client.accessPointEquipmentId}` : "Sin asociar")}</p></div>
+            <div className="md:col-span-2"><p className="text-xs text-muted-foreground">Dirección de instalación</p><p>{client.installationAddress ?? "Sin registrar"}</p></div>
+          </div>
+          {client.contractNotes && <p className="mt-4 pt-3 border-t border-border/40 text-sm text-muted-foreground">{client.contractNotes}</p>}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-muted-foreground" />
+            Historial completo de cambios
+            <span className="text-xs text-muted-foreground ml-auto">{historyQuery.data?.length ?? 0} eventos</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {historyQuery.isLoading ? <Skeleton className="h-16 w-full" /> : (historyQuery.data ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Todavía no hay cambios registrados.</p>
+          ) : (
+            <div className="space-y-3">
+              {historyQuery.data?.map((event) => (
+                <div key={event.id} className="rounded-md border border-border/40 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{event.changeType === "CREATED" ? "Alta" : "Actualización"}</Badge>
+                    <span className="text-muted-foreground">{fmt(event.createdAt)} · {fmtTime(event.createdAt)}</span>
+                    <span className="ml-auto text-muted-foreground">{event.username ?? "Sistema"}</span>
+                  </div>
+                  {event.reason && <p className="mt-2 text-muted-foreground">Motivo: {event.reason}</p>}
+                  {event.changeType !== "CREATED" && (
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                      <pre className="overflow-auto rounded bg-muted/20 p-2 text-muted-foreground">{JSON.stringify(event.previousData, null, 2)}</pre>
+                      <pre className="overflow-auto rounded bg-primary/5 p-2 text-foreground">{JSON.stringify(event.newData, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={adminEditOpen} onOpenChange={setAdminEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar expediente administrativo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Referencia de contrato</Label>
+                <Input value={adminForm.contractReference} onChange={(event) => setAdminForm((form) => ({ ...form, contractReference: event.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Fecha de instalación</Label>
+                <Input type="date" value={adminForm.installationDate} onChange={(event) => setAdminForm((form) => ({ ...form, installationDate: event.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Técnico responsable</Label>
+                <Select value={adminForm.assignedTechnicianId} onValueChange={(value) => setAdminForm((form) => ({ ...form, assignedTechnicianId: value }))}>
+                  <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                  <SelectContent>
+                    {(users ?? []).map((user) => <SelectItem key={user.id} value={String(user.id)}>{user.username}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>AP / LiteAP / SXT / enlace</Label>
+                <Select value={adminForm.accessPointEquipmentId} onValueChange={(value) => setAdminForm((form) => ({ ...form, accessPointEquipmentId: value }))}>
+                  <SelectTrigger><SelectValue placeholder="Sin asociar" /></SelectTrigger>
+                  <SelectContent>
+                    {(equipment ?? []).filter((item) => item.id !== client.equipmentId).map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Dirección de instalación</Label>
+              <Input value={adminForm.installationAddress} onChange={(event) => setAdminForm((form) => ({ ...form, installationAddress: event.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notas del contrato</Label>
+              <Input value={adminForm.contractNotes} onChange={(event) => setAdminForm((form) => ({ ...form, contractNotes: event.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Motivo del cambio</Label>
+              <Input value={adminForm.changeReason} onChange={(event) => setAdminForm((form) => ({ ...form, changeReason: event.target.value }))} placeholder="Ej. cambio de técnico por nueva visita" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdminEditOpen(false)}>Cancelar</Button>
+            <Button onClick={() => updateAdministrativeRecord.mutate()} disabled={updateAdministrativeRecord.isPending}>
+              {updateAdministrativeRecord.isPending ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment dialog */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>

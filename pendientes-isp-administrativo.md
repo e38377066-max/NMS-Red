@@ -42,18 +42,16 @@ Este documento separa lo que ya tiene una base funcional de lo que todavía falt
 - Cola persistente de tareas con reintentos, timeout y bloqueo por equipo.
 - Organizaciones y sedes como base de multisede.
 - Avisos de mantenimiento persistentes.
+- Expediente administrativo del cliente: referencia y notas de contrato, fecha y dirección de instalación, técnico responsable, AP/enlace asociado e historial de cambios con usuario, motivo y valores anterior/nuevo.
 
 ## Pendientes reales
 
 ## 1. Alta completa de clientes
 
-La creación básica y el aprovisionamiento de red ya existen. Todavía falta completar el expediente administrativo:
+La creación básica, el aprovisionamiento de red y el expediente administrativo base ya existen. Todavía falta cerrar el archivo formal del contrato:
 
-- Contrato o documento del cliente.
-- Fecha de instalación.
-- Técnico responsable asignado al cliente o a la instalación.
-- Asociación explícita con el AP, LiteAP, SXT o enlace donde está conectado.
-- Historial completo de cambios.
+- Almacenar el contrato o documento del cliente como archivo.
+- Aprobar y versionar el documento desde la ficha del cliente.
 
 ## 2. Facturación administrativa completa
 
