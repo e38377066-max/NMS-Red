@@ -19,8 +19,12 @@ Este documento separa lo que ya tiene una base funcional de lo que todavía falt
 - Gestión básica de clientes.
 - Validación para asociar clientes al Router central MikroTik.
 - Alta idempotente por MAC/IP.
+- Aprovisionamiento transaccional en MikroTik: lease DHCP estático, Simple Queue, límites, address-list, verificación y rollback.
+- Cortes y reconexiones verificadas mediante la cola persistente: límite temporal, `Clientes_Cortados`, `Clientes_Activos` y comprobación posterior.
 - Historial básico del ciclo de vida del cliente.
 - Planes, pagos, vencimientos y recibos HTML.
+- Facturas, numeración consecutiva, pagos parciales, saldos, descuentos, recargos y métodos de pago.
+- Reporte diario de ingresos y cierre diario de caja.
 - Suspensión y reactivación automática de facturación.
 - Portal básico con token independiente.
 - Tickets y comentarios.
@@ -31,7 +35,7 @@ Este documento separa lo que ya tiene una base funcional de lo que todavía falt
 - Auditoría.
 - Backups de PostgreSQL y MikroTik.
 - Cifrado de credenciales almacenadas.
-- Reconciliación CRM–MikroTik inicial.
+- Reconciliación CRM–MikroTik con detección de diferencias, corrección aprobada y verificación posterior.
 - Configuración de firewall y address-lists MikroTik.
 - Worker de monitoreo.
 - Worker de facturación.
@@ -43,200 +47,94 @@ Este documento separa lo que ya tiene una base funcional de lo que todavía falt
 
 ## 1. Alta completa de clientes
 
-La creación básica existe, pero falta completar el proceso administrativo:
+La creación básica y el aprovisionamiento de red ya existen. Todavía falta completar el expediente administrativo:
 
-- Prospecto.
-- Instalación pendiente.
-- Cliente activo.
-- Cliente suspendido.
-- Cliente trasladado.
-- Cliente cancelado.
-- Reactivación.
 - Contrato o documento del cliente.
 - Fecha de instalación.
-- Técnico responsable.
-- Equipo instalado.
-- AP, LiteAP o SXT asociado.
-- Plan contratado.
+- Técnico responsable asignado al cliente o a la instalación.
+- Asociación explícita con el AP, LiteAP, SXT o enlace donde está conectado.
 - Historial completo de cambios.
-- Validación de MAC, IP, DHCP y cola antes de activar al cliente.
 
-## 2. Aprovisionamiento completo en MikroTik
+## 2. Facturación administrativa completa
 
-Actualmente hay operaciones separadas y una cola de tareas. Falta una operación única y transaccional de alta:
+La emisión básica, el cobro y el cierre diario ya existen. Falta:
 
-1. Validar que la MAC no exista.
-2. Validar que la IP no esté ocupada.
-3. Crear o actualizar el lease DHCP estático.
-4. Crear o actualizar la Simple Queue.
-5. Aplicar velocidad de subida y bajada.
-6. Crear la address-list correspondiente.
-7. Registrar el comentario con la identidad estable del cliente.
-8. Asociar el cliente con el AP o SXT donde está conectado.
-9. Leer nuevamente el estado real del MikroTik.
-10. Confirmar que todos los pasos quedaron aplicados.
-11. Revertir los pasos anteriores si uno falla.
-
-## 3. Cortes y reconexiones
-
-La base existe, pero falta cerrar el flujo completo:
-
-- Suspender por falta de pago.
-- Aplicar límite temporal en la cola.
-- Agregar la IP a la lista de suspendidos.
-- Mostrar el portal de suspensión.
-- Confirmar que el MikroTik aplicó el cambio.
-- Registrar el resultado real.
-- Reactivar después del pago.
-- Restaurar la velocidad anterior.
-- Quitar la address-list de suspensión.
-- Confirmar que el cliente volvió a operar.
-- Evitar cortes duplicados.
-- Evitar reactivaciones duplicadas.
-
-## 4. Reconciliación completa con MikroTik
-
-La reconciliación actual es parcial. Falta comparar y corregir:
-
-- Clientes del CRM que no existen en MikroTik.
-- Colas del MikroTik sin cliente en el CRM.
-- IPs duplicadas.
-- MACs modificadas.
-- Clientes sin DHCP estático.
-- Velocidades diferentes.
-- Colas con nombres o comentarios incorrectos.
-- Address-lists incorrectas.
-- Clientes suspendidos en el CRM pero activos en MikroTik.
-- Clientes activos en el CRM pero suspendidos en MikroTik.
-- Equipos eliminados o reemplazados.
-- Cambios de IP.
-- Corrección aprobada desde la interfaz.
-- Verificación posterior a la corrección.
-
-## 5. Facturación administrativa completa
-
-Ya existen planes, pagos, vencimientos, recibos y suspensión automática. Falta:
-
-- Facturas mensuales.
-- Numeración fiscal o consecutiva configurable.
-- Pagos parciales.
-- Saldos pendientes.
-- Descuentos.
-- Recargos.
 - Prorrateo.
 - Historial de deuda.
-- Métodos de pago configurables.
-- Pagos en efectivo.
-- Pagos por transferencia.
-- Pagos móviles.
 - Comprobante de pago como archivo.
 - Aprobación o rechazo del comprobante.
 - Avisos antes del vencimiento.
 - Reglas configurables de suspensión.
-- Reactivación automática después de confirmar el pago.
-- Reporte diario de ingresos.
 - Reporte de morosidad.
 - Exportación contable.
-- Cierre diario de caja.
 
-## 6. Portal del cliente
+## 3. Portal del cliente
 
-El backend tiene una base, pero falta completar el flujo de usuario:
+El backend tiene token, sesión, pagos, tickets, avisos y recibos HTML. Falta la interfaz completa para el cliente:
 
 - Pantalla real para iniciar sesión con el token.
 - Ver el plan actual.
 - Ver la velocidad contratada.
 - Ver el saldo pendiente.
 - Ver el vencimiento.
-- Ver el historial de pagos.
-- Descargar recibos.
-- Subir comprobantes.
-- Consultar tickets.
-- Crear tickets.
+- Ver el historial de pagos y descargar recibos desde una pantalla del portal.
+- Consultar y crear tickets desde una pantalla del portal.
 - Ver avisos de mantenimiento.
-- Solicitar cambio de plan.
-- Solicitar traslado.
-- Solicitar reconexión.
+- Solicitar cambio de plan, traslado y reconexión desde una pantalla del portal.
 - Confirmar el cierre de un ticket.
 - Ver el AP o enlace asociado.
+- Ver el saldo real de facturas y no solo el estado de pago del cliente.
 
-Actualmente el cambio de plan y el comprobante se registran como tickets, pero falta el flujo formal de aprobación y almacenamiento del archivo.
+Actualmente el comprobante se registra como ticket; falta el flujo formal de aprobación y almacenamiento del archivo.
 
-## 7. Soporte y tickets
+## 4. Soporte y tickets
 
-Existe una mesa de ayuda básica. Falta:
+Existe una mesa de ayuda básica con tickets, categorías, prioridad, asignación, comentarios y relaciones con cliente/equipo. Falta:
 
-- Ticket creado desde el portal.
-- Ticket creado por operador.
-- Categorías completas.
-- Prioridad configurable.
-- Técnico asignado.
 - SLA de primera respuesta.
 - SLA de resolución.
-- Comentarios internos y públicos.
 - Evidencias adjuntas.
 - Fotografías.
-- Relación con el cliente.
-- Relación con el MikroTik.
-- Relación con LiteAP, SXT o enlace.
-- Causa raíz.
 - Historial de estados.
 - Confirmación del cliente al cerrar.
 - Reapertura de tickets.
 - Reporte de tickets vencidos.
 - Notificaciones al cliente y al técnico.
 
-## 8. Operación de campo
+## 5. Operación de campo
 
-Existen órdenes de campo básicas. Falta:
+Existen órdenes de campo básicas con tipo, asignación, dirección, coordenadas, materiales, potencia medida y firma. Falta:
 
 - Agenda de técnicos.
 - Disponibilidad del técnico.
-- Orden de instalación.
-- Orden de reparación.
-- Orden de traslado.
-- Dirección completa.
-- Coordenadas GPS.
 - Fotos antes y después.
-- Potencia medida.
 - Señal del enlace.
 - CCQ.
 - Equipo instalado.
 - Número de serie.
-- Material utilizado.
-- Firma del cliente.
 - Acta de instalación.
 - Historial de visitas.
 - Reubicación del cliente.
 - Cambio de AP o SXT.
 - Aplicación móvil para técnicos.
 
-## 9. Inventario
+## 6. Inventario
 
 Existe un inventario básico. Falta:
 
 - Entradas de almacén.
 - Salidas de almacén.
 - Transferencias entre sedes.
-- Asignación a técnico.
-- Asignación a cliente.
-- Asignación a instalación.
 - Número de serie único.
 - MAC única.
-- Proveedor.
-- Garantía.
-- Costo.
 - Estado de reparación.
-- Equipos instalados.
-- Equipos averiados.
-- Equipos retirados.
 - Historial de movimientos.
 - Inventario de radios Ubiquiti.
 - Inventario de antenas.
 - Inventario de fuentes PoE.
 - Inventario de cables y conectores.
 
-## 10. Monitoreo de MikroTik y Ubiquiti
+## 7. Monitoreo de MikroTik y Ubiquiti
 
 Existe monitoreo y métricas iniciales. Falta guardar y mostrar de forma completa:
 
@@ -251,7 +149,6 @@ Existe monitoreo y métricas iniciales. Falta guardar y mostrar de forma complet
 - Latencia.
 - Estado de DHCP.
 - Estado de colas.
-- Clientes conectados.
 - Clientes desconectados repetidamente.
 - Estado de backups.
 - Versión de RouterOS.
@@ -259,17 +156,10 @@ Existe monitoreo y métricas iniciales. Falta guardar y mostrar de forma complet
 
 ### Ubiquiti y SXT
 
-- Señal por cliente.
-- CCQ.
-- Ruido.
-- SNR.
 - Capacidad del enlace.
-- TX/RX.
 - Frecuencia.
 - Canal.
 - Ancho de canal.
-- Clientes asociados.
-- Desconexiones.
 - Reintentos.
 - Estado del radio.
 - Versión de firmware.
@@ -277,7 +167,7 @@ Existe monitoreo y métricas iniciales. Falta guardar y mostrar de forma complet
 - Saturación.
 - Disponibilidad del enlace PTP.
 
-## 11. Alertas reales
+## 8. Alertas reales
 
 Existe deduplicación básica de incidentes. Falta:
 
@@ -297,15 +187,11 @@ Existe deduplicación básica de incidentes. Falta:
 - Cliente desconectándose repetidamente.
 - Backup fallido.
 - Certificado por vencer.
-- Silenciamiento temporal.
-- Mantenimiento programado.
 - Escalamiento.
 - Notificación por Telegram.
 - Notificación por correo.
-- Historial de incidentes.
-- Confirmación y resolución de alertas.
 
-## 12. Descubrimiento e inventario de red
+## 9. Descubrimiento e inventario de red
 
 Todavía falta:
 
@@ -323,7 +209,7 @@ Todavía falta:
 - Detectar equipos reemplazados.
 - Comparar inventario físico contra inventario del sistema.
 
-## 13. Usuarios y permisos
+## 10. Usuarios y permisos
 
 Hay usuarios y roles básicos, pero falta control administrativo detallado:
 
@@ -347,7 +233,7 @@ Hay usuarios y roles básicos, pero falta control administrativo detallado:
 - Restricción por IP.
 - Rotación de credenciales.
 
-## 14. Multiempresa y multisede
+## 11. Multiempresa y multisede
 
 La base de organizaciones y sedes existe, pero falta aplicar aislamiento real:
 
@@ -365,7 +251,7 @@ La base de organizaciones y sedes existe, pero falta aplicar aislamiento real:
 - Facturación separada.
 - Auditoría separada.
 
-## 15. Auditoría completa
+## 12. Auditoría completa
 
 Existe auditoría, pero falta garantizar que todas las acciones registren:
 
@@ -388,7 +274,7 @@ Existe auditoría, pero falta garantizar que todas las acciones registren:
 - Identificador de tarea.
 - Reintentos realizados.
 
-## 16. Backups y recuperación
+## 13. Backups y recuperación
 
 Existe generación de backups, pero falta completar el ciclo de producción:
 
@@ -408,7 +294,7 @@ Existe generación de backups, pero falta completar el ciclo de producción:
 - Backup de PostgreSQL.
 - Procedimiento de recuperación ante caída del servidor.
 
-## 17. Arquitectura de producción
+## 14. Arquitectura de producción
 
 Actualmente varios workers viven dentro del mismo proceso. Para producción falta separar o controlar:
 
