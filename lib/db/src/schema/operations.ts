@@ -59,6 +59,7 @@ export const clientLifecycleEventsTable = pgTable("client_lifecycle_events", {
 export const paymentsTable = pgTable("payments", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull().references(() => clientsTable.id, { onDelete: "cascade" }),
+  invoiceId: integer("invoice_id").references(() => invoicesTable.id, { onDelete: "set null" }),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("USD"),
   method: text("method").notNull(),
@@ -68,6 +69,40 @@ export const paymentsTable = pgTable("payments", {
   notes: text("notes"),
   paidAt: timestamp("paid_at").defaultNow().notNull(),
   receivedByUserId: integer("received_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const invoicesTable = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clientsTable.id, { onDelete: "cascade" }),
+  number: text("number").notNull().unique(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  dueDate: timestamp("due_date").notNull(),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+  discount: numeric("discount", { precision: 12, scale: 2 }).notNull().default("0"),
+  surcharge: numeric("surcharge", { precision: 12, scale: 2 }).notNull().default("0"),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+  amountPaid: numeric("amount_paid", { precision: 12, scale: 2 }).notNull().default("0"),
+  balanceDue: numeric("balance_due", { precision: 12, scale: 2 }).notNull(),
+  status: text("status").notNull().default("OPEN"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const cashClosuresTable = pgTable("cash_closures", {
+  id: serial("id").primaryKey(),
+  closureDate: timestamp("closure_date").notNull(),
+  openingBalance: numeric("opening_balance", { precision: 12, scale: 2 }).notNull().default("0"),
+  cashTotal: numeric("cash_total", { precision: 12, scale: 2 }).notNull().default("0"),
+  transferTotal: numeric("transfer_total", { precision: 12, scale: 2 }).notNull().default("0"),
+  mobileTotal: numeric("mobile_total", { precision: 12, scale: 2 }).notNull().default("0"),
+  otherTotal: numeric("other_total", { precision: 12, scale: 2 }).notNull().default("0"),
+  expectedTotal: numeric("expected_total", { precision: 12, scale: 2 }).notNull().default("0"),
+  countedTotal: numeric("counted_total", { precision: 12, scale: 2 }).notNull(),
+  difference: numeric("difference", { precision: 12, scale: 2 }).notNull(),
+  status: text("status").notNull().default("CLOSED"),
+  notes: text("notes"),
+  closedByUserId: integer("closed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

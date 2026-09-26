@@ -132,26 +132,7 @@ export async function registerPayment(
 
   if (!client) return false;
 
-  const equipment = await getEquipmentConn(client.equipmentId);
-  if (equipment) {
-    await enqueueTask(
-      "billing_reactivate",
-      `Reactivar cliente ${client.name} tras registrar pago`,
-      {
-        ip: equipment.ip,
-        username: equipment.username,
-        password: equipment.password,
-        mac: client.mac,
-        clientIp: client.ip ?? "",
-        clientName: client.name,
-        planLimit: client.planLimit ?? "10M/10M",
-      },
-      client.equipmentId,
-      equipment.model,
-      3,
-      null,
-    );
-  }
+  await queueClientReactivation(client.id);
 
   await db.insert(auditLogsTable).values({
     entity: "Client",
@@ -162,6 +143,43 @@ export async function registerPayment(
   });
 
   if (io) io.emit("billing:paid", { clientId: client.id, name: client.name, nextDue });
+  return true;
+}
+
+export async function queueClientReactivation(clientId: number): Promise<boolean> {
+  const [client] = await db
+    .select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      mac: clientsTable.mac,
+      ip: clientsTable.ip,
+      planLimit: clientsTable.planLimit,
+      equipmentId: clientsTable.equipmentId,
+    })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, clientId));
+  if (!client) return false;
+
+  const equipment = await getEquipmentConn(client.equipmentId);
+  if (!equipment) return false;
+
+  await enqueueTask(
+    "billing_reactivate",
+    `Reactivar cliente ${client.name} tras registrar pago`,
+    {
+      ip: equipment.ip,
+      username: equipment.username,
+      password: equipment.password,
+      mac: client.mac,
+      clientIp: client.ip ?? "",
+      clientName: client.name,
+      planLimit: client.planLimit ?? "10M/10M",
+    },
+    client.equipmentId,
+    equipment.model,
+    3,
+    null,
+  );
   return true;
 }
 

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useGetBillingSummary, getGetBillingSummaryQueryKey, useRunSuspendOverdue } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,13 +6,49 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DollarSign, CheckCircle2, AlertCircle, XCircle, Scissors, TrendingUp, Users } from "lucide-react";
+import { DollarSign, CheckCircle2, AlertCircle, XCircle, Scissors, TrendingUp, Users, FileText, WalletCards, Plus, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { getAuthToken } from "@/lib/auth";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+type Invoice = {
+  id: number;
+  number: string;
+  clientId: number;
+  clientName: string;
+  periodStart: string;
+  periodEnd: string;
+  dueDate: string;
+  total: string;
+  amountPaid: string;
+  balanceDue: string;
+  status: string;
+};
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+async function billingApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${BASE}/api${path}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      ...(options.headers ?? {}),
+    },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? "No se pudo completar la operación");
+  }
+  return response.json() as Promise<T>;
 }
 
 export default function Billing() {
@@ -19,6 +56,36 @@ export default function Billing() {
   const { toast } = useToast();
   const { data: summary, isLoading } = useGetBillingSummary({ query: { queryKey: getGetBillingSummaryQueryKey() } });
   const suspendOverdue = useRunSuspendOverdue();
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
+  const [clientId, setClientId] = useState("");
+  const [subtotal, setSubtotal] = useState("");
+  const [discount, setDiscount] = useState("0");
+  const [surcharge, setSurcharge] = useState("0");
+  const [periodStart, setPeriodStart] = useState(() => new Date().toISOString().slice(0, 10));
+  const [periodEnd, setPeriodEnd] = useState(() => new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(() => new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [savingInvoice, setSavingInvoice] = useState(false);
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [countedTotal, setCountedTotal] = useState("");
+  const [closingCash, setClosingCash] = useState(false);
+
+  const loadInvoices = async () => {
+    setLoadingInvoices(true);
+    try {
+      setInvoices(await billingApi<Invoice[]>("/billing/invoices"));
+    } catch (error) {
+      toast({ title: "No se pudieron cargar las facturas", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
+  useEffect(() => { void loadInvoices(); }, []);
 
   const handleSuspend = () => {
     if (!confirm("¿Ejecutar corte manual de todos los clientes vencidos?")) return;
@@ -29,6 +96,56 @@ export default function Billing() {
       },
       onError: () => toast({ title: "Error al ejecutar corte", variant: "destructive" }),
     });
+  };
+
+  const createInvoice = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSavingInvoice(true);
+    try {
+      await billingApi("/billing/invoices", {
+        method: "POST",
+        body: JSON.stringify({ clientId: Number(clientId), subtotal: Number(subtotal), discount: Number(discount), surcharge: Number(surcharge), periodStart, periodEnd, dueDate }),
+      });
+      setShowInvoiceForm(false);
+      setClientId(""); setSubtotal(""); setDiscount("0"); setSurcharge("0");
+      await loadInvoices();
+      toast({ title: "Factura creada", description: "La factura quedó abierta con su saldo pendiente." });
+    } catch (error) {
+      toast({ title: "No se pudo crear la factura", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    } finally { setSavingInvoice(false); }
+  };
+
+  const registerInvoicePayment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!paymentInvoice) return;
+    setSavingPayment(true);
+    try {
+      await billingApi(`/billing/invoices/${paymentInvoice.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({ amount: Number(paymentAmount), method: paymentMethod }),
+      });
+      setPaymentInvoice(null); setPaymentAmount("");
+      await loadInvoices();
+      queryClient.invalidateQueries({ queryKey: getGetBillingSummaryQueryKey() });
+      toast({ title: "Pago aplicado", description: "El saldo de la factura fue actualizado." });
+    } catch (error) {
+      toast({ title: "No se pudo aplicar el pago", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    } finally { setSavingPayment(false); }
+  };
+
+  const closeCash = async () => {
+    setClosingCash(true);
+    try {
+      const report = await billingApi<{ total: number }>("/billing/reports/daily");
+      await billingApi("/billing/cash-closures", {
+        method: "POST",
+        body: JSON.stringify({ countedTotal: Number(countedTotal), openingBalance: 0 }),
+      });
+      setCountedTotal("");
+      toast({ title: "Caja cerrada", description: `Ingresos esperados del día: Q ${report.total.toFixed(2)}` });
+    } catch (error) {
+      toast({ title: "No se pudo cerrar la caja", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    } finally { setClosingCash(false); }
   };
 
   const cards = [
@@ -61,15 +178,18 @@ export default function Billing() {
           <DollarSign className="w-8 h-8 text-primary" />
           Facturación
         </h1>
-        <Button
-          variant="destructive"
-          onClick={handleSuspend}
-          disabled={suspendOverdue.isPending}
-          className="gap-2"
-        >
-          <Scissors className="w-4 h-4" />
-          {suspendOverdue.isPending ? "Ejecutando..." : "Corte Manual Ahora"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => void loadInvoices()} disabled={loadingInvoices} className="gap-2">
+            <RefreshCw className={`w-4 h-4 ${loadingInvoices ? "animate-spin" : ""}`} />Actualizar
+          </Button>
+          <Button variant="outline" onClick={() => setShowInvoiceForm(value => !value)} className="gap-2">
+            <Plus className="w-4 h-4" />Nueva factura
+          </Button>
+          <Button variant="destructive" onClick={handleSuspend} disabled={suspendOverdue.isPending} className="gap-2">
+            <Scissors className="w-4 h-4" />
+            {suspendOverdue.isPending ? "Ejecutando..." : "Corte Manual Ahora"}
+          </Button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -156,6 +276,71 @@ export default function Billing() {
           )}
         </CardContent>
       </Card>
+
+      {showInvoiceForm && (
+        <Card className="border-primary/30 bg-card/60">
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-primary" />Crear factura</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={createInvoice} className="grid gap-3 md:grid-cols-4">
+              <div><Label>Cliente ID</Label><Input required type="number" min="1" value={clientId} onChange={event => setClientId(event.target.value)} placeholder="Ej. 12" /></div>
+              <div><Label>Subtotal</Label><Input required type="number" min="0.01" step="0.01" value={subtotal} onChange={event => setSubtotal(event.target.value)} placeholder="0.00" /></div>
+              <div><Label>Descuento</Label><Input type="number" min="0" step="0.01" value={discount} onChange={event => setDiscount(event.target.value)} /></div>
+              <div><Label>Recargo</Label><Input type="number" min="0" step="0.01" value={surcharge} onChange={event => setSurcharge(event.target.value)} /></div>
+              <div><Label>Inicio del período</Label><Input required type="date" value={periodStart} onChange={event => setPeriodStart(event.target.value)} /></div>
+              <div><Label>Fin del período</Label><Input required type="date" value={periodEnd} onChange={event => setPeriodEnd(event.target.value)} /></div>
+              <div><Label>Vencimiento</Label><Input required type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} /></div>
+              <div className="flex items-end"><Button type="submit" disabled={savingInvoice} className="w-full">{savingInvoice ? "Guardando..." : "Crear factura"}</Button></div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-cyan-400" />Facturas y saldos</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadingInvoices ? <div className="p-5 text-sm text-muted-foreground">Cargando facturas...</div> : !invoices.length ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">Todavía no hay facturas emitidas.</div>
+          ) : (
+            <Table>
+              <TableHeader><TableRow><TableHead>Número</TableHead><TableHead>Cliente</TableHead><TableHead>Período</TableHead><TableHead>Total</TableHead><TableHead>Saldo</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acción</TableHead></TableRow></TableHeader>
+              <TableBody>{invoices.map(invoice => (
+                <TableRow key={invoice.id}>
+                  <TableCell className="font-mono text-xs">{invoice.number}</TableCell>
+                  <TableCell><div className="font-medium">{invoice.clientName}</div><div className="text-xs text-muted-foreground">Vence {fmtDate(invoice.dueDate)}</div></TableCell>
+                  <TableCell className="text-xs">{fmtDate(invoice.periodStart)} — {fmtDate(invoice.periodEnd)}</TableCell>
+                  <TableCell>Q {Number(invoice.total).toFixed(2)}</TableCell>
+                  <TableCell className={Number(invoice.balanceDue) > 0 ? "text-yellow-400" : "text-emerald-400"}>Q {Number(invoice.balanceDue).toFixed(2)}</TableCell>
+                  <TableCell><Badge variant="outline">{invoice.status}</Badge></TableCell>
+                  <TableCell className="text-right">{Number(invoice.balanceDue) > 0 && <Button size="sm" className="gap-1" onClick={() => { setPaymentInvoice(invoice); setPaymentAmount(invoice.balanceDue); }}><WalletCards className="w-3 h-3" />Aplicar pago</Button>}</TableCell>
+                </TableRow>
+              ))}</TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><WalletCards className="w-4 h-4 text-emerald-400" />Cierre diario de caja</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="max-w-xs flex-1"><Label>Total contado</Label><Input type="number" min="0" step="0.01" value={countedTotal} onChange={event => setCountedTotal(event.target.value)} placeholder="0.00" /></div>
+          <Button onClick={() => void closeCash()} disabled={closingCash || !countedTotal}>{closingCash ? "Cerrando..." : "Cerrar caja de hoy"}</Button>
+        </CardContent>
+      </Card>
+
+      {paymentInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <Card className="w-full max-w-md border-primary/30">
+            <CardHeader><CardTitle className="text-base">Aplicar pago a {paymentInvoice.number}</CardTitle></CardHeader>
+            <CardContent><form onSubmit={registerInvoicePayment} className="space-y-4">
+              <div><Label>Importe (saldo: Q {Number(paymentInvoice.balanceDue).toFixed(2)})</Label><Input required type="number" min="0.01" max={paymentInvoice.balanceDue} step="0.01" value={paymentAmount} onChange={event => setPaymentAmount(event.target.value)} /></div>
+              <div><Label>Método</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}><option value="cash">Efectivo</option><option value="transfer">Transferencia</option><option value="mobile">Pago móvil</option><option value="other">Otro</option></select></div>
+              <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setPaymentInvoice(null)}>Cancelar</Button><Button type="submit" disabled={savingPayment}>{savingPayment ? "Aplicando..." : "Aplicar pago"}</Button></div>
+            </form></CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

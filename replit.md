@@ -11,6 +11,8 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
 - `pnpm --filter @workspace/db run push` — push del schema DB (solo dev)
 - Alta administrativa: usar `POST /api/clients/provision` con `equipmentId`, `name`, `mac`, `fixedIp` y `planLimit`; verifica lease DHCP estático, Simple Queue y `Clientes_Activos`, con rollback si falla el alta.
+- Facturación administrativa: `GET/POST /api/billing/invoices` crea y consulta facturas; `POST /api/billing/invoices/:id/payments` aplica pagos completos o parciales y actualiza el saldo; `GET /api/billing/reports/daily` resume ingresos por método; `GET/POST /api/billing/cash-closures` consulta y registra cierres diarios.
+- Métodos de pago soportados en facturas: `cash`, `transfer`, `mobile` y `other`. Los estados de factura son `OPEN`, `PARTIAL` y `PAID`.
 - Env requerido: `DATABASE_URL` — conexión Postgres
 - Primer arranque: define `INITIAL_ADMIN_USERNAME` y `INITIAL_ADMIN_PASSWORD` (mínimo 12 caracteres) para crear un único administrador en una base vacía; no existe una contraseña por defecto y esas variables se pueden retirar después del primer arranque.
 - Configuración de producción externa: copiar `.env.example` y usar un PostgreSQL y un almacenamiento S3-compatible propios; el API no depende de Replit Object Storage. `BACKUP_STORAGE_PROVIDER=filesystem` también funciona para una instalación de un solo servidor.

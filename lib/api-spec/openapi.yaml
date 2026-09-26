@@ -414,6 +414,101 @@ paths:
               schema:
                 $ref: "#/components/schemas/CommandResult"
 
+  /billing/invoices:
+    get:
+      operationId: listBillingInvoices
+      tags: [billing]
+      summary: Listar facturas y saldos
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+    post:
+      operationId: createBillingInvoice
+      tags: [billing]
+      summary: Crear una factura para un cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceInput"
+      responses:
+        "201":
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /billing/invoices/{id}/payments:
+    post:
+      operationId: applyInvoicePayment
+      tags: [billing]
+      summary: Aplicar un pago total o parcial a una factura
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoicePaymentInput"
+      responses:
+        "201":
+          description: Payment applied
+
+  /billing/reports/daily:
+    get:
+      operationId: getDailyBillingReport
+      tags: [billing]
+      summary: Obtener ingresos del día agrupados por método
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Daily report
+
+  /billing/cash-closures:
+    get:
+      operationId: listCashClosures
+      tags: [billing]
+      summary: Listar cierres de caja
+      responses:
+        "200":
+          description: Cash closures
+    post:
+      operationId: closeCash
+      tags: [billing]
+      summary: Cerrar la caja de un día
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CashClosureInput"
+      responses:
+        "201":
+          description: Cash closure created
+
   /equipment/{id}/metrics:
     get:
       operationId: getEquipmentMetrics
@@ -1228,6 +1323,96 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Client"
+
+    Invoice:
+      type: object
+      required: [id, clientId, number, periodStart, periodEnd, dueDate, total, amountPaid, balanceDue, status]
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        clientName:
+          type: string
+        number:
+          type: string
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        dueDate:
+          type: string
+          format: date-time
+        subtotal:
+          type: string
+        discount:
+          type: string
+        surcharge:
+          type: string
+        total:
+          type: string
+        amountPaid:
+          type: string
+        balanceDue:
+          type: string
+        status:
+          type: string
+
+    InvoiceInput:
+      type: object
+      required: [clientId, subtotal, periodStart, periodEnd, dueDate]
+      properties:
+        clientId:
+          type: integer
+        number:
+          type: string
+        subtotal:
+          type: number
+        discount:
+          type: number
+        surcharge:
+          type: number
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        dueDate:
+          type: string
+          format: date-time
+
+    InvoicePaymentInput:
+      type: object
+      required: [amount, method]
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        method:
+          type: string
+          enum: [cash, transfer, mobile, other]
+        reference:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+
+    CashClosureInput:
+      type: object
+      required: [countedTotal]
+      properties:
+        closureDate:
+          type: string
+          format: date-time
+        openingBalance:
+          type: number
+        countedTotal:
+          type: number
+        notes:
+          type: string
 
     MetricPoint:
       type: object
