@@ -60,6 +60,21 @@ type Payment = {
   paidAt: string;
 };
 
+type PaymentProof = {
+  id: number;
+  invoiceId: number | null;
+  amount: string;
+  currency: string;
+  method: string;
+  reference: string;
+  originalName: string | null;
+  mimeType: string | null;
+  status: string;
+  rejectionReason: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+};
+
 type TicketRow = {
   id: number;
   subject: string;
@@ -84,6 +99,7 @@ type PortalSession = {
   };
   invoices: Invoice[];
   payments: Payment[];
+  paymentProofs: PaymentProof[];
   tickets: TicketRow[];
 };
 
@@ -244,6 +260,22 @@ export default function ClientPortal() {
     }
   };
 
+  const downloadProof = async (proof: PaymentProof) => {
+    try {
+      const response = await fetch(`${BASE}/api/portal/payment-proofs/${proof.id}/download`, { headers: { "x-portal-token": token } });
+      if (!response.ok) throw new Error("No se pudo descargar el comprobante");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = proof.originalName ?? `comprobante-${proof.id}`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      toast({ title: "No se pudo descargar", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/70 bg-card/70">
@@ -266,7 +298,7 @@ export default function ClientPortal() {
           {([["overview", "Resumen"], ["payments", "Pagos y recibos"], ["tickets", "Soporte"] ] as const).map(([key, label]) => <button key={key} onClick={() => setSection(key)} className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${section === key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{label}</button>)}
         </nav>
         {section === "overview" && <Overview session={session} onRequest={createRequest} />}
-        {section === "payments" && <Payments session={session} onReceipt={downloadReceipt} />}
+        {section === "payments" && <Payments session={session} onReceipt={downloadReceipt} onProof={downloadProof} onRefresh={() => load(token)} />}
         {section === "tickets" && <Support session={session} onRequest={createRequest} />}
       </main>
     </div>
@@ -298,28 +330,73 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border border-border/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-medium">{value}</p></div>;
 }
 
-function Payments({ session, onReceipt }: { session: PortalSession; onReceipt: (payment: Payment) => void }) {
+function Payments({ session, onReceipt, onProof, onRefresh }: {
+  session: PortalSession;
+  onReceipt: (payment: Payment) => void;
+  onProof: (proof: PaymentProof) => void;
+  onRefresh: () => Promise<void>;
+}) {
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
+  const [method, setMethod] = useState("transfer");
+  const [invoiceId, setInvoiceId] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
   const { toast } = useToast();
   const submitProof = async (event: FormEvent) => {
     event.preventDefault();
+    if (!file) {
+      toast({ title: "Adjunta el comprobante", description: "Selecciona un PDF o imagen del comprobante.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Archivo demasiado grande", description: "El comprobante no puede superar 2 MB.", variant: "destructive" });
+      return;
+    }
+    setSending(true);
     try {
       const token = window.localStorage.getItem(TOKEN_KEY) ?? "";
-      await portalApi(token, "/payment-proof", { method: "POST", body: JSON.stringify({ reference, amount, notes }) });
-      setReference(""); setAmount(""); setNotes("");
+      const encoded = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const value = String(reader.result ?? "");
+          const comma = value.indexOf(",");
+          if (comma < 0) reject(new Error("No se pudo leer el archivo"));
+          else resolve(value.slice(comma + 1));
+        };
+        reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+        reader.readAsDataURL(file);
+      });
+      await portalApi(token, "/payment-proof", {
+        method: "POST",
+        body: JSON.stringify({
+          reference,
+          amount,
+          notes,
+          method,
+          invoiceId: invoiceId || undefined,
+          file: encoded,
+          fileName: file.name,
+          mimeType: file.type,
+        }),
+      });
+      setReference(""); setAmount(""); setNotes(""); setFile(null);
+      await onRefresh();
       toast({ title: "Comprobante registrado", description: "Soporte revisará la referencia y actualizará tu cuenta." });
     } catch (reason) {
       toast({ title: "No se pudo registrar", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" });
+    } finally {
+      setSending(false);
     }
   };
   return <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-    <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary" />Facturas y pagos</CardTitle></CardHeader><CardContent className="p-0">{session.invoices.length === 0 && session.payments.length === 0 ? <Empty text="Todavía no hay movimientos registrados." /> : <div className="divide-y divide-border/50">
+    <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary" />Facturas y pagos</CardTitle></CardHeader><CardContent className="p-0">{session.invoices.length === 0 && session.payments.length === 0 && session.paymentProofs.length === 0 ? <Empty text="Todavía no hay movimientos registrados." /> : <div className="divide-y divide-border/50">
       {session.invoices.map(invoice => <div key={`invoice-${invoice.id}`} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{invoice.number}</p><p className="text-xs text-muted-foreground">Vence {date(invoice.dueDate)} · {statusLabel(invoice.status)}</p></div><div className="text-right"><p className={Number(invoice.balanceDue) > 0 ? "font-semibold text-yellow-400" : "font-semibold text-emerald-400"}>{money(invoice.balanceDue)} pendiente</p><p className="text-xs text-muted-foreground">Total {money(invoice.total)}</p></div></div>)}
       {session.payments.map(payment => <div key={`payment-${payment.id}`} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">Recibo {payment.receiptNumber}</p><p className="text-xs text-muted-foreground">{date(payment.paidAt)} · {payment.method} {payment.reference ? `· ${payment.reference}` : ""}</p></div><div className="flex items-center gap-3"><span className="font-semibold text-emerald-400">{money(payment.amount, payment.currency)}</span><Button variant="outline" size="sm" onClick={() => onReceipt(payment)}>Descargar</Button></div></div>)}
+       {session.paymentProofs.map(proof => <div key={`proof-${proof.id}`} className="flex flex-wrap items-center justify-between gap-3 bg-muted/10 p-4"><div><p className="font-medium">Comprobante {proof.reference}</p><p className="text-xs text-muted-foreground">{date(proof.submittedAt)} · {proof.method} · {proof.originalName ?? "Archivo adjunto"}</p><p className={`mt-1 text-xs ${proof.status === "APPROVED" ? "text-emerald-400" : proof.status === "REJECTED" ? "text-red-400" : "text-yellow-400"}`}>{proof.status === "APPROVED" ? "Aprobado" : proof.status === "REJECTED" ? `Rechazado${proof.rejectionReason ? `: ${proof.rejectionReason}` : ""}` : "Pendiente de revisión"}</p></div><div className="flex items-center gap-3"><span className="font-semibold">{money(proof.amount, proof.currency)}</span><Button variant="outline" size="sm" onClick={() => onProof(proof)}>Descargar</Button></div></div>)}
     </div>}</CardContent></Card>
-    <Card><CardHeader><CardTitle className="text-base">Registrar comprobante</CardTitle><p className="text-sm text-muted-foreground">El equipo de facturación lo revisará antes de aplicarlo.</p></CardHeader><CardContent><form onSubmit={submitProof} className="space-y-3"><div><Label htmlFor="payment-reference">Referencia</Label><Input id="payment-reference" required value={reference} onChange={event => setReference(event.target.value)} className="mt-1" /></div><div><Label htmlFor="payment-amount">Importe</Label><Input id="payment-amount" required type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} className="mt-1" /></div><div><Label htmlFor="payment-notes">Notas</Label><Textarea id="payment-notes" value={notes} onChange={event => setNotes(event.target.value)} className="mt-1" /></div><Button type="submit">Enviar comprobante<Send className="ml-2 h-4 w-4" /></Button></form></CardContent></Card>
+     <Card><CardHeader><CardTitle className="text-base">Registrar comprobante</CardTitle><p className="text-sm text-muted-foreground">Se guardará de forma privada y no se aplicará hasta que lo apruebe facturación.</p></CardHeader><CardContent><form onSubmit={submitProof} className="space-y-3"><div><Label htmlFor="payment-invoice">Factura</Label><select id="payment-invoice" value={invoiceId} onChange={event => setInvoiceId(event.target.value)} className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"><option value="">Seleccionar automáticamente la factura pendiente</option>{session.invoices.filter(invoice => Number(invoice.balanceDue) > 0).map(invoice => <option key={invoice.id} value={invoice.id}>{invoice.number} · {money(invoice.balanceDue)} pendiente</option>)}</select></div><div><Label htmlFor="payment-method">Método</Label><select id="payment-method" value={method} onChange={event => setMethod(event.target.value)} className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"><option value="transfer">Transferencia</option><option value="mobile">Pago móvil</option><option value="cash">Efectivo</option><option value="other">Otro</option></select></div><div><Label htmlFor="payment-reference">Referencia</Label><Input id="payment-reference" required value={reference} onChange={event => setReference(event.target.value)} className="mt-1" /></div><div><Label htmlFor="payment-amount">Importe</Label><Input id="payment-amount" required type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} className="mt-1" /></div><div><Label htmlFor="payment-file">Archivo (PDF, JPG, PNG o WEBP; máximo 2 MB)</Label><Input key={file ? "selected" : "empty"} id="payment-file" required type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={event => setFile(event.target.files?.[0] ?? null)} className="mt-1" /></div><div><Label htmlFor="payment-notes">Notas</Label><Textarea id="payment-notes" value={notes} onChange={event => setNotes(event.target.value)} className="mt-1" /></div><Button type="submit" disabled={sending}>{sending ? "Enviando..." : "Enviar comprobante"}<Send className="ml-2 h-4 w-4" /></Button></form></CardContent></Card>
   </div>;
 }
 
