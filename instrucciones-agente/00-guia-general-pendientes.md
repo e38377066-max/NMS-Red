@@ -27,7 +27,9 @@ La base ya implementada incluye:
 - monitoreo inicial, alertas deduplicadas, métricas y auditoría;
 - backups, cifrado, cola persistente, organizaciones, sedes y avisos;
 - expediente administrativo con referencia, notas, instalación, técnico,
-  AP/enlace e historial.
+  AP/enlace e historial;
+- contratos formales privados versionados para clientes, con PDF, aprobación,
+  rechazo, descarga protegida y auditoría.
 
 Antes de comenzar cualquier sección, comparar el código actual con el documento
 de pendientes. No rehacer una capacidad que ya esté funcionando.
@@ -38,7 +40,7 @@ de pendientes. No rehacer una capacidad que ya esté funcionando.
 
 El orden de trabajo es:
 
-1. Alta completa de clientes: contrato formal.
+1. Alta completa de clientes: contrato formal (completada).
 2. Facturación administrativa completa.
 3. Portal del cliente restante.
 4. Soporte y tickets.
@@ -88,6 +90,11 @@ Para cualquier endpoint nuevo o cambio de respuesta:
 
 No crear endpoints privados que solo existan en el frontend.
 
+El workspace usa Zod 3, mientras las versiones actuales de Orval pueden generar
+`zod.int()` y exportaciones duplicadas. `lib/api-spec/compat-codegen.mjs` aplica
+la compatibilidad necesaria después de cada regeneración; debe conservarse al
+modificar el contrato OpenAPI.
+
 ### 4. Base de datos y archivos
 
 - Para cambios de datos, usar Drizzle en `lib/db/src/schema/`.
@@ -126,29 +133,59 @@ Una sección solo está terminada cuando:
 
 ## Hoja de ruta por sección
 
-### 1. Alta completa de clientes: contrato formal
+### 1. Alta completa de clientes: contrato formal — completada
 
 **Objetivo:** asociar un contrato documental versionado al expediente del
 cliente.
 
-**Alcance:**
+**Implementado:**
 
 - tabla de documentos contractuales vinculada a `clients`;
 - versiones con estados `PENDING`, `APPROVED` y `REJECTED`;
-- carga privada de PDF o formatos definidos;
+- carga privada de PDF de hasta 10 MB mediante el proveedor configurado
+  (`filesystem` o `s3`);
 - nombre original, MIME, tamaño, hash, ruta privada y usuario que carga;
 - aprobación o rechazo con motivo;
-- como máximo un contrato aprobado vigente por cliente;
-- descarga protegida;
-- sección de documentos en `client-detail.tsx`;
-- auditoría de carga, aprobación y rechazo.
+- como máximo un contrato aprobado vigente por cliente mediante restricción de
+  base de datos;
+- descarga protegida con autenticación;
+- sección de documentos en
+  `artifacts/nms-dashboard/src/pages/client-detail.tsx` con carga, listado,
+  estado, revisión y descarga;
+- auditoría de carga, aprobación y rechazo con usuario, IP, dispositivo,
+  motivo y estados anterior/nuevo;
+- rutas documentadas en OpenAPI y hooks generados para listar y revisar
+  contratos.
 
-**Dependencias:** object storage, permisos administrativos y auditoría.
+**Archivos principales:**
 
-**No hacer todavía:** comprobantes de pago, facturación o portal nuevo.
+- `lib/db/src/schema/clients.ts`
+- `artifacts/api-server/src/routes/client-contracts.ts`
+- `artifacts/api-server/src/services/object-storage.service.ts`
+- `artifacts/nms-dashboard/src/pages/client-detail.tsx`
+- `lib/api-spec/openapi.yaml`
 
-**Cierre:** una versión nueva no sobrescribe una anterior y una segunda
-versión aprobada reemplaza lógicamente a la vigente sin perder historial.
+**Verificación realizada:**
+
+- `pnpm --filter @workspace/api-spec run codegen`: correcto.
+- `pnpm run typecheck`: correcto en librerías, API, dashboard, canvas y
+  scripts.
+- Build del API: correcto.
+- Build del dashboard: correcto con `PORT` y `BASE_PATH` del artifact.
+- Schema de desarrollo actualizado con Drizzle.
+- `/api/healthz`: responde correctamente.
+- `/api/clients` sin autenticación: rechaza con `401`.
+- Dashboard servido en preview sin errores de navegador.
+
+**Decisiones y límites:** una versión nueva no sobrescribe una anterior y una
+segunda aprobada reemplaza lógicamente a la vigente sin perder historial. El
+flujo autenticado completo de ficha no se pudo probar con usuarios demo porque
+las credenciales documentadas no estaban disponibles en la base actual; no se
+inventaron credenciales.
+
+**Siguiente bloque:** sección 2, facturación administrativa completa. No
+implementar todavía el flujo de comprobantes del portal; pertenece a la
+sección 3.
 
 ### 2. Facturación administrativa completa
 
