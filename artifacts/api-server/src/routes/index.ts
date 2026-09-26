@@ -14,6 +14,7 @@ import metricsRouter from "./metrics";
 import dhcpRouter from "./dhcp";
 import deviceConfigRouter from "./device-config";
 import securityRouter from "./security";
+import reconciliationRouter from "./reconciliation";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -30,6 +31,7 @@ router.use(metricsRouter);
 router.use(dhcpRouter);
 router.use(deviceConfigRouter);
 router.use(securityRouter);
+router.use(reconciliationRouter);
 router.use(auditLogsRouter);
 router.use(monitoringRouter);
 router.use(aiRouter);

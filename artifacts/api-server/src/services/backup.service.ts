@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { logger } from "../lib/logger";
-import { encryptBuffer } from "./credentials.service";
+import { decryptSecret, encryptBuffer } from "./credentials.service";
 import { uploadPrivateObject } from "./object-storage.service";
 
 const execFileAsync = promisify(execFile);
@@ -106,15 +106,25 @@ async function backupPostgres(): Promise<boolean> {
   }
 }
 
-async function backupMikroTik(equip: { id: number; ip: string; username: string; password: string; model: string }): Promise<boolean[]> {
+async function backupMikroTik(equip: {
+  id: number;
+  ip: string;
+  username: string;
+  password: string;
+  model: string;
+  apiPort: number | null;
+}): Promise<boolean[]> {
   const results: boolean[] = [];
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const safeModel = equip.model.replace(/[^a-zA-Z0-9-]/g, "_");
 
   try {
-    const auth = Buffer.from(`${equip.username}:${equip.password}`).toString("base64");
+    const auth = Buffer.from(`${equip.username}:${decryptSecret(equip.password)}`).toString("base64");
     const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
-    const baseUrl = `http://${equip.ip}/rest`;
+    const scheme = process.env.MIKROTIK_API_SCHEME
+      ?? (process.env.NODE_ENV === "production" ? "https" : "http");
+    const port = equip.apiPort ?? (process.env.MIKROTIK_API_PORT ? Number(process.env.MIKROTIK_API_PORT) : undefined);
+    const baseUrl = `${scheme}://${equip.ip}${port ? `:${port}` : ""}/rest`;
 
     const backupName = `${safeModel}_${timestamp}`;
     await fetch(`${baseUrl}/system/backup/save`, {

@@ -11,6 +11,9 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
 - `pnpm --filter @workspace/db run push` — push del schema DB (solo dev)
 - Env requerido: `DATABASE_URL` — conexión Postgres
+- Configuración de producción externa: copiar `.env.example` y usar un PostgreSQL y un almacenamiento S3-compatible propios; el API no depende de Replit Object Storage.
+- `BACKUP_STORAGE_PROVIDER=s3` requiere `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT` y `S3_BUCKET`. Para una instalación de un solo servidor se puede usar `filesystem` con `BACKUP_STORAGE_DIR` absoluto.
+- En producción `MIKROTIK_API_SCHEME=https` es el valor recomendado; el acceso a las sedes debe resolverse con WireGuard, red privada o un conector propio antes de exponer el API.
 - Topología objetivo: `Router central MikroTik hEX → LiteAP / SXT 5 ax → clientes`
 
 ## Stack

@@ -45,6 +45,13 @@ function mkHeaders(username: string, password: string) {
   };
 }
 
+function mikrotikBaseUrl(ip: string): string {
+  const scheme = process.env.MIKROTIK_API_SCHEME
+    ?? (process.env.NODE_ENV === "production" ? "https" : "http");
+  const port = process.env.MIKROTIK_API_PORT?.trim();
+  return `${scheme}://${ip}${port ? `:${port}` : ""}/rest`;
+}
+
 async function mkFetch(
   ip: string,
   username: string,
@@ -55,7 +62,7 @@ async function mkFetch(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(`http://${ip}/rest${path}`, {
+    const res = await fetch(`${mikrotikBaseUrl(ip)}${path}`, {
       headers: mkHeaders(username, password),
       signal: controller.signal,
       ...options,

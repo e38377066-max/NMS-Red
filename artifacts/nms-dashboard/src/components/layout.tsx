@@ -7,6 +7,7 @@ import {
   Router as RouterIcon, 
   Users, 
   Activity, 
+  GitCompare,
   BotMessageSquare, 
   ShieldCheck,
   LogOut,
@@ -33,6 +34,7 @@ export function Layout({ children }: { children: ReactNode }) {
       name: "Red", 
       items: [
         { name: "Monitoreo", href: "/monitoring", icon: Activity },
+        { name: "Reconciliación", href: "/reconciliation", icon: GitCompare },
         { name: "Topología", href: "/topology", icon: Network },
         { name: "Nodos", href: "/nodes", icon: Server },
         { name: "Equipos", href: "/equipment", icon: RouterIcon },

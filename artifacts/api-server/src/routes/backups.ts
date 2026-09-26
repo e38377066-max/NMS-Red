@@ -1,6 +1,4 @@
 import { Router, type IRouter } from "express";
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
 import { db, backupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { listBackups, runAllBackups } from "../services/backup.service";
@@ -42,24 +40,15 @@ router.get("/backups/:id/download", async (req, res): Promise<void> => {
   }
 
   try {
-    if (backup.filePath.startsWith("/objects/")) {
-      const objectResponse = await downloadPrivateObject(backup.filePath);
-      const encrypted = Buffer.from(await objectResponse.arrayBuffer());
-      const decrypted = decryptBuffer(encrypted);
-      res.setHeader("Content-Disposition", `attachment; filename="${backup.name}"`);
-      res.setHeader("Content-Length", decrypted.byteLength);
-      res.setHeader("Content-Type", "application/octet-stream");
-      res.end(decrypted);
-      return;
-    }
-    const stats = await stat(backup.filePath);
+    const objectResponse = await downloadPrivateObject(backup.filePath);
+    const encrypted = Buffer.from(await objectResponse.arrayBuffer());
+    const decrypted = decryptBuffer(encrypted);
     res.setHeader("Content-Disposition", `attachment; filename="${backup.name}"`);
-    res.setHeader("Content-Length", stats.size);
+    res.setHeader("Content-Length", decrypted.byteLength);
     res.setHeader("Content-Type", "application/octet-stream");
-    const stream = createReadStream(backup.filePath);
-    stream.pipe(res);
+    res.end(decrypted);
   } catch {
-    res.status(404).json({ error: "Archivo no encontrado en el servidor" });
+    res.status(404).json({ error: "Respaldo no encontrado en el almacenamiento configurado" });
   }
 });
 

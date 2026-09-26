@@ -20,6 +20,7 @@ import Billing from "@/pages/billing";
 import Backups from "@/pages/backups";
 import Security from "@/pages/security";
 import Monitoring from "@/pages/monitoring";
+import Reconciliation from "@/pages/reconciliation";
 import { getCurrentUser } from "@/lib/auth";
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,9 @@ function Router() {
       </Route>
       <Route path="/monitoring">
         <Protected><Layout><Monitoring /></Layout></Protected>
+      </Route>
+      <Route path="/reconciliation">
+        <Protected><Layout><Reconciliation /></Layout></Protected>
       </Route>
       <Route path="/nodes">
         <Protected><Layout><Nodes /></Layout></Protected>

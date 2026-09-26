@@ -57,7 +57,7 @@ router.post("/tasks/speed-change", async (req, res): Promise<void> => {
   if (!clientId || !newLimit) { res.status(400).json({ error: "clientId y newLimit son requeridos" }); return; }
 
   try {
-    const task = await enqueueSpeedChange(clientId, newLimit);
+    const task = await enqueueSpeedChange(clientId, newLimit, res.locals.user?.id ?? null);
     res.status(202).json({
       taskId: task.id,
       message: `Cambio de velocidad encolado: ${newLimit}. Se procesará en breve.`,
@@ -73,7 +73,7 @@ router.post("/tasks/dhcp-lease", async (req, res): Promise<void> => {
   if (!clientId || !fixedIp) { res.status(400).json({ error: "clientId y fixedIp son requeridos" }); return; }
 
   try {
-    const task = await enqueueDhcpLease(clientId, fixedIp, dhcpServer);
+    const task = await enqueueDhcpLease(clientId, fixedIp, dhcpServer, res.locals.user?.id ?? null);
     res.status(202).json({
       taskId: task.id,
       message: `Lease DHCP encolado para IP ${fixedIp}. Se procesará en breve.`,

@@ -27,8 +27,26 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json({ limit: "16mb" }));
+const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
+  .split(",")
+  .map(value => value.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: configuredOrigins.length > 0
+    ? (origin, callback) => {
+        if (!origin || configuredOrigins.includes(origin)) callback(null, true);
+        else callback(new Error("Origin not allowed by CORS"));
+      }
+    : false,
+}));
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  next();
+});
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "4mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Portal de Suspensión ──────────────────────────────────────────────────
@@ -61,5 +79,11 @@ app.get("/portal/suspendido", (_req, res) => {
 // ──────────────────────────────────────────────────────────────────────────
 
 app.use("/api", router);
+
+app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err: error }, "Unhandled API error");
+  if (res.headersSent) return;
+  res.status(500).json({ error: "Error interno del servidor" });
+});
 
 export default app;

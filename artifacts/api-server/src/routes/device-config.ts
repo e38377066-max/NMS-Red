@@ -1,8 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, equipmentTable, auditLogsTable, backupsTable } from "@workspace/db";
-import { stat } from "node:fs/promises";
-import { join } from "node:path";
 import {
   applyDeviceConfiguration,
   getDeviceConfiguration,
@@ -71,13 +69,11 @@ router.post("/equipment/:id/configuration/apply", async (req, res): Promise<void
   try {
     const result = await applyDeviceConfiguration(equipment, previewId);
     if (result.backupPath) {
-      const filePath = join(process.cwd(), "data", "backups", result.backupPath);
-      const fileStats = await stat(filePath).catch(() => null);
       await db.insert(backupsTable).values({
         type: equipment.connectionType === "mikrotik_routeros" ? "mikrotik_script" : "airos_config",
-        name: result.backupPath,
-        filePath,
-        sizeBytes: fileStats?.size ?? 0,
+        name: result.backupName ?? `prechange_${equipment.id}`,
+        filePath: result.backupPath,
+        sizeBytes: result.backupSizeBytes ?? 0,
         equipmentId: equipment.id,
       });
     }

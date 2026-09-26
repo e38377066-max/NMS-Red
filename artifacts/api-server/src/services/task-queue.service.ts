@@ -10,7 +10,7 @@
 
 import { randomUUID } from "node:crypto";
 import { db, equipmentTable, clientsTable, auditLogsTable, taskQueueTable, type TaskQueueRow } from "@workspace/db";
-import { and, eq, lte, or } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import {
   setClientSpeedLimit,
   addToAddressList,
@@ -61,6 +61,10 @@ export interface Task {
 const MAX_HISTORY = 500;
 const RETRY_BASE_DELAY_MS = 5_000;
 const TICK_INTERVAL_MS = 500;
+const OPERATION_TIMEOUT_MS = Math.max(
+  5_000,
+  Number(process.env.NETWORK_OPERATION_TIMEOUT_MS ?? 30_000),
+);
 
 const tasks = new Map<string, Task>();
 const pendingQueue: string[] = [];
@@ -98,6 +102,26 @@ export async function enqueueTask(
   maxRetries = 3,
   requestedByUserId: number | null = null,
 ): Promise<Task> {
+  const duplicateCondition = equipmentId === null
+    ? isNull(taskQueueTable.equipmentId)
+    : eq(taskQueueTable.equipmentId, equipmentId);
+  const activeTasks = await db
+    .select()
+    .from(taskQueueTable)
+    .where(and(
+      duplicateCondition,
+      or(eq(taskQueueTable.status, "pending"), eq(taskQueueTable.status, "running")),
+    ));
+  const payloadFingerprint = stableJson(payload);
+  const duplicate = activeTasks.find(row => row.type === type && stableJson(row.payload) === payloadFingerprint);
+  if (duplicate) {
+    const existing = fromDbTask(duplicate);
+    tasks.set(existing.id, existing);
+    if (existing.status === "pending" && !pendingQueue.includes(existing.id)) pendingQueue.push(existing.id);
+    logger.info({ taskId: existing.id, type, equipmentId }, "Duplicate active task reused");
+    return existing;
+  }
+
   const task: Task = {
     id: randomUUID(),
     type,
@@ -217,16 +241,41 @@ async function processTick(): Promise<void> {
     // Take this task
     pendingQueue.splice(i, 1);
     busyEquipments.add(slotKey);
-    void runTask(task).finally(() => busyEquipments.delete(slotKey));
+    const claimed = await claimTask(task);
+    if (!claimed) {
+      busyEquipments.delete(slotKey);
+      continue;
+    }
+    void runTask(task, true).finally(() => busyEquipments.delete(slotKey));
     break; // process one task per tick
   }
 }
 
-async function runTask(task: Task): Promise<void> {
+async function claimTask(task: Task): Promise<boolean> {
+  const [claimed] = await db
+    .update(taskQueueTable)
+    .set({ status: "running", startedAt: new Date(), nextAttemptAt: null })
+    .where(and(eq(taskQueueTable.id, task.id), eq(taskQueueTable.status, "pending")))
+    .returning({ id: taskQueueTable.id });
+  if (!claimed) return false;
   task.status = "running";
   task.startedAt = new Date();
   task.nextAttemptAt = null;
-  await db.update(taskQueueTable).set(toDbTask(task)).where(eq(taskQueueTable.id, task.id));
+  return true;
+}
+
+async function runTask(task: Task, alreadyClaimed = false): Promise<void> {
+  task.status = "running";
+  task.startedAt = task.startedAt ?? new Date();
+  task.nextAttemptAt = null;
+  if (!alreadyClaimed) {
+    const [claimed] = await db
+      .update(taskQueueTable)
+      .set(toDbTask(task))
+      .where(and(eq(taskQueueTable.id, task.id), eq(taskQueueTable.status, "pending")))
+      .returning({ id: taskQueueTable.id });
+    if (!claimed) return;
+  }
   emit("task:started", serializeTask(task));
   logger.info({ taskId: task.id, type: task.type, attempt: task.retries + 1 }, "Task started");
 
@@ -241,7 +290,7 @@ async function runTask(task: Task): Promise<void> {
     }
 
     try {
-      const result = await executeTask(task);
+      const result = await withTimeout(executeTask(task), OPERATION_TIMEOUT_MS, `La operación superó el límite de ${OPERATION_TIMEOUT_MS} ms`);
       task.status = "completed";
       task.result = result;
       task.error = null;
@@ -389,6 +438,27 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${stableJson(object[key])}`).join(",")}}`;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function toDbTask(task: Task) {
   return {
     id: task.id,
@@ -436,7 +506,8 @@ function fromDbTask(row: TaskQueueRow): Task {
 
 export async function enqueueSpeedChange(
   clientId: number,
-  newLimit: string
+  newLimit: string,
+  requestedByUserId: number | null = null,
 ): Promise<Task> {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) throw new Error("Cliente no encontrado");
@@ -462,14 +533,15 @@ export async function enqueueSpeedChange(
     equip.id,
     `${equip.model} (${equip.ip})`,
     3,
-    null,
+    requestedByUserId,
   );
 }
 
 export async function enqueueDhcpLease(
   clientId: number,
   fixedIp: string,
-  dhcpServer?: string
+  dhcpServer?: string,
+  requestedByUserId: number | null = null,
 ): Promise<Task> {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) throw new Error("Cliente no encontrado");
@@ -495,6 +567,6 @@ export async function enqueueDhcpLease(
     equip.id,
     `${equip.model} (${equip.ip})`,
     3,
-    null,
+    requestedByUserId,
   );
 }

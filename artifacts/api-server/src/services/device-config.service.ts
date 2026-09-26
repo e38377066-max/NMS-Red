@@ -1,9 +1,10 @@
 import { NodeSSH } from "node-ssh";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { logger } from "../lib/logger";
-import { decryptSecret } from "./credentials.service";
+import { decryptSecret, encryptBuffer } from "./credentials.service";
+import { uploadPrivateObject } from "./object-storage.service";
 
 const SSH_TIMEOUT_MS = 12_000;
 const MAX_CONFIG_BYTES = 12 * 1024 * 1024;
@@ -177,7 +178,10 @@ export function previewDeviceConfiguration(equipment: ManagedEquipment, input: D
   };
 }
 
-async function savePreChangeBackup(equipment: ManagedEquipment, ssh: NodeSSH): Promise<string | null> {
+async function savePreChangeBackup(
+  equipment: ManagedEquipment,
+  ssh: NodeSSH,
+): Promise<{ filePath: string; fileName: string; sizeBytes: number } | null> {
   try {
     const command = equipment.connectionType === "mikrotik_routeros"
       ? "/export terse"
@@ -185,15 +189,15 @@ async function savePreChangeBackup(equipment: ManagedEquipment, ssh: NodeSSH): P
     const result = await ssh.execCommand(command);
     const content = result.stdout || result.stderr;
     if (!content) return null;
-    const dir = join(process.cwd(), "data", "backups");
-    await mkdir(dir, { recursive: true });
     const extension = equipment.connectionType === "mikrotik_routeros" ? "rsc" : "cfg";
     const fileName = `prechange_${equipment.id}_${Date.now()}.${extension}`;
-    const filePath = join(dir, fileName);
-    // This file stays in the private server backup directory so it can be
-    // restored. The redacted version is only returned by the read endpoint.
-    await writeFile(filePath, content, "utf8");
-    return fileName;
+    const encrypted = encryptBuffer(Buffer.from(content, "utf8"));
+    const filePath = await uploadPrivateObject(
+      encrypted,
+      "application/octet-stream",
+      `.${extension}.enc`,
+    );
+    return { filePath, fileName, sizeBytes: encrypted.byteLength };
   } catch (err) {
     logger.warn({ equipmentId: equipment.id, err }, "Could not create pre-change configuration backup");
     return null;
@@ -239,7 +243,8 @@ export async function applyDeviceConfiguration(equipment: ManagedEquipment, prev
   const ssh = new NodeSSH();
   try {
     await ssh.connect(sshOptions(equipment));
-    const backupPath = await savePreChangeBackup(equipment, ssh);
+    const backup = await savePreChangeBackup(equipment, ssh);
+    if (!backup) throw new Error("No se pudo crear el backup previo; el cambio fue cancelado");
     let result: { message: string; needsReboot: boolean };
 
     if (pending.format !== "text") {
@@ -263,7 +268,12 @@ export async function applyDeviceConfiguration(equipment: ManagedEquipment, prev
     }
 
     pendingConfigs.delete(previewId);
-    return { ...result, backupPath };
+    return {
+      ...result,
+      backupPath: backup.filePath,
+      backupName: backup.fileName,
+      backupSizeBytes: backup.sizeBytes,
+    };
   } finally {
     try { ssh.dispose(); } catch { /* no-op */ }
   }
