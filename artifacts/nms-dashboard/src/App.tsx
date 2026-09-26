@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,6 +20,11 @@ import Billing from "@/pages/billing";
 import Backups from "@/pages/backups";
 import Security from "@/pages/security";
 import Monitoring from "@/pages/monitoring";
+import { getCurrentUser } from "@/lib/auth";
+
+function Protected({ children }: { children: React.ReactNode }) {
+  return getCurrentUser() ? <>{children}</> : <Redirect to="/login" />;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } }
@@ -30,46 +35,46 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/">
-        <Layout><Dashboard /></Layout>
+        <Protected><Layout><Dashboard /></Layout></Protected>
       </Route>
       <Route path="/topology">
-        <Layout><Topology /></Layout>
+        <Protected><Layout><Topology /></Layout></Protected>
       </Route>
       <Route path="/monitoring">
-        <Layout><Monitoring /></Layout>
+        <Protected><Layout><Monitoring /></Layout></Protected>
       </Route>
       <Route path="/nodes">
-        <Layout><Nodes /></Layout>
+        <Protected><Layout><Nodes /></Layout></Protected>
       </Route>
       <Route path="/equipment">
-        <Layout><Equipment /></Layout>
+        <Protected><Layout><Equipment /></Layout></Protected>
       </Route>
       <Route path="/equipment/:id">
-        <Layout><EquipmentDetail /></Layout>
+        <Protected><Layout><EquipmentDetail /></Layout></Protected>
       </Route>
       <Route path="/clients">
-        <Layout><Clients /></Layout>
+        <Protected><Layout><Clients /></Layout></Protected>
       </Route>
       <Route path="/clients/:id">
-        <Layout><ClientDetail /></Layout>
+        <Protected><Layout><ClientDetail /></Layout></Protected>
       </Route>
       <Route path="/billing">
-        <Layout><Billing /></Layout>
+        <Protected><Layout><Billing /></Layout></Protected>
       </Route>
       <Route path="/backups">
-        <Layout><Backups /></Layout>
+        <Protected><Layout><Backups /></Layout></Protected>
       </Route>
       <Route path="/security">
-        <Layout><Security /></Layout>
+        <Protected><Layout><Security /></Layout></Protected>
       </Route>
       <Route path="/audit">
-        <Layout><Audit /></Layout>
+        <Protected><Layout><Audit /></Layout></Protected>
       </Route>
       <Route path="/ai">
-        <Layout><Ai /></Layout>
+        <Protected><Layout><Ai /></Layout></Protected>
       </Route>
       <Route path="/users">
-        <Layout><Users /></Layout>
+        <Protected><Layout><Users /></Layout></Protected>
       </Route>
       <Route component={NotFound} />
     </Switch>

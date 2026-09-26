@@ -17,6 +17,7 @@ router.get("/audit-logs", async (req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(auditLogsTable)
+    .where(parsed.data.equipmentId == null ? undefined : eq(auditLogsTable.equipmentId, parsed.data.equipmentId))
     .orderBy(desc(auditLogsTable.timestamp))
     .limit(limit);
 

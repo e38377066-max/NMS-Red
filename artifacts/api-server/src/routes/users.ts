@@ -3,35 +3,9 @@ import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateUserBody, LoginUserBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, signToken } from "../services/auth.service";
+import { requireAuth, requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
-
-router.get("/users", async (_req, res): Promise<void> => {
-  const users = await db
-    .select({
-      id: usersTable.id,
-      username: usersTable.username,
-      role: usersTable.role,
-      createdAt: usersTable.createdAt,
-    })
-    .from(usersTable)
-    .orderBy(usersTable.username);
-  res.json(users);
-});
-
-router.post("/users", async (req, res): Promise<void> => {
-  const parsed = CreateUserBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const passwordHash = await hashPassword(parsed.data.password);
-  const [user] = await db
-    .insert(usersTable)
-    .values({ username: parsed.data.username, passwordHash, role: parsed.data.role })
-    .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role, createdAt: usersTable.createdAt });
-  res.status(201).json(user);
-});
 
 router.post("/users/login", async (req, res): Promise<void> => {
   const parsed = LoginUserBody.safeParse(req.body);
@@ -58,6 +32,48 @@ router.post("/users/login", async (req, res): Promise<void> => {
     token,
     user: { id: user.id, username: user.username, role: user.role, createdAt: user.createdAt },
   });
+});
+
+router.use(requireAuth);
+router.use(requireRole("admin"));
+
+router.get("/users", async (_req, res): Promise<void> => {
+  const users = await db
+    .select({
+      id: usersTable.id,
+      username: usersTable.username,
+      role: usersTable.role,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .orderBy(usersTable.username);
+  res.json(users);
+});
+
+router.post("/users", async (req, res): Promise<void> => {
+  const parsed = CreateUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  if (parsed.data.username.trim().length < 3 || parsed.data.password.length < 6) {
+    res.status(400).json({ error: "El usuario debe tener 3 caracteres y la contraseña 6 como mínimo" });
+    return;
+  }
+  const passwordHash = await hashPassword(parsed.data.password);
+  try {
+    const [user] = await db
+      .insert(usersTable)
+      .values({ username: parsed.data.username.trim(), passwordHash, role: parsed.data.role })
+      .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role, createdAt: usersTable.createdAt });
+    res.status(201).json(user);
+  } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase().includes("unique")) {
+      res.status(409).json({ error: "Ese nombre de usuario ya existe" });
+      return;
+    }
+    throw error;
+  }
 });
 
 export default router;

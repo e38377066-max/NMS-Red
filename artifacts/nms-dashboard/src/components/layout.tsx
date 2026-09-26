@@ -18,11 +18,14 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clearAuth, getCurrentUser } from "@/lib/auth";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const [, navigate] = useLocation();
   const { isConnected } = useWebSocket();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const currentUser = getCurrentUser();
 
   const navigation = [
     { name: "General", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
@@ -116,10 +119,17 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="p-4 border-t border-border">
-          <Link href="/login" className="flex items-center gap-3 px-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            type="button"
+            onClick={() => {
+              clearAuth();
+              navigate("/login");
+            }}
+            className="flex items-center gap-3 px-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
             <LogOut className="w-4 h-4" />
             Cerrar sesión
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -142,8 +152,8 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-4 text-muted-foreground">
              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium text-foreground">admin</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/20 text-primary font-bold">ROOT</span>
+                 <span className="font-medium text-foreground">{currentUser?.username ?? "Invitado"}</span>
+                 <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/20 text-primary font-bold">{currentUser?.role === "admin" ? "ADMIN" : "OPERADOR"}</span>
              </div>
           </div>
         </header>
