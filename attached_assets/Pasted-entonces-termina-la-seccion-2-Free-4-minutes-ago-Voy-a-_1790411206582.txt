@@ -1,0 +1,54 @@
+entonces termina la seccion 2
+
+Free
+4 minutes ago
+Voy a cerrar los pendientes reales de la sección 2 sin rehacer lo que ya funciona: primero revisaré el modelo de clientes/planes y las rutas de facturación existentes; después añadiré prorrateo, reenvío formal y las pantallas administrativas para configuración, morosidad y exportación. Al final actualizaré el documento de pendientes y verificaré todo el monorepo.
+
+
+Show less
+
+Searched artifacts/api-server/src/routes and 3 other files for "plan-change|service-request|monthlyFee|servicePlans|plans|invoice|billing/settings|reports/arrears|accounting-export"
+
+Opened clients.ts
+
+Opened operations.ts
+
+Opened clients.ts
+
+Opened billing.service.ts
+
+Opened openapi.yaml
+Developing payment proof resubmission
+
+Developing payment proof resubmission
+Creating an invoice process
+
+I'm thinking about generating an invoice where the total charge must be positive. If there’s a downgrade, there might not be an invoice and instead, I could return a credit. Definitely no negative invoices and if the total is zero, then no invoice should be created. I’m considering adding proration fields to the metadata to capture essential details. I also need to create a "debt history" endpoint to query invoices and payments, which will help with the billing UI.Designing billing settings and reports
+
+I’m focusing on creating a configuration settings UI that adds a card in the billing section with specific fields. We should use existing billingApi settings endpoints and load the settings state through a get request, and include a save option. For reports, the Arrears UI could display summary buckets along with client details and a date. I’m also considering an endpoint for resubmitting rejected payment proofs, reusing records while preserving audit history. It might involve schema changes for better reference tracking. Lastly, file uploads would be necessary for the portal.Developing payment proof resubmission
+
+I’m considering creating a /payment-proof endpoint that allows an optional resubmitProofId. This way, I can validate that the rejected proof belongs to the client and create a new row using the same data. Since the system already permits new proofs, for formal resubmissions, I’ll need to add a resubmissionOfId column, which would be an integer and nullable. It looks like a schema push will be required for this change, and adding it without migrations should be fine for the development schema.
+
+Updating API endpoints
+
+Updating API endpoints
+Updating API endpoints
+
+I'm thinking about new endpoints, and it looks like our current generated API client is only set up for the existing ones. We can update the spec minimally, but might need to run code generation since the guide indicates we should use a contract-first approach. I’ll have to check the OpenAPI YAML and see how the types could be impacted. It's definitely important to tread carefully here and look at the api-spec package.
+
+
+Opened package.json
+
+Opened openapi.yaml
+
+Opened billing.ts
+
+Opened index.ts
+
+Opened package.json
+Calculating billing cycles
+
+Calculating billing cycles
+Calculating billing cycles
+
+I’m thinking about how to define a monthly cycle for billing. It seems I should set the effective date as the starting point and include all billable days until the end of that month. If the effective date isn’t the first of the month, I’ll use that date to start the cycle, and the period should end at 23:59:59 on the last day of the month. I wonder how the current date plays into this with local time considerations?

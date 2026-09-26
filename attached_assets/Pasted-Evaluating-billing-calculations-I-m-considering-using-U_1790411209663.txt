@@ -1,0 +1,36 @@
+Evaluating billing calculations
+
+I’m considering using UTC to manage timezones for calculations. I'll figure out the billable days and calculate the net delta for plan changes. For downgrades, I need to assess if there’s a credit. The invoice should represent the total charge, and discounts will apply if the net amount is negative. I need to ensure that I only create an invoice if there’s a charge, otherwise return a 200 response without an invoice if the net amount is less than or equal to zero.Refining invoice calculations
+
+I’m deciding how to structure the invoice. It looks like I should set the subtotal as newFee times the fraction, with the discount reflecting any credits. The total should never drop below zero, while the manual endpoint only allows subtotal values greater than zero. For activations or relocations, I’ll set a prorated fee for the subtotal. I need to ensure that if the current monthly fee isn't provided for a new plan change, I fetch it automatically. Plus, I should confirm the client exists and handle the effective dates and metadata correctly.Designing the debt history endpoint
+
+I’m working on the debt history endpoint. It seems like using the GET /billing/clients/:id/debt-history route is straightforward since it returns both invoices and payments. I don't think I need to add a query to the path, keeping it simple. For the rows, I’ll select invoices ordered by due date and payments left. This organization should provide a clear picture of the client's debt history without unnecessary complexity.
+
+Applying schemas and patches
+
+Applying schemas and patches
+Applying schemas and patches
+
+I’m thinking about using simple inline schemas instead of components. I need to use apply_patch carefully as I split the backend service, route, schema, portal, frontend, spec, and documentation. I'll start with the first schema, which should include resubmissionOfId. It seems like I need to import the integer already, and I’ll add it at the end before the approvedPaymentId. Just need to stay organized while applying these patches!
+
+
+Edited operations.ts
+
+Edited billing.service.ts
+Considering invoicing details
+
+Considering invoicing details
+Considering invoicing details
+
+I'm looking at the need to select the client name and look at their invoices and payments. I have to consider events like the invoice due date and when the payment was made. Sorting will be necessary to handle this information effectively. I also see a need to return the current balance by summing up the balances. Additionally, should I add audit capabilities? It seems like a good idea, so I'll consider how to patch everything together properly.
+
+
+Edited billing.ts
+
+Edited billing.ts
+Assessing patch context
+
+Assessing patch context
+Assessing patch context
+
+I need to ensure I have the correct context for the patch portal. It looks like the first part of the failed patch didn’t apply. The tool is reporting that billing was applied, but the portal failed on the entire second file. I'll need to check if a patch import is needed or if billing should have a “Request now” option. Let’s clarify this to move forward effectively.
