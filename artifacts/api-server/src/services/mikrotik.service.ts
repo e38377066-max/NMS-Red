@@ -1,4 +1,5 @@
 import { logger } from "../lib/logger";
+import { decryptSecret } from "./credentials.service";
 
 export interface MikroTikResourceResult {
   cpuLoad: string | null;
@@ -39,7 +40,7 @@ export interface MikroTikDhcpLease {
 
 function mkHeaders(username: string, password: string) {
   return {
-    Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`,
+    Authorization: `Basic ${Buffer.from(`${username}:${decryptSecret(password)}`).toString("base64")}`,
     "Content-Type": "application/json",
   };
 }

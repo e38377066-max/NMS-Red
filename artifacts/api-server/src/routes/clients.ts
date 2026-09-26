@@ -231,7 +231,7 @@ router.post("/clients/:id/speed", async (req, res): Promise<void> => {
     return;
   }
 
-  const authUser = extractUserFromRequest(req.headers.authorization);
+  const authUser = await extractUserFromRequest(req.headers.authorization);
   const result = await setClientSpeedLimit(
     equip.ip,
     equip.username,

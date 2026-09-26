@@ -1,14 +1,10 @@
 import type { RequestHandler } from "express";
-import { extractUserFromRequest } from "../services/auth.service";
+import { extractUserFromRequest, type AuthUser } from "../services/auth.service";
 
-export type AuthenticatedUser = {
-  id: number;
-  username: string;
-  role: string;
-};
+export type AuthenticatedUser = AuthUser;
 
-export const requireAuth: RequestHandler = (req, res, next) => {
-  const user = extractUserFromRequest(req.headers.authorization);
+export const requireAuth: RequestHandler = async (req, res, next) => {
+  const user = await extractUserFromRequest(req.headers.authorization);
   if (!user) {
     res.status(401).json({ error: "Autenticación requerida" });
     return;

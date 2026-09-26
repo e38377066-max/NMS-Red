@@ -1,4 +1,5 @@
 import { logger } from "../lib/logger";
+import { decryptSecret } from "./credentials.service";
 import { NodeSSH } from "node-ssh";
 
 const SSH_TIMEOUT_MS = 8000;
@@ -66,7 +67,7 @@ async function tryHttpStatus(ip: string, username: string, password: string): Pr
 async function tryHttpLegacy(ip: string, username: string, password: string): Promise<UbiquitiStatus | null> {
   try {
     // AirOS M-series legacy: POST /login.cgi
-    const params = new URLSearchParams({ username, password, uri: "/status.cgi" });
+    const params = new URLSearchParams({ username, password: decryptSecret(password), uri: "/status.cgi" });
     const loginRes = await fetch(`http://${ip}/login.cgi`, {
       method: "POST",
       body: params.toString(),
@@ -97,7 +98,7 @@ async function trySSHStatus(ip: string, username: string, password: string): Pro
     await ssh.connect({
       host: ip,
       username,
-      password,
+      password: decryptSecret(password),
       readyTimeout: SSH_TIMEOUT_MS,
       algorithms: {
         kex: [
@@ -166,7 +167,7 @@ async function getUbiquitiWirelessTable(ip: string, username: string, password: 
 
 async function tryHttpWirelessTable(ip: string, username: string, password: string): Promise<WirelessStation[]> {
   try {
-    const params = new URLSearchParams({ username, password, uri: "/sta.cgi" });
+    const params = new URLSearchParams({ username, password: decryptSecret(password), uri: "/sta.cgi" });
     const loginRes = await fetch(`http://${ip}/login.cgi`, {
       method: "POST",
       body: params.toString(),
@@ -195,7 +196,7 @@ async function trySSHWirelessTable(ip: string, username: string, password: strin
     await ssh.connect({
       host: ip,
       username,
-      password,
+      password: decryptSecret(password),
       readyTimeout: SSH_TIMEOUT_MS,
       algorithms: {
         kex: ["ecdh-sha2-nistp256", "diffie-hellman-group14-sha1", "diffie-hellman-group1-sha1"],

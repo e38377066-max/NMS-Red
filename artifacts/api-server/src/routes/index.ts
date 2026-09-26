@@ -19,6 +19,8 @@ import { requireAuth } from "../middlewares/auth";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(usersRouter);
+router.use(requireAuth);
 router.use(nodesRouter);
 router.use(equipmentRouter);
 router.use(clientsRouter);
@@ -28,8 +30,6 @@ router.use(metricsRouter);
 router.use(dhcpRouter);
 router.use(deviceConfigRouter);
 router.use(securityRouter);
-router.use(usersRouter);
-router.use(requireAuth);
 router.use(auditLogsRouter);
 router.use(monitoringRouter);
 router.use(aiRouter);

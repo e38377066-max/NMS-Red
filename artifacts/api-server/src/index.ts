@@ -6,6 +6,7 @@ import { startMonitoring, setSocketServer } from "./services/monitoring.service"
 import { startBillingCron, setBillingSocketServer } from "./services/billing.service";
 import { startBackupCron } from "./services/backup.service";
 import { setNetworkMonitoringSocket, startNetworkMonitoring } from "./services/network-monitoring.service";
+import { setTaskQueueSocket, startTaskQueue } from "./services/task-queue.service";
 
 const rawPort = process.env["PORT"];
 
@@ -34,6 +35,7 @@ const io = new SocketServer(httpServer, {
 setSocketServer(io);
 setBillingSocketServer(io);
 setNetworkMonitoringSocket(io);
+setTaskQueueSocket(io);
 
 io.on("connection", (socket) => {
   logger.info({ socketId: socket.id }, "Client connected via WebSocket");
@@ -50,6 +52,7 @@ httpServer.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
   startMonitoring();
   startNetworkMonitoring();
+  startTaskQueue();
   startBillingCron();
   startBackupCron();
 });

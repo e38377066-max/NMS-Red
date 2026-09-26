@@ -7,3 +7,5 @@ export * from "./alerts";
 export * from "./proxmoxServers";
 export * from "./metricHistory";
 export * from "./backups";
+export * from "./authSessions";
+export * from "./taskQueue";

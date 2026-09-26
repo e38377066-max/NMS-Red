@@ -1,4 +1,5 @@
 import { logger } from "../lib/logger";
+import { decryptSecret } from "./credentials.service";
 
 export type SecurityKind = "filter" | "nat" | "mangle" | "raw";
 
@@ -159,7 +160,7 @@ const SECURITY_PATHS: Record<SecurityKind, string> = {
 
 function headers(username: string, password: string): Record<string, string> {
   return {
-    Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`,
+    Authorization: `Basic ${Buffer.from(`${username}:${decryptSecret(password)}`).toString("base64")}`,
     "Content-Type": "application/json",
   };
 }

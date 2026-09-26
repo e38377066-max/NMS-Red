@@ -1,12 +1,14 @@
 import { db, backupsTable, equipmentTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { logger } from "../lib/logger";
+import { encryptBuffer } from "./credentials.service";
+import { uploadPrivateObject } from "./object-storage.service";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const BACKUP_DIR = path.resolve(process.cwd(), "data/backups");
 
@@ -77,17 +79,21 @@ async function backupPostgres(): Promise<boolean> {
     }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `postgres_${timestamp}.sql`;
-    const filePath = path.join(BACKUP_DIR, fileName);
-
-    await execAsync(`pg_dump "${databaseUrl}" > "${filePath}"`);
-
-    const stats = await stat(filePath);
+    const fileName = `postgres_${timestamp}.sql.enc`;
+    const tempPath = path.join(BACKUP_DIR, `${fileName}.tmp`);
+    await execFileAsync("pg_dump", [databaseUrl, "--no-owner", "--no-privileges", "--format=plain", "--file", tempPath], {
+      timeout: 120_000,
+      maxBuffer: 1024 * 1024,
+    });
+    const encrypted = encryptBuffer(await readFile(tempPath));
+    const objectPath = await uploadPrivateObject(encrypted, "application/octet-stream", ".sql.enc");
+    const stats = { size: encrypted.byteLength };
+    await unlink(tempPath).catch(() => undefined);
 
     await db.insert(backupsTable).values({
       type: "postgres",
       name: fileName,
-      filePath,
+      filePath: objectPath,
       sizeBytes: stats.size,
       equipmentId: null,
     });
@@ -125,15 +131,13 @@ async function backupMikroTik(equip: { id: number; ip: string; username: string;
       if (files.length > 0) {
         const fileContent = await fetch(`${baseUrl}/file/${files[0][".id"]}/contents`, { headers });
         if (fileContent.ok) {
-          const { writeFile } = await import("node:fs/promises");
-          const binaryData = Buffer.from(await fileContent.arrayBuffer());
-          const localPath = path.join(BACKUP_DIR, `${backupName}.backup`);
-          await writeFile(localPath, binaryData);
-          const stats = await stat(localPath);
+           const binaryData = encryptBuffer(Buffer.from(await fileContent.arrayBuffer()));
+           const objectPath = await uploadPrivateObject(binaryData, "application/octet-stream", ".backup.enc");
+           const stats = { size: binaryData.byteLength };
           await db.insert(backupsTable).values({
             type: "mikrotik_backup",
             name: `${backupName}.backup`,
-            filePath: localPath,
+             filePath: objectPath,
             sizeBytes: stats.size,
             equipmentId: equip.id,
           });
@@ -145,15 +149,14 @@ async function backupMikroTik(equip: { id: number; ip: string; username: string;
 
     const exportResp = await fetch(`${baseUrl}/export`, { method: "POST", headers, body: JSON.stringify({}) });
     if (exportResp.ok) {
-      const { writeFile } = await import("node:fs/promises");
       const scriptContent = await exportResp.text();
-      const localPath = path.join(BACKUP_DIR, `${backupName}.rsc`);
-      await writeFile(localPath, scriptContent, "utf-8");
-      const stats = await stat(localPath);
+       const encrypted = encryptBuffer(Buffer.from(scriptContent, "utf8"));
+       const objectPath = await uploadPrivateObject(encrypted, "application/octet-stream", ".rsc.enc");
+       const stats = { size: encrypted.byteLength };
       await db.insert(backupsTable).values({
         type: "mikrotik_script",
         name: `${backupName}.rsc`,
-        filePath: localPath,
+         filePath: objectPath,
         sizeBytes: stats.size,
         equipmentId: equip.id,
       });

@@ -22,6 +22,7 @@ import {
   createSnapshot,
   updateVmConfig,
 } from "../services/proxmox.service";
+import { encryptSecret } from "../services/credentials.service";
 
 const router: IRouter = Router();
 
@@ -52,7 +53,7 @@ router.post("/proxmox", async (req, res): Promise<void> => {
   const { name, ip, port = 8006, username, password, nodeName = "pve" } = parsed.data;
   const [server] = await db
     .insert(proxmoxServersTable)
-    .values({ name, ip, port, username, password, nodeName })
+    .values({ name, ip, port, username, password: encryptSecret(password), nodeName })
     .returning({
       id: proxmoxServersTable.id,
       name: proxmoxServersTable.name,

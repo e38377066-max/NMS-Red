@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { getMikroTikResource } from "../services/mikrotik.service";
 import { getUbiquitiStatus, getWirelessTable } from "../services/ubiquiti.service";
+import { encryptSecret } from "../services/credentials.service";
 
 const router: IRouter = Router();
 
@@ -49,7 +50,10 @@ router.post("/equipment", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [equip] = await db.insert(equipmentTable).values(parsed.data).returning();
+  const [equip] = await db.insert(equipmentTable).values({
+    ...parsed.data,
+    password: encryptSecret(parsed.data.password),
+  }).returning();
   res.status(201).json({ ...equip, nodeName: null, clientCount: 0 });
 });
 
@@ -84,9 +88,13 @@ router.patch("/equipment/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const updateData = {
+    ...parsed.data,
+    ...(parsed.data.password ? { password: encryptSecret(parsed.data.password) } : {}),
+  };
   const [equip] = await db
     .update(equipmentTable)
-    .set(parsed.data)
+    .set(updateData)
     .where(eq(equipmentTable.id, params.data.id))
     .returning();
   if (!equip) {

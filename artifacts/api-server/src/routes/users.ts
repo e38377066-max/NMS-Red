@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateUserBody, LoginUserBody } from "@workspace/api-zod";
-import { hashPassword, verifyPassword, signToken } from "../services/auth.service";
+import { createSession, hashPassword, revokeSession, signToken, verifyPassword } from "../services/auth.service";
 import { requireAuth, requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -28,10 +28,22 @@ router.post("/users/login", async (req, res): Promise<void> => {
     return;
   }
   const token = signToken({ id: user.id, username: user.username, role: user.role });
+  await createSession(token, { id: user.id, username: user.username, role: user.role }, {
+    ipAddress: req.ip,
+    userAgent: req.get("user-agent"),
+  });
   res.json({
     token,
     user: { id: user.id, username: user.username, role: user.role, createdAt: user.createdAt },
   });
+});
+
+router.post("/users/logout", async (req, res): Promise<void> => {
+  const authorization = req.headers.authorization;
+  if (authorization?.startsWith("Bearer ")) {
+    await revokeSession(authorization.slice(7));
+  }
+  res.sendStatus(204);
 });
 
 router.use(requireAuth);

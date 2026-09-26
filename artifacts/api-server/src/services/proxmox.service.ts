@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import * as https from "https";
+import { decryptSecret } from "./credentials.service";
 
 // Proxmox API uses HTTPS with self-signed certs in most local installs
 // We use native https module to bypass cert verification safely on LAN
@@ -72,7 +73,7 @@ export async function getProxmoxTicket(
   try {
     const result = await fetchProxmox<ProxmoxTicket>(ip, port, "/access/ticket", {
       method: "POST",
-      body: { username, password },
+       body: { username, password: decryptSecret(password) },
     });
     if (!result?.ticket) return null;
     return result;

@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import path from "node:path";
 import { db, backupsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { listBackups, runAllBackups } from "../services/backup.service";
+import { decryptBuffer } from "../services/credentials.service";
+import { downloadPrivateObject } from "../services/object-storage.service";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,16 @@ router.get("/backups/:id/download", async (req, res): Promise<void> => {
   }
 
   try {
+    if (backup.filePath.startsWith("/objects/")) {
+      const objectResponse = await downloadPrivateObject(backup.filePath);
+      const encrypted = Buffer.from(await objectResponse.arrayBuffer());
+      const decrypted = decryptBuffer(encrypted);
+      res.setHeader("Content-Disposition", `attachment; filename="${backup.name}"`);
+      res.setHeader("Content-Length", decrypted.byteLength);
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.end(decrypted);
+      return;
+    }
     const stats = await stat(backup.filePath);
     res.setHeader("Content-Disposition", `attachment; filename="${backup.name}"`);
     res.setHeader("Content-Length", stats.size);

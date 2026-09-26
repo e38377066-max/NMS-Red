@@ -16,8 +16,7 @@ const router: IRouter = Router();
 router.get("/tasks", (req, res): void => {
   const status = req.query.status as TaskStatus | undefined;
   const limit = req.query.limit ? Number(req.query.limit) : 100;
-  const all = listTasks({ status, limit });
-  res.json({
+  void listTasks({ status, limit }).then((all) => res.json({
     stats: getQueueStats(),
     tasks: all.map(t => ({
       ...t,
@@ -25,7 +24,7 @@ router.get("/tasks", (req, res): void => {
       startedAt: t.startedAt?.toISOString() ?? null,
       completedAt: t.completedAt?.toISOString() ?? null,
     })),
-  });
+  })).catch(() => res.status(500).json({ error: "No se pudo leer la cola de tareas" }));
 });
 
 // GET /api/tasks/stats — queue stats only
@@ -34,8 +33,8 @@ router.get("/tasks/stats", (_req, res): void => {
 });
 
 // GET /api/tasks/:id — single task
-router.get("/tasks/:id", (req, res): void => {
-  const task = getTask(req.params.id);
+router.get("/tasks/:id", async (req, res): Promise<void> => {
+  const task = await getTask(req.params.id);
   if (!task) { res.status(404).json({ error: "Tarea no encontrada" }); return; }
   res.json({
     ...task,
@@ -46,8 +45,8 @@ router.get("/tasks/:id", (req, res): void => {
 });
 
 // DELETE /api/tasks/:id — cancel a pending task
-router.delete("/tasks/:id", (req, res): void => {
-  const ok = cancelTask(req.params.id);
+router.delete("/tasks/:id", async (req, res): Promise<void> => {
+  const ok = await cancelTask(req.params.id);
   if (!ok) { res.status(400).json({ error: "La tarea no está en cola o ya fue procesada" }); return; }
   res.json({ success: true, message: "Tarea cancelada" });
 });
@@ -106,13 +105,14 @@ router.post("/tasks", async (req, res): Promise<void> => {
     return;
   }
 
-  const task = enqueueTask(
+  const task = await enqueueTask(
     type as Parameters<typeof enqueueTask>[0],
     description,
     payload,
     equipmentId ?? null,
     equipmentLabel ?? "",
-    maxRetries ?? 3
+    maxRetries ?? 3,
+    res.locals.user?.id ?? null,
   );
 
   res.status(202).json({

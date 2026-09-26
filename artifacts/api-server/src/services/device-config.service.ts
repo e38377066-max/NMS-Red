@@ -3,6 +3,7 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { logger } from "../lib/logger";
+import { decryptSecret } from "./credentials.service";
 
 const SSH_TIMEOUT_MS = 12_000;
 const MAX_CONFIG_BYTES = 12 * 1024 * 1024;
@@ -35,7 +36,7 @@ function sshOptions(equipment: ManagedEquipment) {
   return {
     host: equipment.ip,
     username: equipment.username,
-    password: equipment.password,
+    password: decryptSecret(equipment.password),
     readyTimeout: SSH_TIMEOUT_MS,
     algorithms: {
       kex: [
