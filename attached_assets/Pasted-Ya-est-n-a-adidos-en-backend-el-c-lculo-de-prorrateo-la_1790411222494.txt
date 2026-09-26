@@ -1,0 +1,59 @@
+Ya están añadidos en backend el cálculo de prorrateo, la creación de facturas proporcionales, el historial de deuda y el reenvío formal de comprobantes rechazados. Ahora voy a exponer esas capacidades en Facturación para que la sección 2 cubra API y UI, no solo endpoints.
+
+
+Show less
+
+Edited billing.tsx
+Planning UI Updates
+
+Planning UI Updates
+Planning UI Updates
+
+I need to continue with adding the remaining UI elements, focusing on the order of invoices and proofs. It seems like patching in after the invoices card is important, specifically around line 562. For the arrears and debt/export sections, I should keep it simple. I’m thinking of including an arrears card with a header, date, button, and a grid for clients. The debt/export card should have a form for event history and a button to show the range for exports. I want to avoid any unnecessarily nested components!
+
+
+Edited billing.tsx
+Continuing with updates
+
+Continuing with updates
+Continuing with updates
+
+I need to continue this process by updating OpenAPI. First, I should run a type check to catch any errors that might exist. I'll focus on running the type check before proceeding with any other changes. This will help uncover potential issues early on. After that, I might consider applying a patch to update OpenAPI, but the type check is the priority right now. Let's get started with that first step!
+
+La UI de Facturación ya cubre configuración, prorrateo, morosidad, historial de deuda y exportación. Antes de documentar los nuevos endpoints, voy a ejecutar typecheck para corregir cualquier incompatibilidad entre el esquema, el API y los componentes.
+
+
+Show less
+
+Checked for code errors
+
+Viewed code changes and 1 other action
+Updating OpenAPI
+
+Updating OpenAPI
+Updating OpenAPI
+
+I'm continuing with the task of updating OpenAPI. It seems there’s an issue where TypeScript has passed even though the schema was resubmitted without any migration. I need to add the new endpoints for OpenAPI, and I also need to identify the components and schemas towards the bottom of the file. I’ll utilize the components: reference and check where the schema ends to ensure everything is properly aligned. Alright, let’s get this sorted!
+
+
+Searched lib/api-spec/openapi.yaml for "^ /billing|^components:|^ schemas:|^ Invoice|^ Billing|^ InvoiceInput|^ CashClosureInput"
+
+Opened openapi.yaml
+
+Opened billing.ts
+
+Edited openapi.yaml
+Inspecting billing components
+
+Inspecting billing components
+
+Opened openapi.yaml
+
+Worked for 3 minutes
+Time worked
+3 minutes
+Work done
+34 actions
+Items read
+2,616 lines
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
