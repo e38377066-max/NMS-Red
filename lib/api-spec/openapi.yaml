@@ -1827,6 +1827,275 @@ components:
         notes:
           type: string
 
+    BillingSettings:
+      type: object
+      required: [id, reminderDaysBefore, graceDays, autoSuspend, reminderEnabled, currency]
+      properties:
+        id:
+          type: integer
+        reminderDaysBefore:
+          type: integer
+          minimum: 0
+        graceDays:
+          type: integer
+          minimum: 0
+        autoSuspend:
+          type: boolean
+        reminderEnabled:
+          type: boolean
+        currency:
+          type: string
+        updatedByUserId:
+          type: ["integer", "null"]
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    BillingSettingsInput:
+      type: object
+      required: [reminderDaysBefore, graceDays, autoSuspend, reminderEnabled, currency]
+      properties:
+        reminderDaysBefore:
+          type: integer
+          minimum: 0
+        graceDays:
+          type: integer
+          minimum: 0
+        autoSuspend:
+          type: boolean
+        reminderEnabled:
+          type: boolean
+        currency:
+          type: string
+
+    ProrationInput:
+      type: object
+      required: [clientId, newMonthlyFee, effectiveDate, reason]
+      properties:
+        clientId:
+          type: integer
+          minimum: 1
+        currentMonthlyFee:
+          type: ["number", "null"]
+          minimum: 0
+        newMonthlyFee:
+          type: number
+          exclusiveMinimum: 0
+        effectiveDate:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          enum: [activation, relocation, plan_change]
+
+    ProrationCalculation:
+      type: object
+      required: [reason, effectiveDate, periodEnd, daysInMonth, billableDays, currentMonthlyFee, newMonthlyFee, baseAmount, discount, charge, credit, total]
+      properties:
+        reason:
+          type: string
+          enum: [activation, relocation, plan_change]
+        effectiveDate:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        daysInMonth:
+          type: integer
+        billableDays:
+          type: integer
+        currentMonthlyFee:
+          type: number
+        newMonthlyFee:
+          type: number
+        baseAmount:
+          type: number
+        discount:
+          type: number
+        charge:
+          type: number
+        credit:
+          type: number
+        total:
+          type: number
+
+    ProrationPreview:
+      allOf:
+        - type: object
+          required: [clientId, clientName]
+          properties:
+            clientId:
+              type: integer
+            clientName:
+              type: string
+        - $ref: "#/components/schemas/ProrationCalculation"
+
+    ArrearsReport:
+      type: object
+      required: [asOf, total, buckets, clients, invoices]
+      properties:
+        asOf:
+          type: string
+          format: date-time
+        total:
+          type: number
+        buckets:
+          type: object
+          required: [current, days1to30, days31to60, days61to90, over90]
+          properties:
+            current:
+              type: number
+            days1to30:
+              type: number
+            days31to60:
+              type: number
+            days61to90:
+              type: number
+            over90:
+              type: number
+        clients:
+          type: array
+          items:
+            type: object
+            required: [clientId, clientName, balance, invoices]
+            properties:
+              clientId:
+                type: integer
+              clientName:
+                type: string
+              balance:
+                type: number
+              invoices:
+                type: integer
+              oldestDueDate:
+                type: ["string", "null"]
+                format: date-time
+        invoices:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/Invoice"
+              - type: object
+                required: [clientName, ageDays, bucket]
+                properties:
+                  clientName:
+                    type: string
+                  ageDays:
+                    type: integer
+                  bucket:
+                    type: string
+
+    DebtHistory:
+      type: object
+      required: [client, currentBalance, invoices, events]
+      properties:
+        client:
+          type: object
+          required: [id, name]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        currentBalance:
+          type: number
+        invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        events:
+          type: array
+          items:
+            type: object
+            required: [type, date, amount, amountPaid, status]
+            properties:
+              type:
+                type: string
+                enum: [invoice, payment]
+              date:
+                type: string
+                format: date-time
+              invoiceId:
+                type: ["integer", "null"]
+              invoiceNumber:
+                type: ["string", "null"]
+              periodStart:
+                type: ["string", "null"]
+                format: date-time
+              periodEnd:
+                type: ["string", "null"]
+                format: date-time
+              amount:
+                type: string
+              amountPaid:
+                type: ["string", "null"]
+              balanceDue:
+                type: ["string", "null"]
+              status:
+                type: string
+              paymentId:
+                type: ["integer", "null"]
+              method:
+                type: ["string", "null"]
+
+    PaymentProof:
+      type: object
+      required: [id, clientId, amount, currency, method, reference, status, submittedAt]
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        clientName:
+          type: ["string", "null"]
+        invoiceId:
+          type: ["integer", "null"]
+        invoiceNumber:
+          type: ["string", "null"]
+        amount:
+          type: string
+        currency:
+          type: string
+        method:
+          type: string
+          enum: [cash, transfer, mobile, other]
+        reference:
+          type: string
+        notes:
+          type: ["string", "null"]
+        originalName:
+          type: ["string", "null"]
+        mimeType:
+          type: ["string", "null"]
+        sizeBytes:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        rejectionReason:
+          type: ["string", "null"]
+        resubmissionOfId:
+          type: ["integer", "null"]
+        approvedPaymentId:
+          type: ["integer", "null"]
+        submittedAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    PaymentProofReviewInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [APPROVED, REJECTED]
+        reason:
+          type: string
+
     MetricPoint:
       type: object
       required: [recordedAt]

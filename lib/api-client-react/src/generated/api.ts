@@ -28,8 +28,11 @@ import type {
   AiChatInput,
   AiReply,
   Alert,
+  ArrearsReport,
   AuditLog,
   BackupFile,
+  BillingSettings,
+  BillingSettingsInput,
   BillingSummary,
   CashClosureInput,
   Client,
@@ -38,10 +41,14 @@ import type {
   ClientInput,
   ClientUpdate,
   CommandResult,
+  CreateProrationInvoice201,
+  DebtHistory,
   Equipment,
   EquipmentInput,
   EquipmentLiveStatus,
   EquipmentUpdate,
+  ExportBillingAccountingParams,
+  GetArrearsReportParams,
   GetClientMetricsParams,
   GetDailyBillingReportParams,
   GetEquipmentMetricsParams,
@@ -52,6 +59,7 @@ import type {
   ListAuditLogsParams,
   ListBackupsParams,
   ListBillingInvoicesParams,
+  ListPaymentProofsParams,
   LoginInput,
   LoginResult,
   MetricPoint,
@@ -61,6 +69,10 @@ import type {
   NodeInput,
   NodeUpdate,
   PaymentInput,
+  PaymentProof,
+  PaymentProofReviewInput,
+  ProrationInput,
+  ProrationPreview,
   ProvisionClientInput,
   ProvisionClientResponse,
   ProxmoxHealth,
@@ -2115,6 +2127,986 @@ export const useRunSuspendOverdue = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRunSuspendOverdueMutationOptions(options), queryClient);
     }
+
+export const getGetBillingSettingsUrl = () => {
+
+
+
+
+  return `/api/billing/settings`
+}
+
+/**
+ * @summary Obtener reglas de facturación
+ */
+export const getBillingSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingSettings> => {
+
+  return customFetch<BillingSettings>(getGetBillingSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBillingSettingsQueryKey = () => {
+    return [
+    `/api/billing/settings`
+    ] as const;
+    }
+
+
+export const getGetBillingSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getBillingSettings>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBillingSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBillingSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillingSettings>>> = ({ signal }) => getBillingSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBillingSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetBillingSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getBillingSettings>>>
+export type GetBillingSettingsQueryError = ErrorType<unknown>
+
+
+export function useGetBillingSettings<TData = Awaited<ReturnType<typeof getBillingSettings>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBillingSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getBillingSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getBillingSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetBillingSettings<TData = Awaited<ReturnType<typeof getBillingSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBillingSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getBillingSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getBillingSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetBillingSettings<TData = Awaited<ReturnType<typeof getBillingSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBillingSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Obtener reglas de facturación
+ */
+
+export function useGetBillingSettings<TData = Awaited<ReturnType<typeof getBillingSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBillingSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetBillingSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateBillingSettingsUrl = () => {
+
+
+
+
+  return `/api/billing/settings`
+}
+
+/**
+ * @summary Actualizar avisos y reglas de suspensión
+ */
+export const updateBillingSettings = async (billingSettingsInput: BillingSettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<BillingSettings> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BillingSettings>(getUpdateBillingSettingsUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(billingSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateBillingSettingsMutationKey = () => ['updateBillingSettings'] as const;
+
+export const getUpdateBillingSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBillingSettings>>, TError,UpdateBillingSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateBillingSettings>>, TError,UpdateBillingSettingsMutationVariables, TContext> => {
+
+const mutationKey = getUpdateBillingSettingsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBillingSettings>>, UpdateBillingSettingsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateBillingSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateBillingSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateBillingSettings>>>
+    export type UpdateBillingSettingsMutationBody = BodyType<BillingSettingsInput>
+    export type UpdateBillingSettingsMutationError = ErrorType<unknown>
+    export type UpdateBillingSettingsMutationVariables = {data: BodyType<BillingSettingsInput>}
+
+    /**
+ * @summary Actualizar avisos y reglas de suspensión
+ */
+export const useUpdateBillingSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBillingSettings>>, TError,UpdateBillingSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateBillingSettings>>,
+        TError,
+        UpdateBillingSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateBillingSettingsMutationOptions(options), queryClient);
+    }
+
+export const getPreviewBillingProrationUrl = () => {
+
+
+
+
+  return `/api/billing/proration/preview`
+}
+
+/**
+ * @summary Calcular el importe proporcional de un cambio
+ */
+export const previewBillingProration = async (prorationInput: ProrationInput, options?: Parameters<typeof customFetch>[1]): Promise<ProrationPreview> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ProrationPreview>(getPreviewBillingProrationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(prorationInput)
+  }
+);}
+
+
+
+
+
+export const getPreviewBillingProrationMutationKey = () => ['previewBillingProration'] as const;
+
+export const getPreviewBillingProrationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBillingProration>>, TError,PreviewBillingProrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewBillingProration>>, TError,PreviewBillingProrationMutationVariables, TContext> => {
+
+const mutationKey = getPreviewBillingProrationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewBillingProration>>, PreviewBillingProrationMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewBillingProration(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewBillingProrationMutationResult = NonNullable<Awaited<ReturnType<typeof previewBillingProration>>>
+    export type PreviewBillingProrationMutationBody = BodyType<ProrationInput>
+    export type PreviewBillingProrationMutationError = ErrorType<unknown>
+    export type PreviewBillingProrationMutationVariables = {data: BodyType<ProrationInput>}
+
+    /**
+ * @summary Calcular el importe proporcional de un cambio
+ */
+export const usePreviewBillingProration = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBillingProration>>, TError,PreviewBillingProrationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewBillingProration>>,
+        TError,
+        PreviewBillingProrationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPreviewBillingProrationMutationOptions(options), queryClient);
+    }
+
+export const getCreateProrationInvoiceUrl = () => {
+
+
+
+
+  return `/api/billing/proration/invoices`
+}
+
+/**
+ * @summary Crear una factura prorrateada
+ */
+export const createProrationInvoice = async (prorationInput: ProrationInput, options?: Parameters<typeof customFetch>[1]): Promise<CreateProrationInvoice201> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CreateProrationInvoice201>(getCreateProrationInvoiceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(prorationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateProrationInvoiceMutationKey = () => ['createProrationInvoice'] as const;
+
+export const getCreateProrationInvoiceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProrationInvoice>>, TError,CreateProrationInvoiceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createProrationInvoice>>, TError,CreateProrationInvoiceMutationVariables, TContext> => {
+
+const mutationKey = getCreateProrationInvoiceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createProrationInvoice>>, CreateProrationInvoiceMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createProrationInvoice(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateProrationInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof createProrationInvoice>>>
+    export type CreateProrationInvoiceMutationBody = BodyType<ProrationInput>
+    export type CreateProrationInvoiceMutationError = ErrorType<unknown>
+    export type CreateProrationInvoiceMutationVariables = {data: BodyType<ProrationInput>}
+
+    /**
+ * @summary Crear una factura prorrateada
+ */
+export const useCreateProrationInvoice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProrationInvoice>>, TError,CreateProrationInvoiceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createProrationInvoice>>,
+        TError,
+        CreateProrationInvoiceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateProrationInvoiceMutationOptions(options), queryClient);
+    }
+
+export const getGetArrearsReportUrl = (params?: GetArrearsReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/billing/reports/arrears?${stringifiedParams}` : `/api/billing/reports/arrears`
+}
+
+/**
+ * @summary Obtener morosidad por antigüedad y cliente
+ */
+export const getArrearsReport = async (params?: GetArrearsReportParams, options?: Parameters<typeof customFetch>[1]): Promise<ArrearsReport> => {
+
+  return customFetch<ArrearsReport>(getGetArrearsReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetArrearsReportQueryKey = (params?: GetArrearsReportParams,) => {
+    return [
+    `/api/billing/reports/arrears`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetArrearsReportQueryOptions = <TData = Awaited<ReturnType<typeof getArrearsReport>>, TError = ErrorType<unknown>>(params?: GetArrearsReportParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getArrearsReport>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetArrearsReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArrearsReport>>> = ({ signal }) => getArrearsReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getArrearsReport>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetArrearsReportQueryResult = NonNullable<Awaited<ReturnType<typeof getArrearsReport>>>
+export type GetArrearsReportQueryError = ErrorType<unknown>
+
+
+export function useGetArrearsReport<TData = Awaited<ReturnType<typeof getArrearsReport>>, TError = ErrorType<unknown>>(
+ params: undefined |  GetArrearsReportParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getArrearsReport>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getArrearsReport>>,
+          TError,
+          Awaited<ReturnType<typeof getArrearsReport>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetArrearsReport<TData = Awaited<ReturnType<typeof getArrearsReport>>, TError = ErrorType<unknown>>(
+ params?: GetArrearsReportParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getArrearsReport>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getArrearsReport>>,
+          TError,
+          Awaited<ReturnType<typeof getArrearsReport>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetArrearsReport<TData = Awaited<ReturnType<typeof getArrearsReport>>, TError = ErrorType<unknown>>(
+ params?: GetArrearsReportParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getArrearsReport>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Obtener morosidad por antigüedad y cliente
+ */
+
+export function useGetArrearsReport<TData = Awaited<ReturnType<typeof getArrearsReport>>, TError = ErrorType<unknown>>(
+ params?: GetArrearsReportParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getArrearsReport>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetArrearsReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportBillingAccountingUrl = (params: ExportBillingAccountingParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/billing/reports/accounting-export?${stringifiedParams}` : `/api/billing/reports/accounting-export`
+}
+
+/**
+ * @summary Exportar pagos para contabilidad
+ */
+export const exportBillingAccounting = async (params: ExportBillingAccountingParams, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getExportBillingAccountingUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportBillingAccountingQueryKey = (params?: ExportBillingAccountingParams,) => {
+    return [
+    `/api/billing/reports/accounting-export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportBillingAccountingQueryOptions = <TData = Awaited<ReturnType<typeof exportBillingAccounting>>, TError = ErrorType<unknown>>(params: ExportBillingAccountingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportBillingAccounting>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportBillingAccountingQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportBillingAccounting>>> = ({ signal }) => exportBillingAccounting(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportBillingAccounting>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ExportBillingAccountingQueryResult = NonNullable<Awaited<ReturnType<typeof exportBillingAccounting>>>
+export type ExportBillingAccountingQueryError = ErrorType<unknown>
+
+
+export function useExportBillingAccounting<TData = Awaited<ReturnType<typeof exportBillingAccounting>>, TError = ErrorType<unknown>>(
+ params: ExportBillingAccountingParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportBillingAccounting>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportBillingAccounting>>,
+          TError,
+          Awaited<ReturnType<typeof exportBillingAccounting>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportBillingAccounting<TData = Awaited<ReturnType<typeof exportBillingAccounting>>, TError = ErrorType<unknown>>(
+ params: ExportBillingAccountingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportBillingAccounting>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportBillingAccounting>>,
+          TError,
+          Awaited<ReturnType<typeof exportBillingAccounting>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportBillingAccounting<TData = Awaited<ReturnType<typeof exportBillingAccounting>>, TError = ErrorType<unknown>>(
+ params: ExportBillingAccountingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportBillingAccounting>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Exportar pagos para contabilidad
+ */
+
+export function useExportBillingAccounting<TData = Awaited<ReturnType<typeof exportBillingAccounting>>, TError = ErrorType<unknown>>(
+ params: ExportBillingAccountingParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportBillingAccounting>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getExportBillingAccountingQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetClientDebtHistoryUrl = (id: number,) => {
+
+
+
+
+  return `/api/billing/clients/${id}/debt-history`
+}
+
+/**
+ * @summary Consultar historial de deuda de un cliente
+ */
+export const getClientDebtHistory = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DebtHistory> => {
+
+  return customFetch<DebtHistory>(getGetClientDebtHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClientDebtHistoryQueryKey = (id: number,) => {
+    return [
+    `/api/billing/clients/${id}/debt-history`
+    ] as const;
+    }
+
+
+export const getGetClientDebtHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getClientDebtHistory>>, TError = ErrorType<unknown>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientDebtHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClientDebtHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientDebtHistory>>> = ({ signal }) => getClientDebtHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClientDebtHistory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClientDebtHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getClientDebtHistory>>>
+export type GetClientDebtHistoryQueryError = ErrorType<unknown>
+
+
+export function useGetClientDebtHistory<TData = Awaited<ReturnType<typeof getClientDebtHistory>>, TError = ErrorType<unknown>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientDebtHistory>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientDebtHistory>>,
+          TError,
+          Awaited<ReturnType<typeof getClientDebtHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientDebtHistory<TData = Awaited<ReturnType<typeof getClientDebtHistory>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientDebtHistory>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientDebtHistory>>,
+          TError,
+          Awaited<ReturnType<typeof getClientDebtHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientDebtHistory<TData = Awaited<ReturnType<typeof getClientDebtHistory>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientDebtHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Consultar historial de deuda de un cliente
+ */
+
+export function useGetClientDebtHistory<TData = Awaited<ReturnType<typeof getClientDebtHistory>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientDebtHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetClientDebtHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPaymentProofsUrl = (params?: ListPaymentProofsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/billing/payment-proofs?${stringifiedParams}` : `/api/billing/payment-proofs`
+}
+
+/**
+ * @summary Listar comprobantes de pago
+ */
+export const listPaymentProofs = async (params?: ListPaymentProofsParams, options?: Parameters<typeof customFetch>[1]): Promise<PaymentProof[]> => {
+
+  return customFetch<PaymentProof[]>(getListPaymentProofsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPaymentProofsQueryKey = (params?: ListPaymentProofsParams,) => {
+    return [
+    `/api/billing/payment-proofs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPaymentProofsQueryOptions = <TData = Awaited<ReturnType<typeof listPaymentProofs>>, TError = ErrorType<unknown>>(params?: ListPaymentProofsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentProofs>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPaymentProofsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPaymentProofs>>> = ({ signal }) => listPaymentProofs(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPaymentProofs>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPaymentProofsQueryResult = NonNullable<Awaited<ReturnType<typeof listPaymentProofs>>>
+export type ListPaymentProofsQueryError = ErrorType<unknown>
+
+
+export function useListPaymentProofs<TData = Awaited<ReturnType<typeof listPaymentProofs>>, TError = ErrorType<unknown>>(
+ params: undefined |  ListPaymentProofsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentProofs>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPaymentProofs>>,
+          TError,
+          Awaited<ReturnType<typeof listPaymentProofs>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPaymentProofs<TData = Awaited<ReturnType<typeof listPaymentProofs>>, TError = ErrorType<unknown>>(
+ params?: ListPaymentProofsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentProofs>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPaymentProofs>>,
+          TError,
+          Awaited<ReturnType<typeof listPaymentProofs>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPaymentProofs<TData = Awaited<ReturnType<typeof listPaymentProofs>>, TError = ErrorType<unknown>>(
+ params?: ListPaymentProofsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentProofs>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar comprobantes de pago
+ */
+
+export function useListPaymentProofs<TData = Awaited<ReturnType<typeof listPaymentProofs>>, TError = ErrorType<unknown>>(
+ params?: ListPaymentProofsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentProofs>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPaymentProofsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReviewPaymentProofUrl = (id: number,) => {
+
+
+
+
+  return `/api/billing/payment-proofs/${id}/review`
+}
+
+/**
+ * @summary Aprobar o rechazar un comprobante
+ */
+export const reviewPaymentProof = async (id: number,
+    paymentProofReviewInput: PaymentProofReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<PaymentProof> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PaymentProof>(getReviewPaymentProofUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(paymentProofReviewInput)
+  }
+);}
+
+
+
+
+
+export const getReviewPaymentProofMutationKey = () => ['reviewPaymentProof'] as const;
+
+export const getReviewPaymentProofMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewPaymentProof>>, TError,ReviewPaymentProofMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewPaymentProof>>, TError,ReviewPaymentProofMutationVariables, TContext> => {
+
+const mutationKey = getReviewPaymentProofMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewPaymentProof>>, ReviewPaymentProofMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reviewPaymentProof(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewPaymentProofMutationResult = NonNullable<Awaited<ReturnType<typeof reviewPaymentProof>>>
+    export type ReviewPaymentProofMutationBody = BodyType<PaymentProofReviewInput>
+    export type ReviewPaymentProofMutationError = ErrorType<unknown>
+    export type ReviewPaymentProofMutationVariables = {id: number;data: BodyType<PaymentProofReviewInput>}
+
+    /**
+ * @summary Aprobar o rechazar un comprobante
+ */
+export const useReviewPaymentProof = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewPaymentProof>>, TError,ReviewPaymentProofMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reviewPaymentProof>>,
+        TError,
+        ReviewPaymentProofMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReviewPaymentProofMutationOptions(options), queryClient);
+    }
+
+export const getDownloadPaymentProofUrl = (id: number,) => {
+
+
+
+
+  return `/api/billing/payment-proofs/${id}/download`
+}
+
+/**
+ * @summary Descargar un comprobante privado
+ */
+export const downloadPaymentProof = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadPaymentProofUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadPaymentProofQueryKey = (id: number,) => {
+    return [
+    `/api/billing/payment-proofs/${id}/download`
+    ] as const;
+    }
+
+
+export const getDownloadPaymentProofQueryOptions = <TData = Awaited<ReturnType<typeof downloadPaymentProof>>, TError = ErrorType<unknown>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPaymentProof>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadPaymentProofQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadPaymentProof>>> = ({ signal }) => downloadPaymentProof(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadPaymentProof>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadPaymentProofQueryResult = NonNullable<Awaited<ReturnType<typeof downloadPaymentProof>>>
+export type DownloadPaymentProofQueryError = ErrorType<unknown>
+
+
+export function useDownloadPaymentProof<TData = Awaited<ReturnType<typeof downloadPaymentProof>>, TError = ErrorType<unknown>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPaymentProof>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadPaymentProof>>,
+          TError,
+          Awaited<ReturnType<typeof downloadPaymentProof>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadPaymentProof<TData = Awaited<ReturnType<typeof downloadPaymentProof>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPaymentProof>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadPaymentProof>>,
+          TError,
+          Awaited<ReturnType<typeof downloadPaymentProof>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadPaymentProof<TData = Awaited<ReturnType<typeof downloadPaymentProof>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPaymentProof>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Descargar un comprobante privado
+ */
+
+export function useDownloadPaymentProof<TData = Awaited<ReturnType<typeof downloadPaymentProof>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPaymentProof>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadPaymentProofQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListBillingInvoicesUrl = (params?: ListBillingInvoicesParams,) => {
   const normalizedParams = new URLSearchParams();

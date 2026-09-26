@@ -64,16 +64,16 @@ Guía general para avanzar todos los pendientes: `instrucciones-agente/00-guia-g
 
 ## 2. Facturación administrativa completa
 
-La emisión básica, el cobro y el cierre diario ya existen. Falta:
+La sección está completada sobre la emisión básica, el cobro y el cierre diario:
 
-- Prorrateo.
-- Historial de deuda.
-- Comprobante de pago como archivo.
-- Aprobación o rechazo del comprobante.
-- Avisos antes del vencimiento.
-- Reglas configurables de suspensión.
-- Reporte de morosidad.
-- Exportación contable.
+- Prorrateo por alta, traslado o cambio de plan con vista previa, crédito y factura proporcional.
+- Historial de deuda por cliente con facturas, pagos, saldo actual y eventos ordenados.
+- Comprobante de pago como archivo privado con límite de tamaño, hash y metadatos.
+- Aprobación o rechazo administrativo del comprobante, con aplicación idempotente del pago.
+- Reenvío formal de comprobantes rechazados desde el portal, conservando el historial.
+- Avisos antes del vencimiento y reglas configurables de gracia y suspensión automática.
+- Reporte de morosidad por antigüedad, cliente y factura.
+- Exportación contable CSV de pagos por período, con auditoría.
 
 ## 3. Portal del cliente
 
@@ -88,8 +88,9 @@ La interfaz web y el backend base ya están conectados:
 - Solicitar cambio de plan, traslado y reconexión.
 - Confirmar el cierre de un ticket atendido.
 - Ver el router central y el AP/enlace asociado cuando están registrados.
+- Enviar comprobantes privados, consultar su estado y reenviar formalmente los rechazados.
 
-Todavía falta cerrar el flujo formal de comprobantes: almacenamiento del archivo, aprobación o rechazo y aplicación del pago cuando corresponda.
+El flujo formal de comprobantes está conectado con facturación: almacenamiento privado, revisión administrativa, aplicación idempotente del pago y reenvío de rechazados.
 
 ## 4. Soporte y tickets
 

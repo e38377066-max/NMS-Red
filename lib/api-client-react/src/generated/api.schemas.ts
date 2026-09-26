@@ -415,6 +415,222 @@ export interface CashClosureInput {
   notes?: string;
 }
 
+export interface BillingSettings {
+  id: number;
+  /** @minimum 0 */
+  reminderDaysBefore: number;
+  /** @minimum 0 */
+  graceDays: number;
+  autoSuspend: boolean;
+  reminderEnabled: boolean;
+  currency: string;
+  /** @nullable */
+  updatedByUserId?: number | null;
+  /** @nullable */
+  updatedAt?: string | null;
+}
+
+export interface BillingSettingsInput {
+  /** @minimum 0 */
+  reminderDaysBefore: number;
+  /** @minimum 0 */
+  graceDays: number;
+  autoSuspend: boolean;
+  reminderEnabled: boolean;
+  currency: string;
+}
+
+export type ProrationInputReason = typeof ProrationInputReason[keyof typeof ProrationInputReason];
+
+
+export const ProrationInputReason = {
+  activation: 'activation',
+  relocation: 'relocation',
+  plan_change: 'plan_change',
+} as const;
+
+export interface ProrationInput {
+  /** @minimum 1 */
+  clientId: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  currentMonthlyFee?: number | null;
+  /** @exclusiveMinimum 0 */
+  newMonthlyFee: number;
+  effectiveDate: string;
+  reason: ProrationInputReason;
+}
+
+export type ProrationCalculationReason = typeof ProrationCalculationReason[keyof typeof ProrationCalculationReason];
+
+
+export const ProrationCalculationReason = {
+  activation: 'activation',
+  relocation: 'relocation',
+  plan_change: 'plan_change',
+} as const;
+
+export interface ProrationCalculation {
+  reason: ProrationCalculationReason;
+  effectiveDate: string;
+  periodEnd: string;
+  daysInMonth: number;
+  billableDays: number;
+  currentMonthlyFee: number;
+  newMonthlyFee: number;
+  baseAmount: number;
+  discount: number;
+  charge: number;
+  credit: number;
+  total: number;
+}
+
+export type ProrationPreview = ProrationCalculation & {
+  clientId: number;
+  clientName: string;
+};
+
+export type ArrearsReportBuckets = {
+  current: number;
+  days1to30: number;
+  days31to60: number;
+  days61to90: number;
+  over90: number;
+};
+
+export type ArrearsReportClientsItem = {
+  clientId: number;
+  clientName: string;
+  balance: number;
+  invoices: number;
+  /** @nullable */
+  oldestDueDate?: string | null;
+};
+
+export type ArrearsReportInvoicesItem = Invoice & {
+  clientName: string;
+  ageDays: number;
+  bucket: string;
+};
+
+export interface ArrearsReport {
+  asOf: string;
+  total: number;
+  buckets: ArrearsReportBuckets;
+  clients: ArrearsReportClientsItem[];
+  invoices: ArrearsReportInvoicesItem[];
+}
+
+export type DebtHistoryClient = {
+  id: number;
+  name: string;
+};
+
+export type DebtHistoryEventsItemType = typeof DebtHistoryEventsItemType[keyof typeof DebtHistoryEventsItemType];
+
+
+export const DebtHistoryEventsItemType = {
+  invoice: 'invoice',
+  payment: 'payment',
+} as const;
+
+export type DebtHistoryEventsItem = {
+  type: DebtHistoryEventsItemType;
+  date: string;
+  /** @nullable */
+  invoiceId?: number | null;
+  /** @nullable */
+  invoiceNumber?: string | null;
+  /** @nullable */
+  periodStart?: string | null;
+  /** @nullable */
+  periodEnd?: string | null;
+  amount: string;
+  /** @nullable */
+  amountPaid: string | null;
+  /** @nullable */
+  balanceDue?: string | null;
+  status: string;
+  /** @nullable */
+  paymentId?: number | null;
+  /** @nullable */
+  method?: string | null;
+};
+
+export interface DebtHistory {
+  client: DebtHistoryClient;
+  currentBalance: number;
+  invoices: Invoice[];
+  events: DebtHistoryEventsItem[];
+}
+
+export type PaymentProofMethod = typeof PaymentProofMethod[keyof typeof PaymentProofMethod];
+
+
+export const PaymentProofMethod = {
+  cash: 'cash',
+  transfer: 'transfer',
+  mobile: 'mobile',
+  other: 'other',
+} as const;
+
+export type PaymentProofStatus = typeof PaymentProofStatus[keyof typeof PaymentProofStatus];
+
+
+export const PaymentProofStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export interface PaymentProof {
+  id: number;
+  clientId: number;
+  /** @nullable */
+  clientName?: string | null;
+  /** @nullable */
+  invoiceId?: number | null;
+  /** @nullable */
+  invoiceNumber?: string | null;
+  amount: string;
+  currency: string;
+  method: PaymentProofMethod;
+  reference: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  originalName?: string | null;
+  /** @nullable */
+  mimeType?: string | null;
+  /** @nullable */
+  sizeBytes?: number | null;
+  status: PaymentProofStatus;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  resubmissionOfId?: number | null;
+  /** @nullable */
+  approvedPaymentId?: number | null;
+  submittedAt: string;
+  /** @nullable */
+  reviewedAt?: string | null;
+}
+
+export type PaymentProofReviewInputStatus = typeof PaymentProofReviewInputStatus[keyof typeof PaymentProofReviewInputStatus];
+
+
+export const PaymentProofReviewInputStatus = {
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export interface PaymentProofReviewInput {
+  status: PaymentProofReviewInputStatus;
+  reason?: string;
+}
+
 export interface MetricPoint {
   recordedAt: string;
   /** @nullable */
@@ -663,6 +879,33 @@ export interface VmConfigUpdate {
   memory?: number;
   description?: string;
 }
+
+export type CreateProrationInvoice201 = {
+  invoice: Invoice;
+  calculation: ProrationPreview;
+};
+
+export type GetArrearsReportParams = {
+asOf?: string;
+};
+
+export type ExportBillingAccountingParams = {
+from: string;
+to: string;
+};
+
+export type ListPaymentProofsParams = {
+status?: ListPaymentProofsStatus;
+};
+
+export type ListPaymentProofsStatus = typeof ListPaymentProofsStatus[keyof typeof ListPaymentProofsStatus];
+
+
+export const ListPaymentProofsStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
 
 export type ListBillingInvoicesParams = {
 status?: string;

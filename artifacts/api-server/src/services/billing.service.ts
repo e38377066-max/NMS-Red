@@ -32,12 +32,14 @@ export function calculateProration(input: ProrationInput) {
   const billableDays = daysInMonth - day + 1;
   const currentMonthlyFee = Math.max(0, input.currentMonthlyFee ?? 0);
   const newMonthlyFee = Math.max(0, input.newMonthlyFee);
-  const basis = input.reason === "plan_change" ? newMonthlyFee - currentMonthlyFee : newMonthlyFee;
-  const proratedAmount = Math.round((basis * billableDays / daysInMonth) * 100) / 100;
-  const charge = Math.max(0, proratedAmount);
-  const credit = Math.max(0, -proratedAmount);
   const baseAmount = Math.round((newMonthlyFee * billableDays / daysInMonth) * 100) / 100;
-  const discount = Math.min(baseAmount, credit);
+  const currentAmount = input.reason === "plan_change"
+    ? Math.round((currentMonthlyFee * billableDays / daysInMonth) * 100) / 100
+    : 0;
+  const netAmount = Math.round((baseAmount - currentAmount) * 100) / 100;
+  const charge = Math.max(0, netAmount);
+  const credit = Math.max(0, -netAmount);
+  const discount = input.reason === "plan_change" ? Math.min(baseAmount, currentAmount) : 0;
   const total = Math.max(0, Math.round((baseAmount - discount) * 100) / 100);
   const periodEnd = new Date(Date.UTC(year, month, daysInMonth, 23, 59, 59, 999));
 

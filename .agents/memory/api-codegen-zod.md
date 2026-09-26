@@ -7,4 +7,4 @@ The OpenAPI generation step needs a compatibility pass after Orval writes files:
 
 **Why:** The workspace catalog intentionally pins Zod 3, while newer Orval output assumes helpers introduced by Zod 4 and regenerates ambiguous barrel exports. A plain codegen run can therefore make every library typecheck fail.
 
-**How to apply:** Keep the compatibility pass in the `@workspace/api-spec` codegen command and run codegen after every OpenAPI change so generated client hooks and Zod schemas remain synchronized.
+**How to apply:** Keep the compatibility pass in the `@workspace/api-spec` codegen command and run codegen after every OpenAPI change so generated client hooks and Zod schemas remain synchronized. Define every new `$ref` before running Orval because it cleans generated output before validation.

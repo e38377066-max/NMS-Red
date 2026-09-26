@@ -582,6 +582,334 @@ export const RunSuspendOverdueResponse = zod.object({
 
 
 /**
+ * @summary Obtener reglas de facturación
+ */
+export const getBillingSettingsResponseReminderDaysBeforeMin = 0;
+
+export const getBillingSettingsResponseGraceDaysMin = 0;
+
+
+
+export const GetBillingSettingsResponse = zod.object({
+  "id": zod.int(),
+  "reminderDaysBefore": zod.int().min(getBillingSettingsResponseReminderDaysBeforeMin),
+  "graceDays": zod.int().min(getBillingSettingsResponseGraceDaysMin),
+  "autoSuspend": zod.boolean(),
+  "reminderEnabled": zod.boolean(),
+  "currency": zod.string(),
+  "updatedByUserId": zod.int().nullish(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Actualizar avisos y reglas de suspensión
+ */
+export const updateBillingSettingsBodyReminderDaysBeforeMin = 0;
+
+export const updateBillingSettingsBodyGraceDaysMin = 0;
+
+
+
+export const UpdateBillingSettingsBody = zod.object({
+  "reminderDaysBefore": zod.int().min(updateBillingSettingsBodyReminderDaysBeforeMin),
+  "graceDays": zod.int().min(updateBillingSettingsBodyGraceDaysMin),
+  "autoSuspend": zod.boolean(),
+  "reminderEnabled": zod.boolean(),
+  "currency": zod.string()
+})
+
+export const updateBillingSettingsResponseReminderDaysBeforeMin = 0;
+
+export const updateBillingSettingsResponseGraceDaysMin = 0;
+
+
+
+export const UpdateBillingSettingsResponse = zod.object({
+  "id": zod.int(),
+  "reminderDaysBefore": zod.int().min(updateBillingSettingsResponseReminderDaysBeforeMin),
+  "graceDays": zod.int().min(updateBillingSettingsResponseGraceDaysMin),
+  "autoSuspend": zod.boolean(),
+  "reminderEnabled": zod.boolean(),
+  "currency": zod.string(),
+  "updatedByUserId": zod.int().nullish(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Calcular el importe proporcional de un cambio
+ */
+
+export const previewBillingProrationBodyCurrentMonthlyFeeMin = 0;
+
+export const previewBillingProrationBodyNewMonthlyFeeExclusiveMin = 0;
+
+
+
+export const PreviewBillingProrationBody = zod.object({
+  "clientId": zod.int().min(1),
+  "currentMonthlyFee": zod.number().min(previewBillingProrationBodyCurrentMonthlyFeeMin).nullish(),
+  "newMonthlyFee": zod.number().gt(previewBillingProrationBodyNewMonthlyFeeExclusiveMin),
+  "effectiveDate": zod.coerce.date(),
+  "reason": zod.enum(['activation', 'relocation', 'plan_change'])
+})
+
+export const PreviewBillingProrationResponse = zod.object({
+  "clientId": zod.int(),
+  "clientName": zod.string()
+}).and(zod.object({
+  "reason": zod.enum(['activation', 'relocation', 'plan_change']),
+  "effectiveDate": zod.coerce.date(),
+  "periodEnd": zod.coerce.date(),
+  "daysInMonth": zod.int(),
+  "billableDays": zod.int(),
+  "currentMonthlyFee": zod.number(),
+  "newMonthlyFee": zod.number(),
+  "baseAmount": zod.number(),
+  "discount": zod.number(),
+  "charge": zod.number(),
+  "credit": zod.number(),
+  "total": zod.number()
+}))
+
+
+/**
+ * @summary Crear una factura prorrateada
+ */
+
+export const createProrationInvoiceBodyCurrentMonthlyFeeMin = 0;
+
+export const createProrationInvoiceBodyNewMonthlyFeeExclusiveMin = 0;
+
+
+
+export const CreateProrationInvoiceBody = zod.object({
+  "clientId": zod.int().min(1),
+  "currentMonthlyFee": zod.number().min(createProrationInvoiceBodyCurrentMonthlyFeeMin).nullish(),
+  "newMonthlyFee": zod.number().gt(createProrationInvoiceBodyNewMonthlyFeeExclusiveMin),
+  "effectiveDate": zod.coerce.date(),
+  "reason": zod.enum(['activation', 'relocation', 'plan_change'])
+})
+
+export const CreateProrationInvoiceResponse = zod.object({
+  "invoice": zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "clientName": zod.string().optional(),
+  "number": zod.string(),
+  "periodStart": zod.coerce.date(),
+  "periodEnd": zod.coerce.date(),
+  "dueDate": zod.coerce.date(),
+  "subtotal": zod.string().optional(),
+  "discount": zod.string().optional(),
+  "surcharge": zod.string().optional(),
+  "total": zod.string(),
+  "amountPaid": zod.string(),
+  "balanceDue": zod.string(),
+  "status": zod.string()
+}),
+  "calculation": zod.object({
+  "clientId": zod.int(),
+  "clientName": zod.string()
+}).and(zod.object({
+  "reason": zod.enum(['activation', 'relocation', 'plan_change']),
+  "effectiveDate": zod.coerce.date(),
+  "periodEnd": zod.coerce.date(),
+  "daysInMonth": zod.int(),
+  "billableDays": zod.int(),
+  "currentMonthlyFee": zod.number(),
+  "newMonthlyFee": zod.number(),
+  "baseAmount": zod.number(),
+  "discount": zod.number(),
+  "charge": zod.number(),
+  "credit": zod.number(),
+  "total": zod.number()
+}))
+})
+
+
+/**
+ * @summary Obtener morosidad por antigüedad y cliente
+ */
+export const GetArrearsReportQueryParams = zod.object({
+  "asOf": zod.date().optional()
+})
+
+export const GetArrearsReportResponse = zod.object({
+  "asOf": zod.coerce.date(),
+  "total": zod.number(),
+  "buckets": zod.object({
+  "current": zod.number(),
+  "days1to30": zod.number(),
+  "days31to60": zod.number(),
+  "days61to90": zod.number(),
+  "over90": zod.number()
+}),
+  "clients": zod.array(zod.object({
+  "clientId": zod.int(),
+  "clientName": zod.string(),
+  "balance": zod.number(),
+  "invoices": zod.int(),
+  "oldestDueDate": zod.coerce.date().nullish()
+})),
+  "invoices": zod.array(zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "clientName": zod.string(),
+  "number": zod.string(),
+  "periodStart": zod.coerce.date(),
+  "periodEnd": zod.coerce.date(),
+  "dueDate": zod.coerce.date(),
+  "subtotal": zod.string().optional(),
+  "discount": zod.string().optional(),
+  "surcharge": zod.string().optional(),
+  "total": zod.string(),
+  "amountPaid": zod.string(),
+  "balanceDue": zod.string(),
+  "status": zod.string()
+}).and(zod.object({
+  "clientName": zod.string(),
+  "ageDays": zod.int(),
+  "bucket": zod.string()
+})))
+})
+
+
+/**
+ * @summary Exportar pagos para contabilidad
+ */
+export const ExportBillingAccountingQueryParams = zod.object({
+  "from": zod.date(),
+  "to": zod.date()
+})
+
+export const ExportBillingAccountingResponse = zod.unknown()
+
+
+/**
+ * @summary Consultar historial de deuda de un cliente
+ */
+export const GetClientDebtHistoryParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetClientDebtHistoryResponse = zod.object({
+  "client": zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+}),
+  "currentBalance": zod.number(),
+  "invoices": zod.array(zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "clientName": zod.string().optional(),
+  "number": zod.string(),
+  "periodStart": zod.coerce.date(),
+  "periodEnd": zod.coerce.date(),
+  "dueDate": zod.coerce.date(),
+  "subtotal": zod.string().optional(),
+  "discount": zod.string().optional(),
+  "surcharge": zod.string().optional(),
+  "total": zod.string(),
+  "amountPaid": zod.string(),
+  "balanceDue": zod.string(),
+  "status": zod.string()
+})),
+  "events": zod.array(zod.object({
+  "type": zod.enum(['invoice', 'payment']),
+  "date": zod.coerce.date(),
+  "invoiceId": zod.int().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "periodStart": zod.coerce.date().nullish(),
+  "periodEnd": zod.coerce.date().nullish(),
+  "amount": zod.string(),
+  "amountPaid": zod.string().nullable(),
+  "balanceDue": zod.string().nullish(),
+  "status": zod.string(),
+  "paymentId": zod.int().nullish(),
+  "method": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Listar comprobantes de pago
+ */
+export const ListPaymentProofsQueryParams = zod.object({
+  "status": zod.enum(['PENDING', 'APPROVED', 'REJECTED']).optional()
+})
+
+export const ListPaymentProofsResponseItem = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "clientName": zod.string().nullish(),
+  "invoiceId": zod.int().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "method": zod.enum(['cash', 'transfer', 'mobile', 'other']),
+  "reference": zod.string(),
+  "notes": zod.string().nullish(),
+  "originalName": zod.string().nullish(),
+  "mimeType": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "status": zod.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  "rejectionReason": zod.string().nullish(),
+  "resubmissionOfId": zod.int().nullish(),
+  "approvedPaymentId": zod.int().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+export const ListPaymentProofsResponse = zod.array(ListPaymentProofsResponseItem)
+
+
+/**
+ * @summary Aprobar o rechazar un comprobante
+ */
+export const ReviewPaymentProofParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReviewPaymentProofBody = zod.object({
+  "status": zod.enum(['APPROVED', 'REJECTED']),
+  "reason": zod.string().optional()
+})
+
+export const ReviewPaymentProofResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int(),
+  "clientName": zod.string().nullish(),
+  "invoiceId": zod.int().nullish(),
+  "invoiceNumber": zod.string().nullish(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "method": zod.enum(['cash', 'transfer', 'mobile', 'other']),
+  "reference": zod.string(),
+  "notes": zod.string().nullish(),
+  "originalName": zod.string().nullish(),
+  "mimeType": zod.string().nullish(),
+  "sizeBytes": zod.int().nullish(),
+  "status": zod.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  "rejectionReason": zod.string().nullish(),
+  "resubmissionOfId": zod.int().nullish(),
+  "approvedPaymentId": zod.int().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Descargar un comprobante privado
+ */
+export const DownloadPaymentProofParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DownloadPaymentProofResponse = zod.unknown()
+
+
+/**
  * @summary Listar facturas y saldos
  */
 export const ListBillingInvoicesQueryParams = zod.object({
