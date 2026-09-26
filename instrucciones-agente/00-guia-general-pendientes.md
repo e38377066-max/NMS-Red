@@ -22,7 +22,7 @@ La base ya implementada incluye:
 - cortes, reconexiones y reconciliación CRM–MikroTik;
 - planes, pagos, facturas, cierres y recibos HTML;
 - portal de cliente con token, resumen, saldo real, pagos, tickets, avisos y
-  solicitudes básicas;
+  solicitudes básicas, comprobantes privados y reenvío de rechazados;
 - operaciones, tickets básicos, órdenes de campo e inventario básico;
 - monitoreo inicial, alertas deduplicadas, métricas y auditoría;
 - backups, cifrado, cola persistente, organizaciones, sedes y avisos;
@@ -41,7 +41,7 @@ de pendientes. No rehacer una capacidad que ya esté funcionando.
 El orden de trabajo es:
 
 1. Alta completa de clientes: contrato formal (completada).
-2. Facturación administrativa completa.
+2. Facturación administrativa completa (completada).
 3. Portal del cliente restante.
 4. Soporte y tickets.
 5. Operación de campo.
@@ -183,16 +183,18 @@ flujo autenticado completo de ficha no se pudo probar con usuarios demo porque
 las credenciales documentadas no estaban disponibles en la base actual; no se
 inventaron credenciales.
 
-**Siguiente bloque:** sección 2, facturación administrativa completa. No
-implementar todavía el flujo de comprobantes del portal; pertenece a la
-sección 3.
+**Estado actual:** la sección 2 y el flujo formal de comprobantes del portal ya
+están implementados. Antes de abrir una tarea nueva, comparar el código con
+`pendientes-isp-administrativo.md` para no rehacer estas capacidades.
 
 ### 2. Facturación administrativa completa
 
 **Objetivo:** convertir la facturación actual en un ciclo administrativo
 completo y revisable.
 
-**Alcance:**
+**Estado:** completada.
+
+**Implementado:**
 
 - prorrateo al iniciar, trasladar o cambiar de plan;
 - historial de deuda por factura, cliente y período;
@@ -206,9 +208,15 @@ completo y revisable.
 - exportación contable con período, factura, pago, método y estado;
 - auditoría de aprobación, rechazo, suspensión y exportación.
 
-**Dependencias:** sección 1 solo si se reutiliza almacenamiento o permisos;
-portal para que el cliente pueda enviar el comprobante; reglas de billing
-existentes en `billing.service.ts`.
+**Archivos principales:**
+
+- `artifacts/api-server/src/services/billing.service.ts`;
+- `artifacts/api-server/src/routes/billing.ts`;
+- `artifacts/api-server/src/routes/portal.ts`;
+- `artifacts/nms-dashboard/src/pages/billing.tsx`;
+- `artifacts/nms-dashboard/src/pages/client-portal.tsx`;
+- `lib/db/src/schema/operations.ts`;
+- `lib/api-spec/openapi.yaml`.
 
 **Cuidado:** no aplicar un pago dos veces por reintento ni cambiar el estado
 de red sin una regla de suspensión explícita y verificable.
@@ -217,20 +225,31 @@ de red sin una regla de suspensión explícita y verificable.
 deuda histórica permanece consultable y el reporte de morosidad coincide con
 los saldos de las facturas.
 
+**Verificación realizada:**
+
+- `pnpm --filter @workspace/api-spec run codegen`: correcto;
+- `pnpm run typecheck`: correcto en librerías, API, dashboard, canvas y
+  scripts;
+- build del API durante el workflow: correcto;
+- dashboard servido en preview sin errores de navegador;
+- `/api/healthz`: responde `200 OK`;
+- esquema de desarrollo actualizado con Drizzle;
+- cambios de plan ascendentes cobran solo la diferencia proporcional y los
+  descendentes generan crédito sin facturas negativas.
+
 ### 3. Portal del cliente restante
 
 **Objetivo:** cerrar las capacidades que el cliente puede ejecutar sin entrar
 al dashboard administrativo.
 
 **Revisar primero:** el portal web y los endpoints existentes ya cubren token,
-plan, saldo real, pagos, recibos, tickets, avisos, cambio de plan, traslado,
-reconexión y cierre básico.
+plan, saldo real, pagos, recibos, comprobantes privados, reenvío de rechazados,
+tickets, avisos, cambio de plan, traslado, reconexión y cierre básico.
 
 **Alcance restante:**
 
-- integrar el flujo formal de comprobantes de la sección 2;
 - mostrar estado de revisión y motivo de rechazo;
-- descargar el comprobante cuando corresponda;
+- mejorar la presentación del comprobante descargable cuando corresponda;
 - confirmar que el saldo proviene de facturas y no solo de `paymentStatus`;
 - mostrar AP/enlace asociado cuando exista;
 - permitir que el cliente reabra un ticket cerrado cuando el soporte lo
