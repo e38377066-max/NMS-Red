@@ -1,0 +1,338 @@
+Lo más urgente antes de usarlo en producción
+1. Conexión segura y estable con la red
+Actualmente está preparada la lógica para MikroTik y Ubiquiti, pero falta resolver de forma definitiva cómo llegará el CRM a los equipos:
+
+WireGuard, agente local o conector de red.
+Reconexión automática.
+Manejo de CGNAT.
+Estado del túnel.
+Prueba de conectividad antes de ejecutar una operación.
+Soporte para varias sedes.
+Rutas hacia los equipos inalámbricos.
+Sin esto, el CRM puede mostrar datos, pero no podrá administrar la red de forma confiable desde Railway.
+
+2. Motor de tareas para operaciones de red
+No conviene que una petición web ejecute directamente un cambio en el MikroTik. Hace falta una cola de trabajos:
+
+Solicitud → Cola → Ejecución → Reintentos → Resultado → Auditoría
+Debe incluir:
+
+Cola de comandos.
+Reintentos automáticos.
+Tiempo máximo por operación.
+Cancelación de tareas.
+Bloqueo por equipo para evitar dos cambios simultáneos.
+Estado pendiente, ejecutando, completado o fallido.
+Revisión del resultado real en el MikroTik.
+Reintentos seguros sin duplicar acciones.
+Esto es esencial para cortes, cambios de velocidad, DHCP y configuración.
+
+3. Aprovisionamiento idempotente de clientes
+El alta de un cliente debe ser una operación completa y segura:
+
+Crear o validar DHCP estático.
+Crear o actualizar Simple Queue.
+Asociar MAC, IP y nombre.
+Aplicar velocidad.
+Crear address-list.
+Asociar AP o equipo inalámbrico.
+Validar conflictos.
+Revertir cambios si una parte falla.
+Además, si se repite la operación, no debe crear duplicados.
+
+4. Reconciliación entre el CRM y MikroTik
+El CRM y el router pueden quedar desincronizados. Hace falta detectar:
+
+Clientes que existen en el CRM pero no en el router.
+Colas que existen en MikroTik pero no en el CRM.
+IPs duplicadas.
+MACs cambiadas.
+Clientes sin DHCP.
+Velocidades diferentes.
+Address-lists incorrectas.
+Equipos eliminados o reemplazados.
+El sistema debe mostrar diferencias y permitir corregirlas con aprobación.
+
+5. Backups reales antes de cualquier cambio
+La función de backups existe, pero para producción debería incluir:
+
+Backup automático antes de cada cambio crítico.
+Versionado por equipo.
+Comparación entre configuraciones.
+Restauración controlada.
+Validación de compatibilidad.
+Confirmación de usuario.
+Registro de quién restauró y por qué.
+Copias fuera del servidor principal.
+Cifrado de archivos.
+Prueba periódica de recuperación.
+Un backup que nunca se ha restaurado no está realmente comprobado.
+
+6. Seguridad de credenciales
+Falta un sistema sólido para:
+
+Cifrar las credenciales de MikroTik, Ubiquiti y Proxmox.
+No devolver contraseñas al frontend.
+Rotar credenciales.
+Usar usuarios con permisos limitados en los routers.
+Separar credenciales de lectura y escritura.
+MFA para administradores.
+Bloqueo por intentos fallidos.
+Sesiones revocables.
+Control de acceso por IP o por sede.
+El token de sesión es solo una parte; las credenciales de los equipos son aún más sensibles.
+
+Funciones necesarias para administrar un ISP real
+7. Ciclo de vida completo del cliente
+No basta con crear y suspender clientes. Debe existir:
+
+Prospecto.
+Instalación pendiente.
+Cliente activo.
+Cliente suspendido.
+Cliente en traslado.
+Cliente cancelado.
+Cliente reactivado.
+Historial completo de cambios.
+Fecha de instalación.
+Técnico responsable.
+Equipo instalado.
+Plan contratado.
+Contrato o documento asociado.
+8. Facturación y cobranza completa
+La facturación actual es una base inicial. Para operación real faltaría:
+
+Catálogo de planes.
+Ciclos de cobro.
+Pagos parciales.
+Recibos numerados.
+Métodos de pago.
+Pagos en efectivo y transferencia.
+Comprobantes.
+Descuentos.
+Recargos.
+Prorrateo.
+Historial de deuda.
+Avisos antes del vencimiento.
+Reglas de suspensión.
+Reactivación automática después del pago.
+Reporte diario de ingresos.
+Exportación contable.
+9. Portal del cliente
+El cliente debería poder:
+
+Ver su plan.
+Consultar su deuda.
+Ver próximos vencimientos.
+Descargar recibos.
+Reportar una falla.
+Consultar el estado del ticket.
+Ver avisos de mantenimiento.
+Solicitar cambio de plan.
+Enviar comprobante de pago.
+10. Tickets y mesa de ayuda
+Debe existir un módulo de soporte:
+
+Ticket creado por cliente u operador.
+Prioridad.
+Categoría.
+Técnico asignado.
+Estado.
+Comentarios.
+Evidencias.
+Historial.
+Tiempo de primera respuesta.
+Tiempo de resolución.
+Relación con equipo o nodo.
+Causa raíz.
+Cierre con confirmación del cliente.
+Monitoreo de red que todavía falta
+11. Alertas operativas reales
+El dashboard muestra información, pero en producción necesitas:
+
+Alertas por equipo caído.
+Alertas por enlace degradado.
+Señal baja.
+CCQ bajo.
+Ruido elevado.
+Saturación de interfaces.
+CPU y memoria altas.
+Temperatura.
+Pérdida de paquetes.
+Latencia.
+Clientes desconectándose repetidamente.
+Vencimientos de certificados.
+Backups fallidos.
+También se necesita:
+
+Deduplicación de alertas.
+Niveles de severidad.
+Mantenimiento programado.
+Silenciamiento temporal.
+Escalamiento.
+Notificaciones por Telegram, correo o WhatsApp.
+Confirmación de alerta.
+Historial de incidentes.
+12. Métricas históricas
+No basta con conocer el estado actual. Hace falta guardar y consultar:
+
+Tráfico por cliente.
+Tráfico por equipo.
+Tráfico por enlace.
+Señal histórica.
+CCQ histórico.
+Disponibilidad.
+Latencia.
+Pérdida de paquetes.
+Capacidad utilizada.
+Horas pico.
+Consumo por plan.
+Historial de desconexiones.
+Con esto puedes saber si un AP está cerca de saturarse antes de que fallen los clientes.
+
+13. Descubrimiento y sincronización de equipos
+Para redes que crecen, se necesita:
+
+Descubrimiento por subred.
+Detección de MikroTik y Ubiquiti.
+Importación automática.
+Identificación de modelo y versión.
+Detección de equipos duplicados.
+Inventario de interfaces.
+Inventario de radios.
+Inventario de firmware.
+Estado de licencias.
+Registro de cambios de IP.
+Funciones de operación en campo
+14. Instalaciones y técnicos
+Para un ISP real también falta la parte de trabajo de campo:
+
+Orden de instalación.
+Asignación a técnico.
+Agenda.
+Dirección del cliente.
+Coordenadas GPS.
+Fotos de instalación.
+Material utilizado.
+Potencia medida.
+Equipo instalado.
+Firma del cliente.
+Acta de instalación.
+Reubicación o visita técnica.
+15. Inventario
+Hay que controlar:
+
+Routers.
+Radios.
+Antenas.
+Fuentes.
+POE.
+Cables.
+Conectores.
+Equipos en almacén.
+Equipos instalados.
+Equipos averiados.
+Equipos retirados.
+Número de serie.
+MAC.
+Proveedor.
+Garantía.
+Seguridad y gobierno
+16. Auditoría más fuerte
+La auditoría actual es una buena base, pero debería ser inmutable y registrar:
+
+Usuario.
+Rol.
+IP de origen.
+Dispositivo desde donde operó.
+Equipo afectado.
+Cliente afectado.
+Configuración anterior.
+Configuración nueva.
+Comando ejecutado.
+Resultado real.
+Motivo del cambio.
+Confirmación adicional.
+Fecha y duración.
+Error completo.
+17. Permisos más detallados
+Dos roles no suelen ser suficientes. Podrían existir:
+
+Superadministrador.
+Administrador de red.
+Facturación.
+Soporte.
+Técnico de campo.
+Solo lectura.
+Auditor.
+Administrador por sede.
+También permisos por:
+
+Módulo.
+Acción.
+Equipo.
+Nodo.
+Cliente.
+Sede.
+18. Multiempresa o multisede
+Si el software se ofrecerá a más de un ISP, faltaría:
+
+Organizaciones separadas.
+Usuarios por organización.
+Datos aislados.
+Nodos por empresa.
+Facturación independiente.
+Configuración propia.
+Límites y planes por organización.
+Infraestructura del propio CRM
+19. Servicios separados
+Para producción conviene separar:
+
+Frontend.
+API.
+Worker de tareas.
+Worker de monitoreo.
+Worker de facturación.
+WebSocket.
+Base de datos.
+Almacenamiento de backups.
+El monitoreo y los comandos no deberían depender de que un operador tenga abierta la página web.
+
+20. Recuperación y continuidad
+También faltaría preparar:
+
+Migraciones controladas de base de datos.
+Backup automático de PostgreSQL.
+Restauración probada.
+Logs centralizados.
+Health checks.
+Métricas del propio CRM.
+Control de errores.
+Alertas del backend.
+Protección contra sobrecarga.
+Plan de recuperación ante caída de Railway.
+Orden recomendado para convertirlo en producto real
+Yo priorizaría así:
+
+Fase 1: seguridad y estabilidad
+Conector seguro hacia la red.
+Cifrado de credenciales.
+Motor de tareas y reintentos.
+Backups antes de cambios.
+Reconciliación CRM–MikroTik.
+Permisos detallados.
+Fase 2: operación ISP
+Alta automática completa.
+Cortes y reconexiones confiables.
+Facturación completa.
+Tickets de soporte.
+Alertas externas.
+Métricas históricas.
+Fase 3: producto comercial
+Portal del cliente.
+Aplicación para técnicos.
+Inventario.
+Multiempresa y multisede.
+Reportes contables y operativos.
+Alta disponibilidad y recuperación.
+La mayor carencia actual no es otra pantalla. Es el motor confiable de conexión, ejecución, validación y recuperación de cambios en los equipos. Ese núcleo debe estar sólido antes de automatizar cortes, velocidades o configuraciones de muchos clientes.
