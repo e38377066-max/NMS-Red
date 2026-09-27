@@ -15,7 +15,7 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - Contratos formales: `GET /api/clients/:id/contracts` lista versiones; `POST` recibe un PDF privado con `X-Original-File-Name`; `PATCH /api/clients/:id/contracts/:contractId/review` aprueba o rechaza; `GET .../download` descarga con autenticación.
 - Métodos de pago soportados en facturas: `cash`, `transfer`, `mobile` y `other`. Los estados de factura son `OPEN`, `PARTIAL` y `PAID`.
 - Env requerido: `DATABASE_URL` — conexión Postgres
-- Primer arranque: define `INITIAL_ADMIN_USERNAME` y `INITIAL_ADMIN_PASSWORD` (mínimo 12 caracteres) para crear un único administrador en una base vacía; no existe una contraseña por defecto y esas variables se pueden retirar después del primer arranque.
+- Primer arranque: define `INITIAL_ADMIN_USERNAME` y `INITIAL_ADMIN_PASSWORD` (mínimo 8 caracteres) para crear un único administrador en una base vacía; no existe una contraseña por defecto y esas variables se pueden retirar después del primer arranque.
 - Configuración de producción externa: copiar `.env.example` y usar un PostgreSQL y un almacenamiento S3-compatible propios; el API no depende de Replit Object Storage. `BACKUP_STORAGE_PROVIDER=filesystem` también funciona para una instalación de un solo servidor.
 - `BACKUP_STORAGE_PROVIDER=s3` requiere `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT` y `S3_BUCKET`. Para una instalación de un solo servidor se puede usar `filesystem` con `BACKUP_STORAGE_DIR` absoluto.
 - En producción `MIKROTIK_API_SCHEME=https` es el valor recomendado; el acceso a las sedes debe resolverse con WireGuard, red privada o un conector propio antes de exponer el API.

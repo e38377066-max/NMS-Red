@@ -35,7 +35,7 @@ export async function bootstrapInitialAdmin(): Promise<void> {
   const username = process.env.INITIAL_ADMIN_USERNAME?.trim();
   const password = process.env.INITIAL_ADMIN_PASSWORD;
   if (!username || !password) return;
-  if (password.length < 12) throw new Error("INITIAL_ADMIN_PASSWORD must contain at least 12 characters");
+  if (password.length < 8) throw new Error("INITIAL_ADMIN_PASSWORD must contain at least 8 characters");
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
   if (count > 0) return;
   await db.insert(usersTable).values({

@@ -37,3 +37,4 @@ externalPort = 3000
 [userenv]
 
 [userenv.development]
+INITIAL_ADMIN_USERNAME = "superadmin"
