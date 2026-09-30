@@ -348,24 +348,28 @@ async function trySSHWirelessTable(ip: string, username: string, password: strin
 
 async function getMikroTikWirelessTable(ip: string, username: string, password: string): Promise<WirelessStation[]> {
   try {
-    const auth = Buffer.from(`${username}:${password}`).toString("base64");
-    const res = await fetch(`http://${ip}/rest/interface/wireless/registration-table`, {
-      headers: { Authorization: `Basic ${auth}` },
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
-    if (!res.ok) return [];
-    const data = await res.json() as MikroTikWirelessEntry[];
-    return data.map((e) => ({
-      mac: e["mac-address"] ?? e.mac ?? "N/A",
-      name: e.comment ?? null,
-      signalDbm: e["signal-strength"] ?? e.signal ?? "N/A",
-      noiseDbm: e["noise-floor"] ?? null,
-      ccq: e.ccq ?? "N/A",
-      txRate: e["tx-rate"] ?? null,
-      rxRate: e["rx-rate"] ?? null,
-      uptime: e.uptime ?? null,
-      distance: e.distance != null ? `${e.distance}m` : null,
-    }));
+    const auth = Buffer.from(`${username}:${decryptSecret(password)}`).toString("base64");
+    for (const wirelessPackage of ["wireless", "wifi"]) {
+      const res = await fetch(`http://${ip}/rest/interface/${wirelessPackage}/registration-table`, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+      });
+      if (!res.ok) continue;
+      const data = await res.json() as MikroTikWirelessEntry[];
+      if (!Array.isArray(data) || data.length === 0) continue;
+      return data.map((e) => ({
+        mac: e["mac-address"] ?? e.mac ?? "N/A",
+        name: e.comment ?? e.interface ?? null,
+        signalDbm: e["signal-strength"] ?? e.signal ?? "N/A",
+        noiseDbm: e["noise-floor"] ?? null,
+        ccq: e.ccq ?? "N/A",
+        txRate: e["tx-rate"] ?? null,
+        rxRate: e["rx-rate"] ?? null,
+        uptime: e.uptime ?? null,
+        distance: e.distance != null ? `${e.distance}m` : null,
+      }));
+    }
+    return [];
   } catch {
     return [];
   }
@@ -400,6 +404,7 @@ interface MikroTikWirelessEntry {
   "mac-address"?: string;
   mac?: string;
   comment?: string;
+  interface?: string;
   "signal-strength"?: string;
   signal?: string;
   "noise-floor"?: string;

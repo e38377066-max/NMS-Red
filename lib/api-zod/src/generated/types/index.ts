@@ -6,9 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accessPointAssociationCandidate';
 export * from './aiChatInput';
 export * from './aiReply';
 export * from './alert';
+export * from './alignmentAccessPointAssociation';
+export * from './alignmentAccessPointAssociationMethod';
+export * from './alignmentAccessPointAssociationStatus';
 export * from './alignmentMetrics';
 export * from './alignmentPosition';
 export * from './alignmentPositionSource';

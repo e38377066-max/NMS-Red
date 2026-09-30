@@ -3669,6 +3669,35 @@ components:
             - $ref: "#/components/schemas/AlignmentPosition"
             - type: "null"
 
+    AccessPointAssociationCandidate:
+      type: object
+      required: [equipmentId, model, signalDbm]
+      properties:
+        equipmentId:
+          type: integer
+        model:
+          type: string
+        signalDbm:
+          type: ["number", "null"]
+
+    AlignmentAccessPointAssociation:
+      type: object
+      required: [status, method, candidates, checkedAt]
+      properties:
+        status:
+          type: string
+          enum: [detected, not_detected, ambiguous]
+        method:
+          type: ["string", "null"]
+          enum: [live_unique, saved_reference, null]
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccessPointAssociationCandidate"
+        checkedAt:
+          type: string
+          format: date-time
+
     AlignmentMetrics:
       type: object
       required: [available, signalDbm, noiseDbm, ccq, txRate, rxRate, distance, refreshedAt]
@@ -3693,7 +3722,7 @@ components:
 
     MyFieldWorkOrderAlignment:
       type: object
-      required: [workOrderId, clientName, clientMac, clientRadio, accessPoint, metrics]
+      required: [workOrderId, clientName, clientMac, clientRadio, accessPoint, savedReferenceAccessPoint, accessPointAssociation, metrics]
       properties:
         workOrderId:
           type: integer
@@ -3705,6 +3734,12 @@ components:
           $ref: "#/components/schemas/AlignmentRadio"
         accessPoint:
           $ref: "#/components/schemas/AlignmentRadio"
+        savedReferenceAccessPoint:
+          anyOf:
+            - $ref: "#/components/schemas/AlignmentRadio"
+            - type: "null"
+        accessPointAssociation:
+          $ref: "#/components/schemas/AlignmentAccessPointAssociation"
         metrics:
           $ref: "#/components/schemas/AlignmentMetrics"
 

@@ -61,7 +61,11 @@ import {
   DeleteTechnicianAvailabilityParams,
 } from "@workspace/api-zod";
 import { getMikroTikGps } from "../services/mikrotik.service";
-import { getUbiquitiRadioGps, getWirelessTable } from "../services/ubiquiti.service";
+import {
+  getUbiquitiRadioGps,
+  getWirelessTable,
+  type WirelessStation,
+} from "../services/ubiquiti.service";
 import { TicketAttachmentStorageNotConfiguredError } from "../services/ticket-attachment-storage.service";
 import { createTicketAttachment } from "../services/ticket-attachments.service";
 import { downloadSupportTicketAttachment } from "../services/ticket-attachments.service";
@@ -92,6 +96,7 @@ const asId = (value: unknown): number | null => {
 type AlignmentEquipment = {
   id: number;
   model: string;
+  equipmentRole: string;
   connectionType: string;
   ip: string;
   username: string;
@@ -163,10 +168,10 @@ async function loadMyAlignmentContext(id: number, userId: number) {
     client.equipmentId,
     client.accessPointEquipmentId,
   ].filter((equipmentId): equipmentId is number => equipmentId !== null))];
-  const devices: AlignmentEquipment[] = equipmentIds.length
-    ? await db.select({
+  const selectAlignmentEquipment = {
       id: equipmentTable.id,
       model: equipmentTable.model,
+      equipmentRole: equipmentTable.equipmentRole,
       connectionType: equipmentTable.connectionType,
       ip: equipmentTable.ip,
       username: equipmentTable.username,
@@ -176,20 +181,140 @@ async function loadMyAlignmentContext(id: number, userId: number) {
       altitudeMeters: equipmentTable.altitudeMeters,
       locationSource: equipmentTable.locationSource,
       locationAccuracyMeters: equipmentTable.locationAccuracyMeters,
-    }).from(equipmentTable).where(inArray(equipmentTable.id, equipmentIds))
+  };
+  const devices: AlignmentEquipment[] = equipmentIds.length
+    ? await db.select(selectAlignmentEquipment).from(equipmentTable).where(inArray(equipmentTable.id, equipmentIds))
     : [];
+  const apCandidates: AlignmentEquipment[] = await db.select(selectAlignmentEquipment)
+    .from(equipmentTable)
+    .where(eq(equipmentTable.equipmentRole, "ap_distributor"));
 
   return {
     client,
     clientRadio: devices.find(device => device.id === client.equipmentId),
-    accessPoint: client.accessPointEquipmentId === null
+    savedAccessPoint: client.accessPointEquipmentId === null
       ? undefined
       : devices.find(device => device.id === client.accessPointEquipmentId),
+    apCandidates: apCandidates.filter(device => device.id !== client.equipmentId),
   };
 }
 
 function normalizeMac(value: string): string {
   return value.replace(/[^a-f0-9]/gi, "").toLowerCase();
+}
+
+const ALIGNMENT_STATION_CACHE_TTL_MS = 12_000;
+const ALIGNMENT_STATION_SCAN_CONCURRENCY = 8;
+const alignmentStationTableCache = new Map<number, {
+  expiresAt: number;
+  stations: WirelessStation[];
+}>();
+const alignmentStationTablePending = new Map<number, Promise<WirelessStation[]>>();
+
+async function getAlignmentStationTable(
+  equipment: AlignmentEquipment,
+  forceRefresh = false,
+): Promise<WirelessStation[]> {
+  const cached = alignmentStationTableCache.get(equipment.id);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.stations;
+
+  const pending = alignmentStationTablePending.get(equipment.id);
+  if (!forceRefresh && pending) return pending;
+
+  const request = getWirelessTable(
+    equipment.ip,
+    equipment.username,
+    equipment.password,
+    equipment.connectionType,
+  ).catch(() => []);
+  alignmentStationTablePending.set(equipment.id, request);
+  try {
+    const stations = await request;
+    alignmentStationTableCache.set(equipment.id, {
+      expiresAt: Date.now() + ALIGNMENT_STATION_CACHE_TTL_MS,
+      stations,
+    });
+    return stations;
+  } finally {
+    if (alignmentStationTablePending.get(equipment.id) === request) {
+      alignmentStationTablePending.delete(equipment.id);
+    }
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  callback: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await callback(items[index]);
+    }
+  }));
+  return results;
+}
+
+type AlignmentContext = NonNullable<Awaited<ReturnType<typeof loadMyAlignmentContext>>>;
+type AccessPointMatch = {
+  equipment: AlignmentEquipment;
+  station: WirelessStation;
+};
+
+async function resolveAssociatedAccessPoint(
+  context: AlignmentContext,
+  forceRefresh = false,
+) {
+  const clientMac = normalizeMac(context.client.mac);
+  const checkedAt = new Date().toISOString();
+  if (clientMac.length !== 12 || context.apCandidates.length === 0) {
+    return {
+      status: "not_detected" as const,
+      method: null,
+      selected: undefined,
+      matches: [] as AccessPointMatch[],
+      checkedAt,
+    };
+  }
+
+  const tables = await mapWithConcurrency(
+    context.apCandidates,
+    ALIGNMENT_STATION_SCAN_CONCURRENCY,
+    async equipment => ({
+      equipment,
+      stations: await getAlignmentStationTable(equipment, forceRefresh),
+    }),
+  );
+  const matchesByEquipmentId = new Map<number, AccessPointMatch>();
+  for (const { equipment, stations } of tables) {
+    const station = stations.find(candidate => normalizeMac(candidate.mac) === clientMac);
+    if (station && !matchesByEquipmentId.has(equipment.id)) {
+      matchesByEquipmentId.set(equipment.id, { equipment, station });
+    }
+  }
+  const matches = [...matchesByEquipmentId.values()];
+  const savedReferenceMatch = context.savedAccessPoint
+    ? matches.find(match => match.equipment.id === context.savedAccessPoint?.id)
+    : undefined;
+  const selected = matches.length === 1
+    ? matches[0]
+    : matches.length > 1
+      ? savedReferenceMatch
+      : undefined;
+
+  return {
+    status: selected ? "detected" as const : matches.length ? "ambiguous" as const : "not_detected" as const,
+    method: selected
+      ? matches.length === 1 ? "live_unique" as const : "saved_reference" as const
+      : null,
+    selected: selected?.equipment,
+    matches,
+    checkedAt,
+  };
 }
 
 function metricNumber(value: string | null | undefined): number | null {
@@ -202,26 +327,10 @@ async function buildMyFieldWorkOrderAlignment(id: number, userId: number) {
   const context = await loadMyAlignmentContext(id, userId);
   if (!context) return null;
 
-  const candidates = [context.accessPoint, context.clientRadio]
-    .filter((device, index, all): device is AlignmentEquipment =>
-      Boolean(device) && all.findIndex(candidate => candidate?.id === device?.id) === index,
-    );
-  const stationTables = await Promise.all(candidates.map(async device => {
-    try {
-      return await getWirelessTable(
-        device.ip,
-        device.username,
-        device.password,
-        device.connectionType,
-      );
-    } catch {
-      return [];
-    }
-  }));
-  const clientMac = normalizeMac(context.client.mac);
-  const station = stationTables
-    .flat()
-    .find(candidate => normalizeMac(candidate.mac) === clientMac);
+  const association = await resolveAssociatedAccessPoint(context);
+  const selectedMatch = association.matches.find(match => match.equipment.id === association.selected?.id);
+  const activeAccessPoint = selectedMatch?.equipment;
+  const station = selectedMatch?.station;
 
   return GetMyFieldWorkOrderAlignmentResponse.parse({
     workOrderId: id,
@@ -233,9 +342,26 @@ async function buildMyFieldWorkOrderAlignment(id: number, userId: number) {
       position: equipmentAlignmentPosition(context.clientRadio),
     },
     accessPoint: {
-      equipmentId: context.accessPoint?.id ?? null,
-      model: context.accessPoint?.model ?? null,
-      position: equipmentAlignmentPosition(context.accessPoint),
+      equipmentId: activeAccessPoint?.id ?? null,
+      model: activeAccessPoint?.model ?? null,
+      position: equipmentAlignmentPosition(activeAccessPoint),
+    },
+    savedReferenceAccessPoint: context.savedAccessPoint?.equipmentRole === "ap_distributor"
+      ? {
+        equipmentId: context.savedAccessPoint.id,
+        model: context.savedAccessPoint.model,
+        position: equipmentAlignmentPosition(context.savedAccessPoint),
+      }
+      : null,
+    accessPointAssociation: {
+      status: association.status,
+      method: association.method,
+      candidates: association.matches.map(match => ({
+        equipmentId: match.equipment.id,
+        model: match.equipment.model,
+        signalDbm: metricNumber(match.station.signalDbm),
+      })),
+      checkedAt: association.checkedAt,
     },
     metrics: {
       available: Boolean(station),
@@ -1073,6 +1199,7 @@ router.post("/work-orders/mine/:id/alignment/radio-gps", async (req, res): Promi
     res.status(404).json({ error: "Orden no asignada o sin cliente asociado" });
     return;
   }
+  const association = await resolveAssociatedAccessPoint(context);
 
   const readings = new Map<number, ReturnType<typeof getMikroTikGps>>();
   const read = (device: AlignmentEquipment | undefined) => {
@@ -1099,7 +1226,15 @@ router.post("/work-orders/mine/:id/alignment/radio-gps", async (req, res): Promi
   };
   const [clientRadio, accessPoint] = await Promise.all([
     read(context.clientRadio),
-    read(context.accessPoint),
+    association.selected
+      ? read(association.selected)
+      : Promise.resolve({
+        supported: false,
+        position: null,
+        message: association.status === "ambiguous"
+          ? "Hay varias asociaciones activas; el AP no se confirmó de forma única."
+          : "No se encontró una asociación activa con un AP / Repartidor.",
+      }),
   ]);
   res.json(ReadMyFieldWorkOrderRadioGpsResponse.parse({ clientRadio, accessPoint }));
 });
@@ -1118,6 +1253,24 @@ router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> 
     return;
   }
 
+  const context = await loadMyAlignmentContext(id, userId);
+  if (!context) {
+    res.status(404).json({ error: "Orden no asignada o sin cliente asociado" });
+    return;
+  }
+  const association = accessPointLocation
+    ? await resolveAssociatedAccessPoint(context, true)
+    : null;
+  if (accessPointLocation && !association?.selected) {
+    res.status(409).json({
+      error: association?.status === "ambiguous"
+        ? "Hay varias asociaciones activas. Actualiza la asociación del cliente en NMS antes de guardar el AP."
+        : "No se detectó una asociación activa con un AP / Repartidor. No se guardaron coordenadas del AP.",
+    });
+    return;
+  }
+  const activeAccessPointId = association?.selected?.id;
+
   const result = await db.transaction(async tx => {
     const [order] = await tx.select({
       clientId: fieldWorkOrdersTable.clientId,
@@ -1128,10 +1281,10 @@ router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> 
       ))
       .for("update");
     if (!order?.clientId) return { kind: "not_found" as const };
+    if (order.clientId !== context.client.id) return { kind: "not_found" as const };
 
     const [client] = await tx.select({
       equipmentId: clientsTable.equipmentId,
-      accessPointEquipmentId: clientsTable.accessPointEquipmentId,
     }).from(clientsTable)
       .where(eq(clientsTable.id, order.clientId))
       .for("update");
@@ -1142,11 +1295,23 @@ router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> 
     ) return { kind: "radio_missing" as const };
     if (
       accessPointLocation
-      && (!client.accessPointEquipmentId || client.accessPointEquipmentId <= 0)
+      && (!activeAccessPointId || activeAccessPointId <= 0)
     ) return { kind: "ap_missing" as const };
 
-    if (client.equipmentId === client.accessPointEquipmentId) {
+    if (accessPointLocation && client.equipmentId === activeAccessPointId) {
       return { kind: "duplicate_equipment" as const };
+    }
+
+    if (accessPointLocation && activeAccessPointId) {
+      const [activeAccessPoint] = await tx.select({
+        id: equipmentTable.id,
+      }).from(equipmentTable)
+        .where(and(
+          eq(equipmentTable.id, activeAccessPointId),
+          eq(equipmentTable.equipmentRole, "ap_distributor"),
+        ))
+        .for("update");
+      if (!activeAccessPoint) return { kind: "ap_missing" as const };
     }
 
     if (clientRadioLocation) {
@@ -1162,7 +1327,7 @@ router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> 
           : String(clientRadioLocation.accuracyMeters),
       }).where(eq(equipmentTable.id, client.equipmentId));
     }
-    if (accessPointLocation && client.accessPointEquipmentId) {
+    if (accessPointLocation && activeAccessPointId) {
       await tx.update(equipmentTable).set({
         latitude: String(accessPointLocation.latitude),
         longitude: String(accessPointLocation.longitude),
@@ -1173,7 +1338,7 @@ router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> 
         locationAccuracyMeters: accessPointLocation.accuracyMeters === null
           ? null
           : String(accessPointLocation.accuracyMeters),
-      }).where(eq(equipmentTable.id, client.accessPointEquipmentId));
+      }).where(eq(equipmentTable.id, activeAccessPointId));
     }
     return { kind: "saved" as const };
   });

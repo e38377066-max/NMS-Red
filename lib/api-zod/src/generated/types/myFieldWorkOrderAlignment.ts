@@ -5,6 +5,7 @@
  * NMS Multi-Brand Platform API (MikroTik + Ubiquiti + Proxmox)
  * OpenAPI spec version: 0.1.0
  */
+import type { AlignmentAccessPointAssociation } from './alignmentAccessPointAssociation';
 import type { AlignmentMetrics } from './alignmentMetrics';
 import type { AlignmentRadio } from './alignmentRadio';
 
@@ -14,5 +15,7 @@ export interface MyFieldWorkOrderAlignment {
   clientMac: string;
   clientRadio: AlignmentRadio;
   accessPoint: AlignmentRadio;
+  savedReferenceAccessPoint: AlignmentRadio | null;
+  accessPointAssociation: AlignmentAccessPointAssociation;
   metrics: AlignmentMetrics;
 }

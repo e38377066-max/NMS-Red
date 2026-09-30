@@ -1080,6 +1080,41 @@ export interface AlignmentRadio {
   position: AlignmentPosition | null;
 }
 
+export interface AccessPointAssociationCandidate {
+  equipmentId: number;
+  model: string;
+  /** @nullable */
+  signalDbm: number | null;
+}
+
+export type AlignmentAccessPointAssociationStatus = typeof AlignmentAccessPointAssociationStatus[keyof typeof AlignmentAccessPointAssociationStatus];
+
+
+export const AlignmentAccessPointAssociationStatus = {
+  detected: 'detected',
+  not_detected: 'not_detected',
+  ambiguous: 'ambiguous',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AlignmentAccessPointAssociationMethod = typeof AlignmentAccessPointAssociationMethod[keyof typeof AlignmentAccessPointAssociationMethod] | null;
+
+
+export const AlignmentAccessPointAssociationMethod = {
+  live_unique: 'live_unique',
+  saved_reference: 'saved_reference',
+} as const;
+
+export interface AlignmentAccessPointAssociation {
+  status: AlignmentAccessPointAssociationStatus;
+  /** @nullable */
+  method: AlignmentAccessPointAssociationMethod;
+  candidates: AccessPointAssociationCandidate[];
+  checkedAt: string;
+}
+
 export interface AlignmentMetrics {
   available: boolean;
   /** @nullable */
@@ -1104,6 +1139,8 @@ export interface MyFieldWorkOrderAlignment {
   clientMac: string;
   clientRadio: AlignmentRadio;
   accessPoint: AlignmentRadio;
+  savedReferenceAccessPoint: AlignmentRadio | null;
+  accessPointAssociation: AlignmentAccessPointAssociation;
   metrics: AlignmentMetrics;
 }
 

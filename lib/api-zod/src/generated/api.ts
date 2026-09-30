@@ -1706,6 +1706,18 @@ export const getMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAltitudeM
 export const getMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMin = 0;
 export const getMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMax = 10000;
 
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMin = -90;
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMax = 90;
+
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMin = -180;
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMax = 180;
+
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMin = -500;
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMax = 10000;
+
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMin = 0;
+export const getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMax = 10000;
+
 
 
 export const GetMyFieldWorkOrderAlignmentResponse = zod.object({
@@ -1733,6 +1745,27 @@ export const GetMyFieldWorkOrderAlignmentResponse = zod.object({
   "source": zod.enum(['manual', 'external_gps', 'phone_gps', 'radio_gps', 'unknown']),
   "accuracyMeters": zod.number().min(getMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMin).max(getMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMax).nullable()
 }),zod.null()])
+}),
+  "savedReferenceAccessPoint": zod.union([zod.object({
+  "equipmentId": zod.int().nullable(),
+  "model": zod.string().nullable(),
+  "position": zod.union([zod.object({
+  "latitude": zod.number().min(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMin).max(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMax),
+  "longitude": zod.number().min(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMin).max(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMax),
+  "altitudeMeters": zod.number().min(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMin).max(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMax).nullable(),
+  "source": zod.enum(['manual', 'external_gps', 'phone_gps', 'radio_gps', 'unknown']),
+  "accuracyMeters": zod.number().min(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMin).max(getMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMax).nullable()
+}),zod.null()])
+}),zod.null()]),
+  "accessPointAssociation": zod.object({
+  "status": zod.enum(['detected', 'not_detected', 'ambiguous']),
+  "method": zod.union([zod.literal('live_unique'),zod.literal('saved_reference'),zod.literal(null)]).nullable(),
+  "candidates": zod.array(zod.object({
+  "equipmentId": zod.int(),
+  "model": zod.string(),
+  "signalDbm": zod.number().nullable()
+})),
+  "checkedAt": zod.coerce.date()
 }),
   "metrics": zod.object({
   "available": zod.boolean(),
@@ -1821,6 +1854,18 @@ export const saveMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAltitude
 export const saveMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMin = 0;
 export const saveMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMax = 10000;
 
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMin = -90;
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMax = 90;
+
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMin = -180;
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMax = 180;
+
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMin = -500;
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMax = 10000;
+
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMin = 0;
+export const saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMax = 10000;
+
 
 
 export const SaveMyFieldWorkOrderAlignmentResponse = zod.object({
@@ -1848,6 +1893,27 @@ export const SaveMyFieldWorkOrderAlignmentResponse = zod.object({
   "source": zod.enum(['manual', 'external_gps', 'phone_gps', 'radio_gps', 'unknown']),
   "accuracyMeters": zod.number().min(saveMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMin).max(saveMyFieldWorkOrderAlignmentResponseAccessPointPositionOneAccuracyMetersMax).nullable()
 }),zod.null()])
+}),
+  "savedReferenceAccessPoint": zod.union([zod.object({
+  "equipmentId": zod.int().nullable(),
+  "model": zod.string().nullable(),
+  "position": zod.union([zod.object({
+  "latitude": zod.number().min(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMin).max(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLatitudeMax),
+  "longitude": zod.number().min(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMin).max(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneLongitudeMax),
+  "altitudeMeters": zod.number().min(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMin).max(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAltitudeMetersMax).nullable(),
+  "source": zod.enum(['manual', 'external_gps', 'phone_gps', 'radio_gps', 'unknown']),
+  "accuracyMeters": zod.number().min(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMin).max(saveMyFieldWorkOrderAlignmentResponseSavedReferenceAccessPointOnePositionOneAccuracyMetersMax).nullable()
+}),zod.null()])
+}),zod.null()]),
+  "accessPointAssociation": zod.object({
+  "status": zod.enum(['detected', 'not_detected', 'ambiguous']),
+  "method": zod.union([zod.literal('live_unique'),zod.literal('saved_reference'),zod.literal(null)]).nullable(),
+  "candidates": zod.array(zod.object({
+  "equipmentId": zod.int(),
+  "model": zod.string(),
+  "signalDbm": zod.number().nullable()
+})),
+  "checkedAt": zod.coerce.date()
 }),
   "metrics": zod.object({
   "available": zod.boolean(),

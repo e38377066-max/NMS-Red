@@ -184,17 +184,24 @@ export default function RadioAlignmentScreen() {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const initializedRef = useRef(false);
+  const initializedApEquipmentIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     const current = alignmentQuery.data;
-    if (!current || initializedRef.current) return;
-    setManualClient(positionToFields(current.clientRadio.position));
-    setManualAp(positionToFields(current.accessPoint.position));
-    setManualClientSource(editableSource(current.clientRadio.position?.source));
-    setManualApSource(editableSource(current.accessPoint.position?.source));
-    setManualClientAccuracy(current.clientRadio.position?.accuracyMeters?.toString() ?? '');
-    setManualApAccuracy(current.accessPoint.position?.accuracyMeters?.toString() ?? '');
-    initializedRef.current = true;
+    if (!current) return;
+    if (!initializedRef.current) {
+      setManualClient(positionToFields(current.clientRadio.position));
+      setManualClientSource(editableSource(current.clientRadio.position?.source));
+      setManualClientAccuracy(current.clientRadio.position?.accuracyMeters?.toString() ?? '');
+      initializedRef.current = true;
+    }
+    if (initializedApEquipmentIdRef.current !== current.accessPoint.equipmentId) {
+      setManualAp(positionToFields(current.accessPoint.position));
+      setManualApSource(editableSource(current.accessPoint.position?.source));
+      setManualApAccuracy(current.accessPoint.position?.accuracyMeters?.toString() ?? '');
+      setRadioGps(null);
+      initializedApEquipmentIdRef.current = current.accessPoint.equipmentId;
+    }
   }, [alignmentQuery.data]);
 
   useEffect(() => {
@@ -276,8 +283,10 @@ export default function RadioAlignmentScreen() {
   }
 
   const alignment = alignmentQuery.data;
+  const hasConfirmedAccessPoint = alignment.accessPointAssociation.status === 'detected'
+    && alignment.accessPoint.equipmentId !== null;
   const nmsClientPosition = alignment.clientRadio.position;
-  const nmsApPosition = alignment.accessPoint.position;
+  const nmsApPosition = hasConfirmedAccessPoint ? alignment.accessPoint.position : null;
   const manualClientResult = parseCoordinateFields(manualClient, manualClientSource, manualClientAccuracy);
   const manualApResult = parseCoordinateFields(manualAp, manualApSource, manualApAccuracy);
   const activeClientPosition = source === 'nms'
@@ -285,11 +294,13 @@ export default function RadioAlignmentScreen() {
     : source === 'radio_gps'
       ? (radioGps?.clientRadio.supported ? radioGps.clientRadio.position : null)
       : manualClientResult.position;
-  const activeApPosition = source === 'nms'
-    ? nmsApPosition
-    : source === 'radio_gps'
-      ? (radioGps?.accessPoint.supported ? radioGps.accessPoint.position : null)
-      : manualApResult.position;
+  const activeApPosition = !hasConfirmedAccessPoint
+    ? null
+    : source === 'nms'
+      ? nmsApPosition
+      : source === 'radio_gps'
+        ? (radioGps?.accessPoint.supported ? radioGps.accessPoint.position : null)
+        : manualApResult.position;
   const originPosition = phonePosition && (phonePosition.accuracyMeters == null || phonePosition.accuracyMeters <= 100)
     ? phonePosition
     : activeClientPosition;
@@ -356,6 +367,12 @@ export default function RadioAlignmentScreen() {
   const saveCoordinates = async () => {
     setError('');
     setNotice('');
+    if (!hasConfirmedAccessPoint) {
+      setError(alignment.accessPointAssociation.status === 'ambiguous'
+        ? 'Hay varias asociaciones activas. Pide a supervisión que confirme el AP del cliente en NMS antes de guardar.'
+        : 'NMS no detectó un AP asociado en vivo. El AP guardado se muestra solo como referencia; no se usará para orientar ni guardar.');
+      return;
+    }
     let clientPosition = activeClientPosition;
     let apPosition = activeApPosition;
     if (source === 'manual') {
@@ -446,6 +463,57 @@ export default function RadioAlignmentScreen() {
             </Text>
           </View>
         </View>
+
+        <Surface style={styles.associationCard}>
+          <View style={styles.associationHeading}>
+            <Feather
+              name={hasConfirmedAccessPoint ? 'check-circle' : 'alert-triangle'}
+              size={18}
+              color={hasConfirmedAccessPoint ? colors.primary : colors.destructive}
+            />
+            <Text style={[styles.associationTitle, { color: colors.foreground }]}>
+              {hasConfirmedAccessPoint
+                ? 'AP asociado detectado en vivo'
+                : alignment.accessPointAssociation.status === 'ambiguous'
+                  ? 'Asociación ambigua'
+                  : 'No se detectó el AP asociado'}
+            </Text>
+          </View>
+          {hasConfirmedAccessPoint ? (
+            <>
+              <Text style={[styles.helperText, { color: colors.foreground }]}>
+                {alignment.accessPoint.model ?? 'AP / Repartidor'} · Equipo #{alignment.accessPoint.equipmentId}
+                {alignment.accessPointAssociation.method === 'saved_reference'
+                  ? ' · confirmado con la referencia guardada'
+                  : ''}
+              </Text>
+              {alignment.savedReferenceAccessPoint
+                && alignment.savedReferenceAccessPoint.equipmentId !== alignment.accessPoint.equipmentId ? (
+                <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
+                  El AP asociado detectado difiere del guardado en NMS (equipo #{alignment.savedReferenceAccessPoint.equipmentId}).
+                </Text>
+              ) : null}
+            </>
+          ) : alignment.accessPointAssociation.status === 'ambiguous' ? (
+            <>
+              <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
+                La MAC del cliente aparece en varios AP. No se seleccionará uno automáticamente.
+              </Text>
+              {alignment.accessPointAssociation.candidates.map(candidate => (
+                <Text key={candidate.equipmentId} style={[styles.helperText, { color: colors.foreground }]}>
+                  {candidate.model} · Equipo #{candidate.equipmentId}
+                  {candidate.signalDbm == null ? '' : ` · ${candidate.signalDbm} dBm`}
+                </Text>
+              ))}
+            </>
+          ) : (
+            <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
+              {alignment.savedReferenceAccessPoint
+                ? `AP guardado como referencia: ${alignment.savedReferenceAccessPoint.model ?? 'AP / Repartidor'} · Equipo #${alignment.savedReferenceAccessPoint.equipmentId}. No se usará como objetivo hasta confirmar una asociación en vivo.`
+                : 'Se buscaron asociaciones en los AP / Repartidores administrados por NMS. Pide a supervisión que revise la asociación del cliente.'}
+            </Text>
+          )}
+        </Surface>
 
         <Surface style={styles.metricsCard}>
           <View style={styles.metricsHeader}>
@@ -689,6 +757,7 @@ export default function RadioAlignmentScreen() {
             label={saveMutation.isPending ? 'Guardando coordenadas…' : 'Guardar coordenadas en NMS'}
             icon="save"
             loading={saveMutation.isPending}
+            disabled={!hasConfirmedAccessPoint}
             onPress={() => void saveCoordinates()}
           />
         ) : null}
@@ -849,6 +918,9 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveText: { fontSize: 8, fontWeight: '800', letterSpacing: 0.6 },
   metricsCard: { gap: 14 },
+  associationCard: { gap: 9 },
+  associationHeading: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  associationTitle: { fontSize: 14, fontWeight: '800' },
   metricsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   cardEyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   metricsTitle: { fontSize: 14, lineHeight: 20, fontWeight: '700', marginTop: 4 },
