@@ -908,6 +908,7 @@ router.post("/work-orders", async (req, res): Promise<void> => {
     ccq: input.data.ccq ?? null,
     installedEquipment: input.data.installedEquipment ?? null,
     installedSerialNumber: input.data.installedSerialNumber ?? null,
+    completedAt: ["completed", "closed"].includes((input.data.status ?? "pending").toLowerCase()) ? new Date() : null,
   }).returning();
   await audit(res.locals.user, "FieldWorkOrder", "CREATE", `Orden de campo #${order.id}`);
   res.status(201).json(CreateFieldWorkOrderResponse.parse(serializeDates(order)));
@@ -931,18 +932,18 @@ router.patch("/work-orders/:id", async (req, res): Promise<void> => {
   const scheduledEndAt = input.data.scheduledEndAt !== undefined
     ? input.data.scheduledEndAt ? new Date(input.data.scheduledEndAt) : null
     : current.scheduledEndAt;
-  if ((scheduledAt === null) !== (scheduledEndAt === null)) {
+  const scheduleChanged = input.data.assignedToUserId !== undefined
+    || input.data.scheduledAt !== undefined
+    || input.data.scheduledEndAt !== undefined;
+  if (scheduleChanged && (scheduledAt === null) !== (scheduledEndAt === null)) {
     res.status(400).json({ error: "La hora de inicio y de fin deben enviarse juntas" });
     return;
   }
-  if (scheduledAt && scheduledEndAt && !isValidScheduleRange(scheduledAt, scheduledEndAt)) {
+  if (scheduleChanged && scheduledAt && scheduledEndAt && !isValidScheduleRange(scheduledAt, scheduledEndAt)) {
     res.status(400).json({ error: "La hora de fin debe ser posterior a la de inicio" });
     return;
   }
 
-  const scheduleChanged = input.data.assignedToUserId !== undefined
-    || input.data.scheduledAt !== undefined
-    || input.data.scheduledEndAt !== undefined;
   if (assignedToUserId !== null && scheduleChanged) {
     if (scheduledAt && scheduledEndAt) {
       const conflict = await workOrderScheduleConflict(
@@ -976,7 +977,9 @@ router.patch("/work-orders/:id", async (req, res): Promise<void> => {
   if (input.data.installedEquipment !== undefined) update.installedEquipment = input.data.installedEquipment;
   if (input.data.installedSerialNumber !== undefined) update.installedSerialNumber = input.data.installedSerialNumber;
   if (input.data.materials !== undefined) update.materials = input.data.materials;
-  if (input.data.status === "completed") update.completedAt = new Date();
+  if (input.data.status && ["completed", "closed"].includes(input.data.status.toLowerCase()) && !current.completedAt) {
+    update.completedAt = new Date();
+  }
   const [order] = await db.update(fieldWorkOrdersTable).set(update)
     .where(eq(fieldWorkOrdersTable.id, params.data.id)).returning();
   if (!order) { res.status(404).json({ error: "Orden no encontrada" }); return; }
