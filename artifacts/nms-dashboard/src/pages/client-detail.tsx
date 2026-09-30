@@ -227,7 +227,7 @@ export default function ClientDetail() {
   const submitAdministrativeUpdate = () => {
     const nextEquipmentId = Number(adminForm.equipmentId);
     if (nextEquipmentId !== client?.equipmentId && !confirm(
-      "Esto solo cambia la asociación en NMS; no migra ni modifica leases, colas o configuración en los MikroTik. ¿Continuar?",
+      "Esto solo cambia la asociación en Imperio AP; no migra ni modifica leases, colas o configuración en los MikroTik. ¿Continuar?",
     )) return;
     updateClient.mutate({
       id,
@@ -251,7 +251,7 @@ export default function ClientDetail() {
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
         queryClient.invalidateQueries({ queryKey: ["client-history", id] });
         queryClient.invalidateQueries({ queryKey: ["dhcp-leases"] });
-        toast({ title: "Ficha actualizada", description: "La asociación, los datos DHCP y el expediente quedaron registrados en NMS." });
+        toast({ title: "Ficha actualizada", description: "La asociación, los datos DHCP y el expediente quedaron registrados en Imperio AP." });
         setAdminEditOpen(false);
       },
       onError: (error) => toast({ title: "No se pudo actualizar", description: error.message, variant: "destructive" }),
@@ -859,7 +859,7 @@ export default function ClientDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdminEditOpen(false)}>Cancelar</Button>
             <p className="col-span-2 text-xs text-muted-foreground">
-              Cambiar el MikroTik actualiza la asociación en NMS, pero no migra la configuración del router anterior al nuevo.
+              Cambiar el MikroTik actualiza la asociación en Imperio AP, pero no migra la configuración del router anterior al nuevo.
             </p>
             <Button onClick={submitAdministrativeUpdate} disabled={updateClient.isPending || !adminForm.equipmentId}>
               {updateClient.isPending ? "Guardando..." : "Guardar cambios"}

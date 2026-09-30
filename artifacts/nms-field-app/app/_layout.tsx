@@ -18,7 +18,7 @@ import { AuthProvider, getMobileAccessToken } from '@/providers/auth';
 
 const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
 if (!apiDomain) {
-  throw new Error('EXPO_PUBLIC_DOMAIN no está configurado para NMS Field.');
+  throw new Error('EXPO_PUBLIC_DOMAIN no está configurado para Imperio AP.');
 }
 setBaseUrl(`https://${apiDomain}`);
 setAuthTokenGetter(getMobileAccessToken);

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "NMS Field",
+    "name": "Imperio AP",
     "slug": "nms-field-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -28,13 +28,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Permitir a NMS Field usar la cámara para orientar radios."
+          "cameraPermission": "Permitir a Imperio AP usar la cámara para orientar radios."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Permitir a NMS Field usar la ubicación para calcular el rumbo hacia el AP."
+          "locationWhenInUsePermission": "Permitir a Imperio AP usar la ubicación para calcular el rumbo hacia el AP."
         }
       ]
     ],

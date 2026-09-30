@@ -607,7 +607,7 @@ router.get("/payments/:id/receipt", async (req, res): Promise<void> => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Recibo ${receiptNumber} · ISP Cockpit</title>
+  <title>Recibo ${receiptNumber} · Imperio AP</title>
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f1f5f9}
     *{box-sizing:border-box}
@@ -636,7 +636,7 @@ router.get("/payments/:id/receipt", async (req, res): Promise<void> => {
 <body>
   <main class="receipt">
     <header class="top">
-      <div class="brand">ISP Cockpit · Portal del cliente</div>
+      <div class="brand">Imperio AP · Portal del cliente</div>
       <h1>Recibo de pago</h1>
       <p class="subtitle">Comprobante electrónico de un pago registrado en tu cuenta.</p>
     </header>

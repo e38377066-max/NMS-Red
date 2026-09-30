@@ -199,7 +199,7 @@ export default function Equipment() {
                           placeholder="100M/100M"
                           className="font-mono"
                         />
-                        <p className="text-xs text-muted-foreground">Formato de referencia RouterOS (descarga/subida). Se registra en NMS; no se aplica al router.</p>
+                        <p className="text-xs text-muted-foreground">Formato de referencia RouterOS (descarga/subida). Se registra en Imperio AP; no se aplica al router.</p>
                       </div>
                     )}
                   </>

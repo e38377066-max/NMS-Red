@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "NMS MikroTik Platform"
+title = "Imperio AP"
 version = "1.0.0"
 id = "artifacts/nms-dashboard"
 router = "path"

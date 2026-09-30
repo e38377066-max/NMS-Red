@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Api
+  title: Imperio AP API
   version: 0.1.0
-  description: NMS Multi-Brand Platform API (MikroTik + Ubiquiti + Proxmox)
+  description: API de Imperio AP para gestión de red, equipos MikroTik, Ubiquiti y Proxmox.
 servers:
   - url: /api
     description: Base API path

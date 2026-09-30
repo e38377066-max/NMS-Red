@@ -45,7 +45,7 @@ export default function Login() {
         <div className="hidden flex-col justify-between bg-primary/10 p-10 md:flex">
           <div className="flex items-center gap-2 font-bold tracking-[0.2em] text-primary">
             <Activity className="h-5 w-5" />
-            ISP COCKPIT
+            IMPERIO AP
           </div>
           <div>
             <p className="mb-3 text-sm font-medium uppercase tracking-widest text-primary">Network operations</p>

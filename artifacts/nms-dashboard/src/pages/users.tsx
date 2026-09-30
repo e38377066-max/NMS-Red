@@ -95,7 +95,7 @@ export default function Users() {
           Usuarios y permisos
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Controla quién puede operar el NMS y separa administración de operación diaria.
+          Controla quién puede operar Imperio AP y separa administración de operación diaria.
         </p>
       </div>
 

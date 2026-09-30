@@ -135,7 +135,7 @@ export default function EquipmentDetail() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetEquipmentQueryKey(id) });
         queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey() });
-        toast({ title: "Topología actualizada", description: "La relación y capacidad quedaron registradas en NMS." });
+        toast({ title: "Topología actualizada", description: "La relación y capacidad quedaron registradas en Imperio AP." });
       },
       onError: (error) => toast({
         title: "No se pudo guardar la topología",
@@ -364,7 +364,7 @@ export default function EquipmentDetail() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              La capacidad se registra como referencia en NMS. Este guardado no modifica RouterOS.
+              La capacidad se registra como referencia en Imperio AP. Este guardado no modifica RouterOS.
             </p>
             <div className="border-t border-border/40 pt-3">
               <h3 className="text-sm font-medium mb-2">MikroTiks dependientes ({childEquipment.length})</h3>

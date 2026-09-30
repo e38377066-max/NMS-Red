@@ -83,7 +83,7 @@ export default function MyOrdersScreen() {
     }
     setRequestError('');
     const description = [
-      `Solicitud enviada desde NMS Field por ${user?.username ?? 'un técnico'}.`,
+      `Solicitud enviada desde Imperio AP por ${user?.username ?? 'un técnico'}.`,
       `Cliente o dirección: ${client}`,
       requestDevice.trim() ? `Equipo, MAC o IP: ${requestDevice.trim()}` : null,
       requestDetails.trim() ? `Trabajo solicitado: ${requestDetails.trim()}` : null,
@@ -149,7 +149,7 @@ export default function MyOrdersScreen() {
             <View style={[styles.wordmarkMark, { backgroundColor: colors.primary }]}>
               <Feather name="radio" size={15} color={colors.primaryForeground} />
             </View>
-            <Text style={[styles.wordmarkText, { color: colors.mutedForeground }]}>NMS FIELD</Text>
+            <Text style={[styles.wordmarkText, { color: colors.mutedForeground }]}>IMPERIO AP</Text>
           </View>
           <Pressable
             accessibilityRole="button"

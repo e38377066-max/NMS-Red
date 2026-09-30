@@ -65,13 +65,13 @@ export default function LoginScreen() {
           <Image
             source={require('../assets/images/icon.png')}
             style={styles.logo}
-            accessibilityLabel="NMS Field"
+            accessibilityLabel="Imperio AP"
           />
           <View style={[styles.brandTag, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
             <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
             <Text style={[styles.brandTagText, { color: colors.mutedForeground }]}>OPERACIONES ISP</Text>
           </View>
-          <Text style={[styles.title, { color: colors.foreground }]}>NMS Field</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Imperio AP</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             Tus órdenes de campo, listas para la visita.
           </Text>

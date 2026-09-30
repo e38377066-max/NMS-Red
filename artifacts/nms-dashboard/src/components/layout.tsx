@@ -81,7 +81,7 @@ export function Layout({ children }: { children: ReactNode }) {
       )}>
         <div className="h-14 border-b border-border flex items-center px-4 gap-2 text-primary font-bold tracking-widest uppercase">
           <Wifi className="w-5 h-5" />
-          <span>ISP Cockpit</span>
+          <span>Imperio AP</span>
           <button
             aria-label="Cerrar menú"
             className="ml-auto rounded p-1 text-muted-foreground hover:bg-white/5 hover:text-foreground md:hidden"

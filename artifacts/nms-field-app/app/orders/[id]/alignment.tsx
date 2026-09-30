@@ -369,8 +369,8 @@ export default function RadioAlignmentScreen() {
     setNotice('');
     if (!hasConfirmedAccessPoint) {
       setError(alignment.accessPointAssociation.status === 'ambiguous'
-        ? 'Hay varias asociaciones activas. Pide a supervisión que confirme el AP del cliente en NMS antes de guardar.'
-        : 'NMS no detectó un AP asociado en vivo. El AP guardado se muestra solo como referencia; no se usará para orientar ni guardar.');
+        ? 'Hay varias asociaciones activas. Pide a supervisión que confirme el AP del cliente en Imperio AP antes de guardar.'
+        : 'Imperio AP no detectó un AP asociado en vivo. El AP guardado se muestra solo como referencia; no se usará para orientar ni guardar.');
       return;
     }
     let clientPosition = activeClientPosition;
@@ -399,7 +399,7 @@ export default function RadioAlignmentScreen() {
       await saveMutation.mutateAsync({ id: orderId, data });
       await queryClient.invalidateQueries({ queryKey: getGetMyFieldWorkOrderAlignmentQueryKey(orderId) });
       await queryClient.invalidateQueries({ queryKey: getListMyFieldWorkOrdersQueryKey() });
-      setNotice('Coordenadas guardadas en NMS para los equipos asociados a este cliente.');
+      setNotice('Coordenadas guardadas en Imperio AP para los equipos asociados a este cliente.');
       setSource('nms');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudieron guardar las coordenadas.');
@@ -490,7 +490,7 @@ export default function RadioAlignmentScreen() {
               {alignment.savedReferenceAccessPoint
                 && alignment.savedReferenceAccessPoint.equipmentId !== alignment.accessPoint.equipmentId ? (
                 <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
-                  El AP asociado detectado difiere del guardado en NMS (equipo #{alignment.savedReferenceAccessPoint.equipmentId}).
+                  El AP asociado detectado difiere del guardado en Imperio AP (equipo #{alignment.savedReferenceAccessPoint.equipmentId}).
                 </Text>
               ) : null}
             </>
@@ -510,7 +510,7 @@ export default function RadioAlignmentScreen() {
             <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
               {alignment.savedReferenceAccessPoint
                 ? `AP guardado como referencia: ${alignment.savedReferenceAccessPoint.model ?? 'AP / Repartidor'} · Equipo #${alignment.savedReferenceAccessPoint.equipmentId}. No se usará como objetivo hasta confirmar una asociación en vivo.`
-                : 'Se buscaron asociaciones en los AP / Repartidores administrados por NMS. Pide a supervisión que revise la asociación del cliente.'}
+                : 'Se buscaron asociaciones en los AP / Repartidores administrados por Imperio AP. Pide a supervisión que revise la asociación del cliente.'}
             </Text>
           )}
         </Surface>
@@ -539,13 +539,13 @@ export default function RadioAlignmentScreen() {
         <View style={styles.sourceBlock}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Fuente de coordenadas</Text>
           <View style={[styles.sourceTabs, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <SourceButton label="NMS" active={source === 'nms'} onPress={() => setSource('nms')} colors={colors} />
+            <SourceButton label="Imperio AP" active={source === 'nms'} onPress={() => setSource('nms')} colors={colors} />
             <SourceButton label="GPS de radios" active={source === 'radio_gps'} onPress={() => setSource('radio_gps')} colors={colors} />
             <SourceButton label="Manual / externo" active={source === 'manual'} onPress={() => setSource('manual')} colors={colors} />
           </View>
           <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
             {source === 'nms'
-              ? 'Usa las coordenadas guardadas en NMS para cada equipo.'
+              ? 'Usa las coordenadas guardadas en Imperio AP para cada equipo.'
               : source === 'radio_gps'
                 ? 'Consulta el GPS integrado si el modelo y firmware del radio lo exponen.'
                 : 'Escribe coordenadas de un GPS externo o toma una referencia del teléfono.'}
@@ -754,7 +754,7 @@ export default function RadioAlignmentScreen() {
 
         {source !== 'nms' ? (
           <AppButton
-            label={saveMutation.isPending ? 'Guardando coordenadas…' : 'Guardar coordenadas en NMS'}
+            label={saveMutation.isPending ? 'Guardando coordenadas…' : 'Guardar coordenadas en Imperio AP'}
             icon="save"
             loading={saveMutation.isPending}
             disabled={!hasConfirmedAccessPoint}

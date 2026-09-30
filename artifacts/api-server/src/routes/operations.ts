@@ -1253,7 +1253,7 @@ router.post("/work-orders/mine/:id/alignment/radio-gps", async (req, res): Promi
       return Promise.resolve({
         supported: false,
         position: null,
-        message: "No hay un radio asociado en NMS.",
+        message: "No hay un radio asociado en Imperio AP.",
       });
     }
     const cached = readings.get(device.id);
@@ -1310,7 +1310,7 @@ router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> 
   if (accessPointLocation && !association?.selected) {
     res.status(409).json({
       error: association?.status === "ambiguous"
-        ? "Hay varias asociaciones activas. Actualiza la asociación del cliente en NMS antes de guardar el AP."
+        ? "Hay varias asociaciones activas. Actualiza la asociación del cliente en Imperio AP antes de guardar el AP."
         : "No se detectó una asociación activa con un AP / Repartidor. No se guardaron coordenadas del AP.",
     });
     return;
@@ -1394,11 +1394,11 @@ router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> 
     return;
   }
   if (result.kind === "radio_missing" || result.kind === "ap_missing") {
-    res.status(400).json({ error: "El equipo que intentas actualizar no está asociado al cliente en NMS" });
+    res.status(400).json({ error: "El equipo que intentas actualizar no está asociado al cliente en Imperio AP" });
     return;
   }
   if (result.kind === "duplicate_equipment") {
-    res.status(400).json({ error: "La radio del cliente y el AP apuntan al mismo equipo; verifica la asociación en NMS" });
+    res.status(400).json({ error: "La radio del cliente y el AP apuntan al mismo equipo; verifica la asociación en Imperio AP" });
     return;
   }
 

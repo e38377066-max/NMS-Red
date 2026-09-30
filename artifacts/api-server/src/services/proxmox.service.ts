@@ -242,7 +242,7 @@ export async function createSnapshot(
       method: "POST",
       ticket: ticket.ticket,
       csrf: ticket.CSRFPreventionToken,
-      body: { snapname, description: description ?? `NMS snapshot ${new Date().toISOString()}` },
+      body: { snapname, description: description ?? `Imperio AP snapshot ${new Date().toISOString()}` },
     });
     return { success: true, message: `Snapshot '${snapname}' creado para VM ${vmid}` };
   } catch (err) {

@@ -196,7 +196,7 @@ function PortalLogin({ initialToken, onLogin }: { initialToken: string; onLogin:
       <div className="mx-auto max-w-md">
         <div className="mb-8 flex items-center gap-3">
           <div className="rounded-xl bg-primary/15 p-3 text-primary"><Wifi className="h-6 w-6" /></div>
-          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">ISP Cockpit</p><h1 className="text-2xl font-bold">Portal del cliente</h1></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Imperio AP</p><h1 className="text-2xl font-bold">Portal del cliente</h1></div>
         </div>
         <Card className="border-primary/20 bg-card/80 shadow-xl">
           <CardHeader><CardTitle>Accede a tus servicios</CardTitle><p className="text-sm text-muted-foreground">Introduce el token que te entregó tu proveedor.</p></CardHeader>
@@ -314,7 +314,7 @@ export default function ClientPortal() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/70 bg-card/70">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
-          <div className="flex items-center gap-3"><div className="rounded-lg bg-primary/15 p-2 text-primary"><Wifi className="h-5 w-5" /></div><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">ISP Cockpit</p><p className="font-semibold">{session.client.name}</p></div></div>
+          <div className="flex items-center gap-3"><div className="rounded-lg bg-primary/15 p-2 text-primary"><Wifi className="h-5 w-5" /></div><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Imperio AP</p><p className="font-semibold">{session.client.name}</p></div></div>
           <Button variant="ghost" size="sm" onClick={logout}><LogOut className="mr-2 h-4 w-4" />Salir</Button>
         </div>
       </header>
