@@ -29,7 +29,7 @@ Este documento separa lo que ya tiene una base funcional de lo que todavía falt
 - Portal básico con token independiente.
 - Portal web del cliente con acceso por token, estado del servicio, saldo real de facturas, pagos y recibos descargables, avisos, tickets y solicitudes operativas.
 - Tickets y comentarios.
-- Órdenes de campo.
+- Órdenes de campo con agenda y app móvil; alineación con detección en vivo del AP asociado y captura móvil de firma de conformidad para instalaciones (el flujo integral de campo sigue parcial; ver sección 5).
 - Inventario básico.
 - Alertas operativas con deduplicación.
 - Métricas históricas iniciales.
@@ -64,6 +64,8 @@ Guía general para avanzar todos los pendientes: `instrucciones-agente/00-guia-g
 
 ## 2. Facturación administrativa completa
 
+**Estado: completada.**
+
 La sección está completada sobre la emisión básica, el cobro y el cierre diario:
 
 - Prorrateo por alta, traslado o cambio de plan con vista previa, crédito y factura proporcional.
@@ -76,6 +78,8 @@ La sección está completada sobre la emisión básica, el cobro y el cierre dia
 - Exportación contable CSV de pagos por período, con auditoría.
 
 ## 3. Portal del cliente
+
+**Estado: completada.** El flujo de portal descrito abajo está conectado al backend y a la interfaz.
 
 La interfaz web y el backend base ya están conectados:
 
@@ -92,37 +96,33 @@ La interfaz web y el backend base ya están conectados:
 - Ver solicitudes como pendientes de revisión con su número de ticket.
 - Imprimir o guardar recibos como PDF desde una plantilla mejorada.
 - Reabrir un ticket cerrado sólo si soporte habilita el permiso de un solo uso.
-- Soporte y tickets: filtros, SLA, historial, asignación, comentarios, avisos y evidencias están implementados; falta montar el volumen persistente de Railway y configurar `TICKET_ATTACHMENT_STORAGE_DIR` para probar adjuntos de extremo a extremo. La carpeta de adjuntos es independiente de los backups.
 
 El flujo formal de comprobantes está conectado con facturación: almacenamiento privado, revisión administrativa, aplicación idempotente del pago y reenvío de rechazados.
 
 ## 4. Soporte y tickets
 
-Existe una mesa de ayuda básica con tickets, categorías, prioridad, asignación, comentarios y relaciones con cliente/equipo. Falta:
+**Estado: parcial.** Tickets, SLA, historial, asignación, comentarios, avisos y adjuntos tienen implementación en API y UI. No se considera terminado hasta probar carga/descarga con el volumen persistente de Railway configurado.
 
-- SLA de primera respuesta.
-- SLA de resolución.
-- Evidencias adjuntas.
-- Fotografías.
-- Historial de estados.
-- Confirmación del cliente al cerrar.
-- Reapertura de tickets.
-- Reporte de tickets vencidos.
-- Notificaciones al cliente y al técnico.
+**Bloqueos y decisiones pendientes:**
+
+- Montar el volumen persistente de Railway y configurar `TICKET_ATTACHMENT_STORAGE_DIR`; mantener esta carpeta separada de los backups.
+- Probar adjuntos de extremo a extremo, incluyendo permisos de técnico y visibilidad autorizada del cliente.
+- Definir si los SLA usan minutos corridos o un horario laboral; el código actual calcula minutos corridos.
 
 ## 5. Operación de campo
 
-Existen órdenes de campo con tipo, asignación, cliente, dirección, coordenadas, materiales, potencia medida y firma. La agenda permite asignar personal, fijar/reprogramar inicio y fin, y registrar bloques de disponibilidad por fecha y hora. Se rechazan solapamientos y se exige que el horario de una orden asignada quede dentro de un bloque disponible. La orden captura señal del enlace en dBm, CCQ y equipo/serie instalado como datos de la visita, sin generar movimientos de inventario. Al completar una orden, esta pasa al historial consultable; cada orden finalizada representa una visita. Se usan las cuentas existentes como personal asignable; no se añadió un rol de técnico independiente.
+**Estado: parcial.** Están implementados órdenes, agenda y disponibilidad fechadas, control de solapamientos, mediciones, registro de equipo/serie, historial y app móvil. La app permite solicitar alineación desde una orden asignada; el backend identifica el AP asociado mediante su tabla inalámbrica y bloquea el guardado si la asociación no es única y confirmada. La reubicación del cliente tiene flujo administrativo. La app captura nombre y firma de conformidad para terminar órdenes de instalación, y el API valida y guarda la firma con hora del servidor. Aún falta un acta integral que reúna evidencias y pueda revisarse/descargarse desde administración.
 
-Falta:
+**Falta:**
 
-- Fotos antes y después.
-- Acta de instalación.
-- Reubicación del cliente.
-- Cambio de AP o SXT.
-- Aplicación móvil para técnicos.
+- Evidencias fotográficas antes y después, con almacenamiento persistente y permisos.
+- Acta de instalación integral y descargable; ya se captura firma de conformidad en la app, pero no se genera ni revisa un documento completo desde administración.
+- Flujo trazable de cambio de AP/SXT y actualización del enlace asociado.
+- Registrar los materiales instalados como movimientos de inventario.
 
 ## 6. Inventario
+
+**Estado: parcial.** Existe un catálogo básico; todavía no controla movimientos ni garantiza unicidad de serie/MAC.
 
 Existe un inventario básico. Falta:
 
@@ -139,6 +139,8 @@ Existe un inventario básico. Falta:
 - Inventario de cables y conectores.
 
 ## 7. Monitoreo de MikroTik y Ubiquiti
+
+**Estado: parcial.** Hay lecturas en vivo y métricas históricas iniciales; no está cubierto todo el conjunto de métricas ni su retención y frescura.
 
 Existe monitoreo y métricas iniciales. Falta guardar y mostrar de forma completa:
 
@@ -173,6 +175,8 @@ Existe monitoreo y métricas iniciales. Falta guardar y mostrar de forma complet
 
 ## 8. Alertas reales
 
+**Estado: parcial.** Hay alertas de disponibilidad/degradación y deduplicación inicial; faltan reglas completas, escalamiento y notificaciones externas.
+
 Existe deduplicación básica de incidentes. Falta:
 
 - Equipo MikroTik caído.
@@ -197,6 +201,8 @@ Existe deduplicación básica de incidentes. Falta:
 
 ## 9. Descubrimiento e inventario de red
 
+**Estado: pendiente.** No hay un flujo de descubrimiento revisable por subred autorizada.
+
 Todavía falta:
 
 - Descubrir equipos por subred.
@@ -214,6 +220,8 @@ Todavía falta:
 - Comparar inventario físico contra inventario del sistema.
 
 ## 10. Usuarios y permisos
+
+**Estado: parcial.** Hay autenticación y roles básicos; falta autorización granular por acción, recurso, organización y sede.
 
 Hay usuarios y roles básicos, pero falta control administrativo detallado:
 
@@ -239,6 +247,8 @@ Hay usuarios y roles básicos, pero falta control administrativo detallado:
 
 ## 11. Multiempresa y multisede
 
+**Estado: parcial y de alto riesgo.** El modelo de organizaciones y sedes existe, pero debe aplicarse aislamiento en todas las consultas, workers y reportes.
+
 La base de organizaciones y sedes existe, pero falta aplicar aislamiento real:
 
 - Cada organización debe ver solo sus clientes.
@@ -256,6 +266,8 @@ La base de organizaciones y sedes existe, pero falta aplicar aislamiento real:
 - Auditoría separada.
 
 ## 12. Auditoría completa
+
+**Estado: parcial.** Hay bitácora administrativa, pero falta cobertura/correlación verificable de todas las operaciones críticas y reintentos.
 
 Existe auditoría, pero falta garantizar que todas las acciones registren:
 
@@ -280,6 +292,8 @@ Existe auditoría, pero falta garantizar que todas las acciones registren:
 
 ## 13. Backups y recuperación
 
+**Estado: parcial.** Se generan backups cifrados de PostgreSQL y MikroTik; no existe todavía un ciclo completo y probado de restauración. Las rutas administrativas de backups están limitadas a administradores.
+
 Existe generación de backups, pero falta completar el ciclo de producción:
 
 - Backup automático antes de cada cambio crítico.
@@ -299,6 +313,8 @@ Existe generación de backups, pero falta completar el ciclo de producción:
 - Procedimiento de recuperación ante caída del servidor.
 
 ## 14. Arquitectura de producción
+
+**Estado: parcial.** Hay workers, cola persistente y health checks iniciales; siguen pendientes separación/control de procesos, sobrecarga y recuperación probada.
 
 Actualmente varios workers viven dentro del mismo proceso. Para producción falta separar o controlar:
 

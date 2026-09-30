@@ -3631,6 +3631,9 @@ components:
         installedSerialNumber:
           type: ["string", "null"]
           maxLength: 128
+        signatureData:
+          type: string
+          maxLength: 24000
 
     AlignmentPosition:
       type: object

@@ -1624,6 +1624,8 @@ export const updateMyFieldWorkOrderBodyInstalledEquipmentMax = 200;
 
 export const updateMyFieldWorkOrderBodyInstalledSerialNumberMax = 128;
 
+export const updateMyFieldWorkOrderBodySignatureDataMax = 24000;
+
 
 
 export const UpdateMyFieldWorkOrderBody = zod.object({
@@ -1632,7 +1634,8 @@ export const UpdateMyFieldWorkOrderBody = zod.object({
   "signalDbm": zod.number().min(updateMyFieldWorkOrderBodySignalDbmMin).max(updateMyFieldWorkOrderBodySignalDbmMax).nullish(),
   "ccq": zod.number().min(updateMyFieldWorkOrderBodyCcqMin).max(updateMyFieldWorkOrderBodyCcqMax).nullish(),
   "installedEquipment": zod.string().max(updateMyFieldWorkOrderBodyInstalledEquipmentMax).nullish(),
-  "installedSerialNumber": zod.string().max(updateMyFieldWorkOrderBodyInstalledSerialNumberMax).nullish()
+  "installedSerialNumber": zod.string().max(updateMyFieldWorkOrderBodyInstalledSerialNumberMax).nullish(),
+  "signatureData": zod.string().max(updateMyFieldWorkOrderBodySignatureDataMax).optional()
 })
 
 export const updateMyFieldWorkOrderResponseSignalDbmMin = -120;

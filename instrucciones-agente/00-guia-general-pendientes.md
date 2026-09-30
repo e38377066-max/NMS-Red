@@ -310,6 +310,8 @@ definido.
 
 **Objetivo:** hacer trazable el trabajo técnico en instalaciones y visitas.
 
+**Estado (2026-09-30): parcial.** Ya existen agenda/órdenes, app móvil, alineación con detección del AP asociado en vivo y captura móvil de nombre/firma de conformidad para órdenes de instalación. El API valida la firma y la fecha del servidor. No marcar la sección completa todavía: faltan fotos antes/después con almacenamiento persistente, un acta integral revisable/descargable, cambios trazables de AP/SXT y movimientos de inventario ligados a la orden.
+
 **Alcance:**
 
 - agenda y disponibilidad de técnicos;
@@ -336,6 +338,8 @@ mediciones, firma y vínculo con el cliente y el inventario.
 **Objetivo:** controlar existencias, equipos serializados y movimientos entre
 sedes.
 
+**Estado (2026-09-30): parcial.** Existe catálogo básico de inventario, pero no hay libro de movimientos completo ni garantías de unicidad para serie/MAC. No permite cerrar instalación, transferencia y retiro con trazabilidad.
+
 **Alcance:**
 
 - entradas, salidas y transferencias;
@@ -355,6 +359,8 @@ actualizar existencias y registrar quién, cuándo, desde dónde y hacia dónde.
 ### 7. Monitoreo de MikroTik y Ubiquiti
 
 **Objetivo:** persistir y mostrar métricas operativas útiles por marca.
+
+**Estado (2026-09-30): parcial.** Hay lecturas en vivo y métricas iniciales; faltan varias métricas específicas por marca, retención/frescura homogénea y aislamiento de fallos por equipo.
 
 **MikroTik:** CPU, memoria, temperatura, interfaces, tráfico, pérdida,
 latencia, DHCP, colas, desconexiones repetidas, backups, RouterOS y
@@ -381,6 +387,8 @@ explícito de errores.
 ### 8. Alertas reales
 
 **Objetivo:** generar incidentes accionables desde las métricas y tareas.
+
+**Estado (2026-09-30): parcial.** Hay alertas iniciales de disponibilidad/degradación y deduplicación; faltan reglas para todas las métricas, ventanas/histéresis, escalamiento y notificaciones Telegram/correo.
 
 **Alcance:**
 
@@ -409,6 +417,8 @@ resuelve y cada notificación tiene reintento, estado y auditoría.
 **Objetivo:** encontrar equipos de una subred autorizada y compararlos con el
 inventario.
 
+**Estado (2026-09-30): pendiente.** No se encontró un flujo de descubrimiento revisable que limite el escaneo a una subred autorizada.
+
 **Alcance:**
 
 - descubrimiento por subred explícitamente autorizada;
@@ -432,6 +442,8 @@ es duplicado y qué requiere confirmación humana.
 ### 10. Usuarios y permisos
 
 **Objetivo:** sustituir el control básico por autorización granular.
+
+**Estado (2026-09-30): parcial.** Hay autenticación, sesiones y roles básicos; falta autorización granular por acción y por alcance de organización/sede/recurso, además de MFA y controles de sesión solicitados.
 
 **Roles mínimos:** superadministrador, administrador de red, facturación,
 soporte, técnico de campo, solo lectura y auditor.
@@ -460,6 +472,8 @@ alcance aunque conozca el ID o la URL.
 
 **Objetivo:** aplicar aislamiento real sobre la base existente.
 
+**Estado (2026-09-30): parcial y de alto riesgo.** Existe el modelo de organizaciones/sedes, pero no está aplicado como filtro de seguridad consistente en todas las consultas, workers y reportes.
+
 **Alcance:**
 
 - organización en clientes, equipos, planes y pagos;
@@ -481,6 +495,8 @@ entre sí; los reportes y workers respetan el mismo aislamiento.
 ### 12. Auditoría completa
 
 **Objetivo:** que las acciones críticas puedan reconstruirse sin ambigüedad.
+
+**Estado (2026-09-30): parcial.** Hay auditoría en operaciones administrativas, pero no se verificó cobertura universal ni correlación completa con tareas, comandos, resultados y reintentos.
 
 **Alcance:**
 
@@ -507,6 +523,8 @@ con su tarea, sin información sensible.
 
 **Objetivo:** demostrar que la plataforma puede recuperar datos y
 configuraciones.
+
+**Estado (2026-09-30): parcial.** Se generan backups cifrados de PostgreSQL y MikroTik, y las rutas administrativas están limitadas a administradores. Faltan restauración, versionado/comparación y pruebas de recuperación; no existe evidencia de backup de configuración Ubiquiti ni de backup automático previo a cada cambio crítico.
 
 **Alcance:**
 
@@ -536,6 +554,8 @@ archivo generado.
 
 **Objetivo:** preparar una operación estable y observable sin romper el modo
 actual de desarrollo.
+
+**Estado (2026-09-30): parcial.** Hay cola persistente, health checks y workers iniciales, pero los procesos críticos comparten el API y faltan los controles y pruebas de recuperación descritos abajo.
 
 **Alcance:**
 

@@ -323,6 +323,52 @@ function metricNumber(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+type FieldSignatureStroke = Array<[number, number]>;
+
+function normalizeFieldSignatureData(value: string): string | null {
+  if (value.length > 24_000) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const signerName = typeof parsed.signerName === "string" ? parsed.signerName.trim() : "";
+    const rawStrokes = parsed.strokes;
+    if (
+      parsed.version !== 1
+      || !signerName
+      || signerName.length > 120
+      || !Array.isArray(rawStrokes)
+      || rawStrokes.length === 0
+      || rawStrokes.length > 32
+    ) {
+      return null;
+    }
+
+    let pointCount = 0;
+    const strokes: FieldSignatureStroke[] = [];
+    for (const rawStroke of rawStrokes) {
+      if (!Array.isArray(rawStroke) || rawStroke.length < 2 || rawStroke.length > 500) return null;
+      const stroke: FieldSignatureStroke = [];
+      for (const rawPoint of rawStroke) {
+        if (!Array.isArray(rawPoint) || rawPoint.length !== 2) return null;
+        const [x, y] = rawPoint.map(Number);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return null;
+        stroke.push([x, y]);
+        pointCount += 1;
+        if (pointCount > 2_000) return null;
+      }
+      strokes.push(stroke);
+    }
+
+    return JSON.stringify({
+      version: 1,
+      signerName,
+      signedAt: new Date().toISOString(),
+      strokes,
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function buildMyFieldWorkOrderAlignment(id: number, userId: number) {
   const context = await loadMyAlignmentContext(id, userId);
   if (!context) return null;
@@ -1374,11 +1420,20 @@ router.patch("/work-orders/mine/:id", async (req, res): Promise<void> => {
   const input = UpdateMyFieldWorkOrderBody.safeParse(req.body);
   if (!input.success) { res.status(400).json({ error: input.error.message }); return; }
 
+  const signatureData = input.data.signatureData === undefined
+    ? undefined
+    : normalizeFieldSignatureData(input.data.signatureData);
+  if (input.data.signatureData !== undefined && !signatureData) {
+    res.status(400).json({ error: "La firma no tiene un formato válido" });
+    return;
+  }
+
   const hasVisitReport = input.data.address !== undefined
     || input.data.signalDbm !== undefined
     || input.data.ccq !== undefined
     || input.data.installedEquipment !== undefined
-    || input.data.installedSerialNumber !== undefined;
+    || input.data.installedSerialNumber !== undefined
+    || input.data.signatureData !== undefined;
   if (input.data.status === "in_progress" && hasVisitReport) {
     res.status(400).json({ error: "Las mediciones y el equipo se registran al completar la visita" });
     return;
@@ -1409,6 +1464,16 @@ router.patch("/work-orders/mine/:id", async (req, res): Promise<void> => {
     if (input.data.status === "completed" && currentStatus !== "in_progress") {
       return { kind: "conflict" as const, message: "Inicia la visita antes de completarla" };
     }
+    if (
+      input.data.status === "completed"
+      && current.type.toLowerCase() === "installation"
+      && !signatureData
+    ) {
+      return {
+        kind: "invalid" as const,
+        message: "La orden de instalación requiere la firma de conformidad del cliente",
+      };
+    }
 
     const isRelocation = current.type.toLowerCase() === "relocation";
     if (input.data.address !== undefined && (!isRelocation || input.data.status !== "completed")) {
@@ -1438,6 +1503,7 @@ router.patch("/work-orders/mine/:id", async (req, res): Promise<void> => {
       if (input.data.ccq !== undefined) update.ccq = input.data.ccq;
       if (input.data.installedEquipment !== undefined) update.installedEquipment = input.data.installedEquipment;
       if (input.data.installedSerialNumber !== undefined) update.installedSerialNumber = input.data.installedSerialNumber;
+      if (signatureData !== undefined) update.signatureData = signatureData;
       if (isRelocation) update.address = destination;
     }
 

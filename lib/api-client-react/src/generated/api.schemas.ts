@@ -1033,6 +1033,8 @@ export interface MyFieldWorkOrderUpdate {
      * @nullable
      */
   installedSerialNumber?: string | null;
+  /** @maxLength 24000 */
+  signatureData?: string;
 }
 
 export type AlignmentPositionSource = typeof AlignmentPositionSource[keyof typeof AlignmentPositionSource];

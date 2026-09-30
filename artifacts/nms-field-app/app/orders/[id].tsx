@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import type { ReactNode } from 'react';
 import {
   Alert,
+  type GestureResponderEvent,
   Keyboard,
   Linking,
   Platform,
@@ -33,6 +34,123 @@ import {
   workOrderStatusLabel,
   workOrderTypeLabel,
 } from '@/lib/field-work';
+import Svg, { Path } from 'react-native-svg';
+
+type SignatureStroke = Array<[number, number]>;
+type SavedSignature = {
+  signerName: string;
+  signedAt: string;
+  strokes: SignatureStroke[];
+};
+
+const SIGNATURE_CANVAS_HEIGHT = 150;
+
+function parseSavedSignature(value: string | null | undefined): SavedSignature | null {
+  if (!value || value.length > 24_000) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (
+      parsed.version !== 1
+      || typeof parsed.signerName !== 'string'
+      || typeof parsed.signedAt !== 'string'
+      || !Number.isFinite(Date.parse(parsed.signedAt))
+      || !Array.isArray(parsed.strokes)
+      || parsed.strokes.length === 0
+      || parsed.strokes.length > 32
+      || !parsed.strokes.every(stroke =>
+        Array.isArray(stroke)
+        && stroke.length >= 2
+        && stroke.length <= 500
+        && stroke.every(point =>
+          Array.isArray(point)
+          && point.length === 2
+          && point.every(coordinate =>
+            typeof coordinate === 'number'
+            && Number.isFinite(coordinate)
+            && coordinate >= 0
+            && coordinate <= 1,
+          ),
+        ),
+      )
+    ) return null;
+    return {
+      signerName: parsed.signerName,
+      signedAt: parsed.signedAt,
+      strokes: parsed.strokes as SignatureStroke[],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function signaturePath(stroke: SignatureStroke, width: number): string {
+  return stroke.map(([x, y], index) =>
+    `${index === 0 ? 'M' : 'L'} ${(x * width).toFixed(1)} ${(y * SIGNATURE_CANVAS_HEIGHT).toFixed(1)}`,
+  ).join(' ');
+}
+
+function SignaturePad({
+  strokes,
+  onChange,
+  disabled = false,
+}: {
+  strokes: SignatureStroke[];
+  onChange?: Dispatch<SetStateAction<SignatureStroke[]>>;
+  disabled?: boolean;
+}) {
+  const colors = useColors();
+  const [width, setWidth] = useState(1);
+  const makePoint = (event: GestureResponderEvent): [number, number] => [
+    Number(Math.max(0, Math.min(1, event.nativeEvent.locationX / Math.max(width, 1))).toFixed(4)),
+    Number(Math.max(0, Math.min(1, event.nativeEvent.locationY / SIGNATURE_CANVAS_HEIGHT)).toFixed(4)),
+  ];
+
+  return (
+    <View
+      accessibilityLabel={disabled ? 'Firma de conformidad guardada' : 'Área para firmar'}
+      onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))}
+      onStartShouldSetResponder={disabled ? undefined : () => true}
+      onMoveShouldSetResponder={disabled ? undefined : () => true}
+      onResponderTerminationRequest={disabled ? undefined : () => false}
+      onResponderGrant={disabled || !onChange ? undefined : event => {
+        const point = makePoint(event);
+        onChange(previous => previous.length >= 32 ? previous : [...previous, [point]]);
+      }}
+      onResponderMove={disabled || !onChange ? undefined : event => {
+        const point = makePoint(event);
+        onChange(previous => {
+          if (!previous.length) return previous;
+          const totalPoints = previous.reduce((total, stroke) => total + stroke.length, 0);
+          if (totalPoints >= 1_000) return previous;
+          const next = previous.slice();
+          const lastIndex = next.length - 1;
+          next[lastIndex] = [...next[lastIndex], point];
+          return next;
+        });
+      }}
+      style={[styles.signaturePad, { borderColor: colors.border, backgroundColor: colors.background }]}
+    >
+      <Svg
+        width="100%"
+        height={SIGNATURE_CANVAS_HEIGHT}
+        viewBox={`0 0 ${width} ${SIGNATURE_CANVAS_HEIGHT}`}
+        pointerEvents="none"
+      >
+        {strokes.map((stroke, index) => (
+          <Path
+            key={index}
+            d={signaturePath(stroke, width)}
+            fill="none"
+            stroke={colors.foreground}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+      </Svg>
+    </View>
+  );
+}
 
 export default function WorkOrderScreen() {
   const colors = useColors();
@@ -100,10 +218,14 @@ function WorkOrderDetails({ order }: { order: FieldWorkOrder }) {
   const [ccq, setCcq] = useState(order.ccq == null ? '' : String(order.ccq));
   const [installedEquipment, setInstalledEquipment] = useState(order.installedEquipment ?? '');
   const [installedSerialNumber, setInstalledSerialNumber] = useState(order.installedSerialNumber ?? '');
+  const [signatureSignerName, setSignatureSignerName] = useState('');
+  const [signatureStrokes, setSignatureStrokes] = useState<SignatureStroke[]>([]);
   const [destination, setDestination] = useState(order.address ?? '');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const isRelocation = order.type.toLowerCase() === 'relocation';
+  const requiresClientSignature = order.type.toLowerCase() === 'installation';
+  const savedSignature = parseSavedSignature(order.signatureData);
   const isTerminal = isTerminalWorkOrder(order);
   const isInProgress = order.status.toLowerCase() === 'in_progress';
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
@@ -116,6 +238,7 @@ function WorkOrderDetails({ order }: { order: FieldWorkOrder }) {
     ccq?: number;
     installedEquipment?: string;
     installedSerialNumber?: string;
+    signatureData?: string;
   }) => {
     setError('');
     setNotice('');
@@ -150,6 +273,16 @@ function WorkOrderDetails({ order }: { order: FieldWorkOrder }) {
       setError('Escribe la nueva dirección antes de completar la reubicación.');
       return;
     }
+    if (requiresClientSignature) {
+      if (!signatureSignerName.trim()) {
+        setError('Escribe el nombre de la persona que firma la conformidad.');
+        return;
+      }
+      if (!signatureStrokes.some(stroke => stroke.length >= 2)) {
+        setError('Pide al cliente que firme dentro del recuadro.');
+        return;
+      }
+    }
 
     const data: {
       status: 'completed';
@@ -158,12 +291,20 @@ function WorkOrderDetails({ order }: { order: FieldWorkOrder }) {
       ccq?: number;
       installedEquipment?: string;
       installedSerialNumber?: string;
+      signatureData?: string;
     } = { status: 'completed' };
     if (isRelocation) data.address = destination.trim();
     if (signal !== undefined) data.signalDbm = signal;
     if (quality !== undefined) data.ccq = quality;
     if (installedEquipment.trim()) data.installedEquipment = installedEquipment.trim();
     if (installedSerialNumber.trim()) data.installedSerialNumber = installedSerialNumber.trim();
+    if (requiresClientSignature) {
+      data.signatureData = JSON.stringify({
+        version: 1,
+        signerName: signatureSignerName.trim(),
+        strokes: signatureStrokes,
+      });
+    }
 
     const complete = async () => {
       Keyboard.dismiss();
@@ -369,6 +510,40 @@ function WorkOrderDetails({ order }: { order: FieldWorkOrder }) {
               testID="visit-serial"
             />
 
+            {requiresClientSignature ? (
+              <View style={styles.signatureSection}>
+                <View>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Firma de conformidad</Text>
+                  <Text style={[styles.signatureHint, { color: colors.mutedForeground }]}>
+                    Registra el nombre y la firma de la persona que recibe el trabajo.
+                  </Text>
+                </View>
+                <TextField
+                  label="Nombre de quien firma"
+                  value={signatureSignerName}
+                  onChangeText={setSignatureSignerName}
+                  placeholder="Nombre y apellidos"
+                  autoCapitalize="words"
+                  maxLength={120}
+                  testID="signature-signer-name"
+                />
+                <SignaturePad strokes={signatureStrokes} onChange={setSignatureStrokes} />
+                <View style={styles.signatureActions}>
+                  <Text style={[styles.signatureHint, { color: colors.mutedForeground }]}>
+                    Firma con el dedo dentro del recuadro.
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Borrar firma"
+                    onPress={() => setSignatureStrokes([])}
+                    style={({ pressed }) => [styles.signatureClearButton, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.signatureClearText, { color: colors.primary }]}>Borrar</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
             {isRelocation ? (
               <Text style={[styles.relocationWarning, { color: colors.warning }]}>
                 Al completar, solo se actualizarán la dirección y el historial del cliente. La IP, MAC y configuración de red no cambiarán.
@@ -417,6 +592,17 @@ function WorkOrderDetails({ order }: { order: FieldWorkOrder }) {
             />
           </Surface>
         )}
+
+        {isTerminal && savedSignature ? (
+          <Surface style={styles.signatureSection}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Conformidad registrada</Text>
+            <Text style={[styles.signatureHint, { color: colors.mutedForeground }]}>
+              Firmó {savedSignature.signerName}
+              {savedSignature.signedAt ? ` · ${new Date(savedSignature.signedAt).toLocaleString('es')}` : ''}
+            </Text>
+            <SignaturePad strokes={savedSignature.strokes} disabled />
+          </Surface>
+        ) : null}
 
         <Text style={[styles.footerNote, { color: colors.mutedForeground }]}>
           La app muestra únicamente órdenes asignadas a tu cuenta.
@@ -527,6 +713,36 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
     lineHeight: 18,
+  },
+  signatureSection: {
+    gap: 9,
+  },
+  signatureHint: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  signaturePad: {
+    height: SIGNATURE_CANVAS_HEIGHT,
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  signatureActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  signatureClearButton: {
+    minHeight: 36,
+    minWidth: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signatureClearText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
   },
   completedCard: {
     flexDirection: 'row',

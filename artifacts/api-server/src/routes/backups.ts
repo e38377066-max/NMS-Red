@@ -4,8 +4,10 @@ import { eq } from "drizzle-orm";
 import { listBackups, runAllBackups } from "../services/backup.service";
 import { decryptBuffer } from "../services/credentials.service";
 import { downloadPrivateObject } from "../services/object-storage.service";
+import { requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
+router.use(requireRole("admin"));
 
 router.get("/backups", async (req, res): Promise<void> => {
   const type = typeof req.query.type === "string" ? req.query.type : undefined;
