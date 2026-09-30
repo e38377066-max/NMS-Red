@@ -16,6 +16,7 @@ import {
   supportNotificationsTable,
 } from "@workspace/db";
 import { downloadPrivateObject, uploadPrivateObject } from "../services/object-storage.service";
+import { TicketAttachmentStorageNotConfiguredError } from "../services/ticket-attachment-storage.service";
 import {
   ListPortalNotificationsResponse,
   ListPortalReopenableTicketsResponse,
@@ -31,7 +32,7 @@ import {
   ticketSlaFields,
   transitionTicket,
 } from "../services/ticket-lifecycle.service";
-import { createTicketAttachment } from "../services/ticket-attachments.service";
+import { createTicketAttachment, downloadSupportTicketAttachment } from "../services/ticket-attachments.service";
 
 const router: IRouter = Router();
 
@@ -481,14 +482,23 @@ router.post("/tickets/:id/attachments", async (req, res): Promise<void> => {
     eq(ticketsTable.clientId, clientId),
   ));
   if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
-  const attachment = await createTicketAttachment({
-    ticketId,
-    fileName: input.data.fileName,
-    mimeType: input.data.mimeType,
-    dataBase64: input.data.dataBase64,
-    visibleToClient: true,
-    uploadedByClientId: clientId,
-  });
+  let attachment: Awaited<ReturnType<typeof createTicketAttachment>>;
+  try {
+    attachment = await createTicketAttachment({
+      ticketId,
+      fileName: input.data.fileName,
+      mimeType: input.data.mimeType,
+      dataBase64: input.data.dataBase64,
+      visibleToClient: true,
+      uploadedByClientId: clientId,
+    });
+  } catch (error) {
+    if (error instanceof TicketAttachmentStorageNotConfiguredError) {
+      res.status(503).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   if (!attachment) { res.status(400).json({ error: "Archivo inválido, no compatible o mayor a 2 MiB" }); return; }
   if (ticket.assignedToUserId !== null) {
     await db.insert(supportNotificationsTable).values({
@@ -520,7 +530,16 @@ router.get("/tickets/:id/attachments/:attachmentId/download", async (req, res): 
     ))
     .then(rows => rows.map(row => row.ticket_attachments));
   if (!attachment) { res.status(404).json({ error: "Archivo no encontrado" }); return; }
-  const response = await downloadPrivateObject(attachment.storagePath);
+  let response: Response;
+  try {
+    response = await downloadSupportTicketAttachment(attachment.storagePath);
+  } catch (error) {
+    if (error instanceof TicketAttachmentStorageNotConfiguredError) {
+      res.status(503).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   const data = Buffer.from(await response.arrayBuffer());
   res.setHeader("Content-Type", attachment.mimeType);
   res.setHeader("Content-Length", data.length);

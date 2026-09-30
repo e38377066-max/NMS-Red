@@ -43,8 +43,9 @@ import {
   UploadSupportTicketAttachmentBody,
   UploadSupportTicketAttachmentResponse,
 } from "@workspace/api-zod";
-import { downloadPrivateObject } from "../services/object-storage.service";
+import { TicketAttachmentStorageNotConfiguredError } from "../services/ticket-attachment-storage.service";
 import { createTicketAttachment } from "../services/ticket-attachments.service";
+import { downloadSupportTicketAttachment } from "../services/ticket-attachments.service";
 import {
   getTicketSlaPolicy,
   listTicketSlaPolicies,
@@ -612,14 +613,23 @@ router.post("/tickets/:id/attachments", async (req, res): Promise<void> => {
   if (!ticketId || !input.success) { res.status(400).json({ error: "Ticket o archivo inválido" }); return; }
   const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, ticketId));
   if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
-  const attachment = await createTicketAttachment({
-    ticketId,
-    fileName: input.data.fileName,
-    mimeType: input.data.mimeType,
-    dataBase64: input.data.dataBase64,
-    visibleToClient: input.data.visibleToClient ?? false,
-    uploadedByUserId: res.locals.user?.id ?? null,
-  });
+  let attachment: Awaited<ReturnType<typeof createTicketAttachment>>;
+  try {
+    attachment = await createTicketAttachment({
+      ticketId,
+      fileName: input.data.fileName,
+      mimeType: input.data.mimeType,
+      dataBase64: input.data.dataBase64,
+      visibleToClient: input.data.visibleToClient ?? false,
+      uploadedByUserId: res.locals.user?.id ?? null,
+    });
+  } catch (error) {
+    if (error instanceof TicketAttachmentStorageNotConfiguredError) {
+      res.status(503).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   if (!attachment) { res.status(400).json({ error: "Archivo inválido, no compatible o mayor a 2 MiB" }); return; }
   const now = new Date();
   await db.update(ticketsTable).set({ updatedAt: now }).where(eq(ticketsTable.id, ticketId));
@@ -666,7 +676,16 @@ router.get("/tickets/:id/attachments/:attachmentId/download", async (req, res): 
     eq(ticketAttachmentsTable.ticketId, ticketId),
   ));
   if (!attachment) { res.status(404).json({ error: "Archivo no encontrado" }); return; }
-  const response = await downloadPrivateObject(attachment.storagePath);
+  let response: Response;
+  try {
+    response = await downloadSupportTicketAttachment(attachment.storagePath);
+  } catch (error) {
+    if (error instanceof TicketAttachmentStorageNotConfiguredError) {
+      res.status(503).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   const data = Buffer.from(await response.arrayBuffer());
   res.setHeader("Content-Type", attachment.mimeType);
   res.setHeader("Content-Length", data.length);

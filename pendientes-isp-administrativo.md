@@ -92,7 +92,7 @@ La interfaz web y el backend base ya están conectados:
 - Ver solicitudes como pendientes de revisión con su número de ticket.
 - Imprimir o guardar recibos como PDF desde una plantilla mejorada.
 - Reabrir un ticket cerrado sólo si soporte habilita el permiso de un solo uso.
-- Soporte y tickets: filtros, SLA, historial, asignación, comentarios, avisos y evidencias están implementados; falta configurar/verificar el almacenamiento privado para cerrar las pruebas de adjuntos.
+- Soporte y tickets: filtros, SLA, historial, asignación, comentarios, avisos y evidencias están implementados; falta montar el volumen persistente de Railway y configurar `TICKET_ATTACHMENT_STORAGE_DIR` para probar adjuntos de extremo a extremo. La carpeta de adjuntos es independiente de los backups.
 
 El flujo formal de comprobantes está conectado con facturación: almacenamiento privado, revisión administrativa, aplicación idempotente del pago y reenvío de rechazados.
 

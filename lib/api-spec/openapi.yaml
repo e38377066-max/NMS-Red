@@ -1172,6 +1172,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SupportTicketAttachment"
+        "503":
+          description: Almacenamiento privado de adjuntos no configurado o no disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /tickets/{id}/attachments/{attachmentId}/download:
     get:
@@ -1199,6 +1205,12 @@ paths:
               schema:
                 type: string
                 format: binary
+        "503":
+          description: Almacenamiento privado de adjuntos no configurado o no disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /tickets/sla-policies:
     get:
@@ -1360,6 +1372,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SupportTicketAttachment"
+        "503":
+          description: Almacenamiento privado de adjuntos no configurado o no disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /portal/tickets/{id}/attachments/{attachmentId}/download:
     get:
@@ -1387,6 +1405,12 @@ paths:
               schema:
                 type: string
                 format: binary
+        "503":
+          description: Almacenamiento privado de adjuntos no configurado o no disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # CLIENT TICKET REOPEN
   /tickets/{id}/client-reopen:

@@ -290,18 +290,21 @@ responsable y estado de SLA; las transiciones inválidas son rechazadas.
 **Estado (2026-09-30):** contrato OpenAPI, esquema, rutas, interfaz operativa y
 portal de adjuntos implementados. Codegen, typechecks, build y push del esquema
 de desarrollo pasan; `/api/healthz` responde y las rutas protegidas rechazan
-solicitudes sin autenticación. No marcar esta sección como completada todavía:
-la carga/descarga privada requiere verificar un proveedor de almacenamiento.
-En las variables de desarrollo de Replit no aparece `BACKUP_STORAGE_PROVIDER`
-y no hay credenciales S3 configuradas. No se modificó la configuración ni se
-inventaron credenciales.
+solicitudes sin autenticación. Los adjuntos tienen un adaptador filesystem
+separado del almacenamiento de backups; se probaron lectura, escritura,
+eliminación, permisos privados y rechazo de rutas maliciosas en un directorio
+temporal. No marcar esta sección como completada todavía: falta configurar y
+probar el volumen persistente del servicio API en Railway.
 
-**Próximo paso seguro:** elegir y configurar el proveedor existente (S3 con
-credenciales por Secrets, o filesystem con un directorio persistente); después
-probar carga y descarga desde soporte, visibilidad privada/pública al cliente,
-permisos por token y rechazo de archivos inválidos o mayores de 2 MiB. Los SLA
-se calculan en minutos corridos y sus objetivos son editables; el horario
-laboral aún no está definido.
+**Próximo paso seguro:** montar un volumen Railway en `/data` (o usar el punto
+de montaje existente) y configurar `TICKET_ATTACHMENT_STORAGE_DIR` en el
+servicio API, por ejemplo `/data/support-ticket-attachments`. Después probar
+carga y descarga desde soporte, visibilidad privada/pública al cliente,
+permisos por token y rechazo de archivos inválidos o mayores de 2 MiB. El
+almacenamiento nuevo no cambia el destino de backups. El filesystem local de
+Replit no sirve como persistencia de producción. Los SLA se calculan en
+minutos corridos y sus objetivos son editables; el horario laboral aún no está
+definido.
 
 ### 5. Operación de campo
 

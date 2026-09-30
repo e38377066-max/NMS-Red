@@ -1,7 +1,12 @@
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { db, ticketAttachmentsTable } from "@workspace/db";
-import { deletePrivateObject, uploadPrivateObject } from "./object-storage.service";
+import { downloadPrivateObject } from "./object-storage.service";
+import {
+  deleteTicketAttachmentFile,
+  downloadTicketAttachmentFile,
+  uploadTicketAttachmentFile,
+} from "./ticket-attachment-storage.service";
 
 const supportedTypes = new Map<string, { extension: string; signature: (data: Buffer) => boolean }>([
   ["image/jpeg", { extension: ".jpg", signature: data => data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff }],
@@ -40,11 +45,10 @@ export async function createTicketAttachment(input: {
 }) {
   const decoded = decodeBase64(input.dataBase64, input.mimeType);
   if (!decoded) return null;
-  const storagePath = await uploadPrivateObject(
+  const storagePath = await uploadTicketAttachmentFile(
     decoded.data,
-    input.mimeType,
+    input.ticketId,
     decoded.extension,
-    `support-tickets/${input.ticketId}`,
   );
   try {
     const [attachment] = await db.insert(ticketAttachmentsTable).values({
@@ -61,10 +65,17 @@ export async function createTicketAttachment(input: {
     return attachment;
   } catch (error) {
     try {
-      await deletePrivateObject(storagePath);
+      await deleteTicketAttachmentFile(storagePath);
     } catch {
       // Keep the original database error; orphaned objects can be cleaned up operationally.
     }
     throw error;
   }
+}
+
+export async function downloadSupportTicketAttachment(storagePath: string): Promise<Response> {
+  if (storagePath.startsWith("ticketfs://")) {
+    return downloadTicketAttachmentFile(storagePath);
+  }
+  return downloadPrivateObject(storagePath);
 }

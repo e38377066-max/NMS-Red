@@ -5422,7 +5422,7 @@ return customFetch<SupportTicketAttachment>(getUploadSupportTicketAttachmentUrl(
 
 export const getUploadSupportTicketAttachmentMutationKey = () => ['uploadSupportTicketAttachment'] as const;
 
-export const getUploadSupportTicketAttachmentMutationOptions = <TError = ErrorType<unknown>,
+export const getUploadSupportTicketAttachmentMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>, TError,UploadSupportTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>, TError,UploadSupportTicketAttachmentMutationVariables, TContext> => {
 
@@ -5451,13 +5451,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UploadSupportTicketAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>>
     export type UploadSupportTicketAttachmentMutationBody = BodyType<SupportTicketAttachmentCreate>
-    export type UploadSupportTicketAttachmentMutationError = ErrorType<unknown>
+    export type UploadSupportTicketAttachmentMutationError = ErrorType<ApiError>
     export type UploadSupportTicketAttachmentMutationVariables = {id: number;data: BodyType<SupportTicketAttachmentCreate>}
 
     /**
  * @summary Cargar evidencia privada en un ticket
  */
-export const useUploadSupportTicketAttachment = <TError = ErrorType<unknown>,
+export const useUploadSupportTicketAttachment = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>, TError,UploadSupportTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof uploadSupportTicketAttachment>>,
@@ -5504,7 +5504,7 @@ export const getDownloadSupportTicketAttachmentQueryKey = (id: number,
     }
 
 
-export const getDownloadSupportTicketAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(id: number,
+export const getDownloadSupportTicketAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<ApiError>>(id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -5524,10 +5524,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type DownloadSupportTicketAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>>
-export type DownloadSupportTicketAttachmentQueryError = ErrorType<unknown>
+export type DownloadSupportTicketAttachmentQueryError = ErrorType<ApiError>
 
 
-export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -5538,7 +5538,7 @@ export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<ty
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -5549,7 +5549,7 @@ export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<ty
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
@@ -5558,7 +5558,7 @@ export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<ty
  * @summary Descargar una evidencia privada
  */
 
-export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
@@ -6261,7 +6261,7 @@ return customFetch<SupportTicketAttachment>(getUploadPortalTicketAttachmentUrl(i
 
 export const getUploadPortalTicketAttachmentMutationKey = () => ['uploadPortalTicketAttachment'] as const;
 
-export const getUploadPortalTicketAttachmentMutationOptions = <TError = ErrorType<unknown>,
+export const getUploadPortalTicketAttachmentMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>, TError,UploadPortalTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>, TError,UploadPortalTicketAttachmentMutationVariables, TContext> => {
 
@@ -6290,13 +6290,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UploadPortalTicketAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>>
     export type UploadPortalTicketAttachmentMutationBody = BodyType<SupportTicketAttachmentCreate>
-    export type UploadPortalTicketAttachmentMutationError = ErrorType<unknown>
+    export type UploadPortalTicketAttachmentMutationError = ErrorType<ApiError>
     export type UploadPortalTicketAttachmentMutationVariables = {id: number;data: BodyType<SupportTicketAttachmentCreate>}
 
     /**
  * @summary Cargar una fotografía o evidencia al ticket
  */
-export const useUploadPortalTicketAttachment = <TError = ErrorType<unknown>,
+export const useUploadPortalTicketAttachment = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>, TError,UploadPortalTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof uploadPortalTicketAttachment>>,
@@ -6343,7 +6343,7 @@ export const getDownloadPortalTicketAttachmentQueryKey = (id: number,
     }
 
 
-export const getDownloadPortalTicketAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(id: number,
+export const getDownloadPortalTicketAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<ApiError>>(id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -6363,10 +6363,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type DownloadPortalTicketAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>>
-export type DownloadPortalTicketAttachmentQueryError = ErrorType<unknown>
+export type DownloadPortalTicketAttachmentQueryError = ErrorType<ApiError>
 
 
-export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -6377,7 +6377,7 @@ export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typ
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -6388,7 +6388,7 @@ export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typ
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
@@ -6397,7 +6397,7 @@ export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typ
  * @summary Descargar evidencia visible al cliente
  */
 
-export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<ApiError>>(
  id: number,
     attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
