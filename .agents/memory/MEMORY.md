@@ -5,3 +5,4 @@
 - [Imported NMS database](dev-db-bootstrap.md) — an empty development database needs the Drizzle schema pushed before API-backed previews can show equipment state
 - [OpenAPI/Zod codegen](api-codegen-zod.md) — keep the post-Orval compatibility pass because this workspace stays on Zod 3
 - [Ticket attachment storage](ticket-attachment-storage.md) — keep ticket files on a dedicated persistent Railway volume path, separate from backups
+- [Field technician scheduling](field-scheduling.md) — use explicit dated availability blocks; scheduled orders must fit a block and avoid active-order overlaps

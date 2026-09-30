@@ -1219,6 +1219,200 @@ export const DownloadClientContractResponse = zod.unknown()
 
 
 /**
+ * @summary Listar órdenes de campo para la agenda
+ */
+export const ListFieldWorkOrdersQueryParams = zod.object({
+  "status": zod.coerce.string().optional()
+})
+
+export const ListFieldWorkOrdersResponseItem = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullable(),
+  "siteId": zod.int().nullable(),
+  "assignedToUserId": zod.int().nullable(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "scheduledAt": zod.coerce.date().nullable(),
+  "scheduledEndAt": zod.coerce.date().nullable(),
+  "address": zod.string().nullable(),
+  "latitude": zod.string().nullable(),
+  "longitude": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "materials": zod.array(zod.record(zod.string(), zod.unknown())),
+  "measuredPower": zod.string().nullable(),
+  "signatureData": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListFieldWorkOrdersResponse = zod.array(ListFieldWorkOrdersResponseItem)
+
+
+/**
+ * @summary Crear una orden de campo
+ */
+export const createFieldWorkOrderBodyTypeMax = 32;
+
+export const createFieldWorkOrderBodyStatusMax = 32;
+
+export const createFieldWorkOrderBodyAddressMax = 500;
+
+
+
+export const CreateFieldWorkOrderBody = zod.object({
+  "clientId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "type": zod.string().max(createFieldWorkOrderBodyTypeMax).optional(),
+  "status": zod.string().max(createFieldWorkOrderBodyStatusMax).optional(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "scheduledEndAt": zod.coerce.date().nullish(),
+  "address": zod.string().max(createFieldWorkOrderBodyAddressMax).nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "materials": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "measuredPower": zod.string().nullish()
+})
+
+export const CreateFieldWorkOrderResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullable(),
+  "siteId": zod.int().nullable(),
+  "assignedToUserId": zod.int().nullable(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "scheduledAt": zod.coerce.date().nullable(),
+  "scheduledEndAt": zod.coerce.date().nullable(),
+  "address": zod.string().nullable(),
+  "latitude": zod.string().nullable(),
+  "longitude": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "materials": zod.array(zod.record(zod.string(), zod.unknown())),
+  "measuredPower": zod.string().nullable(),
+  "signatureData": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Actualizar o reprogramar una orden de campo
+ */
+export const UpdateFieldWorkOrderParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateFieldWorkOrderBodyTypeMax = 32;
+
+export const updateFieldWorkOrderBodyStatusMax = 32;
+
+export const updateFieldWorkOrderBodyAddressMax = 500;
+
+
+
+export const UpdateFieldWorkOrderBody = zod.object({
+  "clientId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "type": zod.string().max(updateFieldWorkOrderBodyTypeMax).optional(),
+  "status": zod.string().max(updateFieldWorkOrderBodyStatusMax).optional(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "scheduledEndAt": zod.coerce.date().nullish(),
+  "address": zod.string().max(updateFieldWorkOrderBodyAddressMax).nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "materials": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "measuredPower": zod.string().nullish()
+})
+
+export const UpdateFieldWorkOrderResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullable(),
+  "siteId": zod.int().nullable(),
+  "assignedToUserId": zod.int().nullable(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "scheduledAt": zod.coerce.date().nullable(),
+  "scheduledEndAt": zod.coerce.date().nullable(),
+  "address": zod.string().nullable(),
+  "latitude": zod.string().nullable(),
+  "longitude": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "materials": zod.array(zod.record(zod.string(), zod.unknown())),
+  "measuredPower": zod.string().nullable(),
+  "signatureData": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Listar cuentas asignables a órdenes de campo
+ */
+export const ListTechniciansResponseItem = zod.object({
+  "id": zod.int(),
+  "username": zod.string(),
+  "role": zod.string()
+})
+export const ListTechniciansResponse = zod.array(ListTechniciansResponseItem)
+
+
+/**
+ * @summary Listar bloques de disponibilidad de técnicos
+ */
+export const ListTechnicianAvailabilityResponseItem = zod.object({
+  "id": zod.int(),
+  "technicianUserId": zod.int(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdByUserId": zod.int().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListTechnicianAvailabilityResponse = zod.array(ListTechnicianAvailabilityResponseItem)
+
+
+/**
+ * @summary Registrar un bloque de disponibilidad
+ */
+
+export const createTechnicianAvailabilityBodyNotesMax = 1000;
+
+
+
+export const CreateTechnicianAvailabilityBody = zod.object({
+  "technicianUserId": zod.int().min(1),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "notes": zod.string().max(createTechnicianAvailabilityBodyNotesMax).nullish()
+})
+
+export const CreateTechnicianAvailabilityResponse = zod.object({
+  "id": zod.int(),
+  "technicianUserId": zod.int(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdByUserId": zod.int().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Eliminar un bloque de disponibilidad
+ */
+export const DeleteTechnicianAvailabilityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteTechnicianAvailabilityResponse = zod.void()
+
+
+/**
  * @summary Filtrar tickets, incluidos los SLA vencidos
  */
 export const ListSupportTicketsQueryParams = zod.object({

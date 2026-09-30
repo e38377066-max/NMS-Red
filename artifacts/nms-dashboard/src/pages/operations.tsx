@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BriefcaseBusiness, ClipboardList, Package, Plus, RefreshCw, ShieldAlert, Ticket, WalletCards } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, CalendarClock, ClipboardList, Package, Plus, RefreshCw, ShieldAlert, Ticket, Trash2, WalletCards } from "lucide-react";
 import { Bell, Clock3, Download, FileText, History, MessageSquare, Paperclip, Search, Send, Shield, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,9 @@ import {
   useUpdateTicketClientReopenPermission,
   useUpdateTicketSlaPolicy,
   useUploadSupportTicketAttachment,
+  type FieldWorkOrder,
+  type Technician,
+  type TechnicianAvailability,
   type SupportNotification,
   type SupportTicket,
   type SupportTicketAttachment,
@@ -51,9 +54,10 @@ type Report = {
 
 type TicketRow = { id: number; clientId: number | null; clientReopenEnabled: boolean; subject: string; description: string; status: string; priority: string; category: string; createdAt: string; updatedAt: string };
 type InventoryRow = { id: number; name: string; category: string; status: string; serialNumber: string | null; macAddress: string | null; supplier: string | null };
-type WorkOrder = { id: number; type: string; status: string; address: string | null; scheduledAt: string | null; notes: string | null };
 type Incident = { id: number; type: string; severity: string; message: string; status: string; createdAt: string };
 type Plan = { id: number; name: string; downloadLimit: string; uploadLimit: string; monthlyFee: string; active: boolean };
+type WorkOrderEdit = { assignedToUserId: string; scheduledAt: string; scheduledEndAt: string };
+type AvailabilityForm = { technicianUserId: string; startsAt: string; endsAt: string; notes: string };
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken();
@@ -81,6 +85,16 @@ const supportDate = (value?: string | null) => value
   ? new Date(value).toLocaleString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
   : "Sin fecha";
 
+const dateTimeInputValue = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
+
+const dateTimeToIso = (value: string) => value ? new Date(value).toISOString() : null;
+
 const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => {
@@ -102,28 +116,35 @@ export default function Operations() {
   const [report, setReport] = useState<Report | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [workOrders, setWorkOrders] = useState<FieldWorkOrder[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [availability, setAvailability] = useState<TechnicianAvailability[]>([]);
+  const [orderEdits, setOrderEdits] = useState<Record<number, WorkOrderEdit>>({});
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [ticketForm, setTicketForm] = useState({ subject: "", description: "", priority: "normal", category: "support" });
   const [inventoryForm, setInventoryForm] = useState({ name: "", category: "router", status: "in_stock", serialNumber: "", macAddress: "" });
-  const [workForm, setWorkForm] = useState({ type: "installation", address: "", scheduledAt: "", notes: "" });
+  const [workForm, setWorkForm] = useState({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", notes: "" });
+  const [availabilityForm, setAvailabilityForm] = useState<AvailabilityForm>({ technicianUserId: "", startsAt: "", endsAt: "", notes: "" });
   const [planForm, setPlanForm] = useState({ name: "", downloadLimit: "", uploadLimit: "", monthlyFee: "" });
 
   const refresh = async () => {
     setLoading(true);
     try {
-      const [nextReport, nextTickets, nextInventory, nextOrders, nextIncidents, nextPlans] = await Promise.all([
+      const [nextReport, nextTickets, nextInventory, nextOrders, nextTechnicians, nextAvailability, nextIncidents, nextPlans] = await Promise.all([
         api<Report>("/reports/operations"),
         api<TicketRow[]>("/tickets"),
         api<InventoryRow[]>("/inventory"),
-        api<WorkOrder[]>("/work-orders"),
+        api<FieldWorkOrder[]>("/work-orders"),
+        api<Technician[]>("/users/technicians"),
+        api<TechnicianAvailability[]>("/technicians/availability"),
         api<Incident[]>("/incidents"),
         api<Plan[]>("/plans"),
       ]);
       setReport(nextReport); setTickets(nextTickets); setInventory(nextInventory);
-      setWorkOrders(nextOrders); setIncidents(nextIncidents); setPlans(nextPlans);
+      setWorkOrders(nextOrders); setTechnicians(nextTechnicians); setAvailability(nextAvailability);
+      setIncidents(nextIncidents); setPlans(nextPlans);
     } catch (error) {
       toast({ title: "No se pudo cargar operaciones", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
     } finally { setLoading(false); }
@@ -134,6 +155,48 @@ export default function Operations() {
   const create = async (path: string, body: unknown, reset: () => void) => {
     try { await api(path, { method: "POST", body: JSON.stringify(body) }); reset(); await refresh(); toast({ title: "Guardado", description: "El registro quedó persistido." }); }
     catch (error) { toast({ title: "No se pudo guardar", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" }); }
+  };
+
+  const defaultOrderEdit = (order: FieldWorkOrder): WorkOrderEdit => ({
+    assignedToUserId: order.assignedToUserId?.toString() ?? "",
+    scheduledAt: dateTimeInputValue(order.scheduledAt),
+    scheduledEndAt: dateTimeInputValue(order.scheduledEndAt),
+  });
+  const orderEditFor = (order: FieldWorkOrder) => orderEdits[order.id] ?? defaultOrderEdit(order);
+  const changeOrderEdit = (order: FieldWorkOrder, changes: Partial<WorkOrderEdit>) => {
+    const initial = defaultOrderEdit(order);
+    setOrderEdits(current => ({ ...current, [order.id]: { ...(current[order.id] ?? initial), ...changes } }));
+  };
+  const saveOrderEdit = async (order: FieldWorkOrder) => {
+    const edit = orderEditFor(order);
+    try {
+      await api<FieldWorkOrder>(`/work-orders/${order.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          assignedToUserId: edit.assignedToUserId ? Number(edit.assignedToUserId) : null,
+          scheduledAt: dateTimeToIso(edit.scheduledAt),
+          scheduledEndAt: dateTimeToIso(edit.scheduledEndAt),
+        }),
+      });
+      setOrderEdits(current => {
+        const next = { ...current };
+        delete next[order.id];
+        return next;
+      });
+      await refresh();
+      toast({ title: "Agenda actualizada", description: `La orden #${order.id} quedó actualizada.` });
+    } catch (error) {
+      toast({ title: "No se pudo actualizar la agenda", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    }
+  };
+  const removeAvailability = async (block: TechnicianAvailability) => {
+    try {
+      await api<void>(`/technicians/availability/${block.id}`, { method: "DELETE" });
+      await refresh();
+      toast({ title: "Disponibilidad eliminada", description: "El bloque quedó eliminado." });
+    } catch (error) {
+      toast({ title: "No se pudo eliminar", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    }
   };
 
   const setTicketReopenPermission = async (ticket: TicketRow) => {
@@ -157,6 +220,12 @@ export default function Operations() {
   };
 
   const openIncidents = useMemo(() => incidents.filter(item => item.status === "open"), [incidents]);
+  const invalidWorkSchedule = Boolean(workForm.scheduledAt) !== Boolean(workForm.scheduledEndAt)
+    || Boolean(workForm.scheduledAt && workForm.scheduledEndAt && new Date(workForm.scheduledEndAt) <= new Date(workForm.scheduledAt));
+  const invalidAvailabilityRange = !availabilityForm.technicianUserId
+    || !availabilityForm.startsAt
+    || !availabilityForm.endsAt
+    || new Date(availabilityForm.endsAt) <= new Date(availabilityForm.startsAt);
 
   return (
     <div className="space-y-6">
@@ -188,15 +257,151 @@ export default function Operations() {
 
         <TabsContent value="tickets"><SupportDesk /></TabsContent>
 
-        <TabsContent value="field" className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-          <Card><CardHeader><CardTitle className="text-base">Orden de instalación o visita</CardTitle></CardHeader><CardContent className="space-y-3">
-            <div><Label>Tipo</Label><Select value={workForm.type} onValueChange={type => setWorkForm({ ...workForm, type })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="installation">Instalación</SelectItem><SelectItem value="visit">Visita técnica</SelectItem><SelectItem value="relocation">Reubicación</SelectItem><SelectItem value="repair">Reparación</SelectItem></SelectContent></Select></div>
-            <div><Label>Dirección</Label><Input value={workForm.address} onChange={e => setWorkForm({ ...workForm, address: e.target.value })} /></div>
-            <div><Label>Fecha programada</Label><Input type="datetime-local" value={workForm.scheduledAt} onChange={e => setWorkForm({ ...workForm, scheduledAt: e.target.value })} /></div>
-            <div><Label>Notas</Label><Textarea value={workForm.notes} onChange={e => setWorkForm({ ...workForm, notes: e.target.value })} /></div>
-            <Button className="w-full" onClick={() => void create("/work-orders", workForm, () => setWorkForm({ type: "installation", address: "", scheduledAt: "", notes: "" }))}><Plus className="mr-2 h-4 w-4" />Crear orden</Button>
-          </CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-base">Agenda de campo</CardTitle></CardHeader><CardContent className="space-y-2">{workOrders.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No hay órdenes.</p> : workOrders.map(order => <div key={order.id} className="rounded-lg border border-border/50 p-3"><div className="flex justify-between"><p className="font-medium">#{order.id} {order.type}</p><StatusBadge status={order.status} /></div><p className="mt-1 text-sm text-muted-foreground">{order.address ?? "Sin dirección"}</p><p className="mt-2 text-xs text-muted-foreground">{order.scheduledAt ? new Date(order.scheduledAt).toLocaleString("es") : "Sin fecha programada"}</p></div>)}</CardContent></Card>
+        <TabsContent value="field" className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="text-base">Nueva orden de campo</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label>Tipo</Label>
+                  <Select value={workForm.type} onValueChange={type => setWorkForm({ ...workForm, type })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="installation">Instalación</SelectItem>
+                      <SelectItem value="visit">Visita técnica</SelectItem>
+                      <SelectItem value="relocation">Reubicación</SelectItem>
+                      <SelectItem value="repair">Reparación</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Responsable</Label>
+                  <Select value={workForm.assignedToUserId || "unassigned"} onValueChange={value => setWorkForm({ ...workForm, assignedToUserId: value === "unassigned" ? "" : value })}>
+                    <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Sin asignar</SelectItem>
+                      {technicians.map(person => <SelectItem key={person.id} value={String(person.id)}>{person.username} · {person.role}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Dirección</Label><Input value={workForm.address} onChange={e => setWorkForm({ ...workForm, address: e.target.value })} /></div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div><Label>Inicio</Label><Input type="datetime-local" value={workForm.scheduledAt} onChange={e => setWorkForm({ ...workForm, scheduledAt: e.target.value })} /></div>
+                  <div><Label>Fin</Label><Input type="datetime-local" value={workForm.scheduledEndAt} onChange={e => setWorkForm({ ...workForm, scheduledEndAt: e.target.value })} /></div>
+                </div>
+                {invalidWorkSchedule && <p className="text-xs text-amber-400">Indica inicio y fin, y asegúrate de que el fin sea posterior.</p>}
+                <div><Label>Notas</Label><Textarea value={workForm.notes} onChange={e => setWorkForm({ ...workForm, notes: e.target.value })} /></div>
+                <Button
+                  className="w-full"
+                  disabled={invalidWorkSchedule}
+                  onClick={() => void create("/work-orders", {
+                    type: workForm.type,
+                    address: workForm.address.trim() || null,
+                    assignedToUserId: workForm.assignedToUserId ? Number(workForm.assignedToUserId) : null,
+                    scheduledAt: dateTimeToIso(workForm.scheduledAt),
+                    scheduledEndAt: dateTimeToIso(workForm.scheduledEndAt),
+                    notes: workForm.notes.trim() || null,
+                  }, () => setWorkForm({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", notes: "" }))}
+                >
+                  <Plus className="mr-2 h-4 w-4" />Crear orden
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4 text-primary" />Añadir disponibilidad</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label>Personal asignable</Label>
+                  <Select value={availabilityForm.technicianUserId || "choose-technician"} onValueChange={technicianUserId => setAvailabilityForm({ ...availabilityForm, technicianUserId })}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="choose-technician" disabled>Selecciona una cuenta</SelectItem>
+                      {technicians.map(person => <SelectItem key={person.id} value={String(person.id)}>{person.username} · {person.role}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {technicians.length === 0 && <p className="mt-1 text-xs text-muted-foreground">No hay cuentas asignables.</p>}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div><Label>Disponible desde</Label><Input type="datetime-local" value={availabilityForm.startsAt} onChange={e => setAvailabilityForm({ ...availabilityForm, startsAt: e.target.value })} /></div>
+                  <div><Label>Disponible hasta</Label><Input type="datetime-local" value={availabilityForm.endsAt} onChange={e => setAvailabilityForm({ ...availabilityForm, endsAt: e.target.value })} /></div>
+                </div>
+                {availabilityForm.startsAt && availabilityForm.endsAt && new Date(availabilityForm.endsAt) <= new Date(availabilityForm.startsAt) && <p className="text-xs text-amber-400">La hora de fin debe ser posterior a la de inicio.</p>}
+                <div><Label>Notas</Label><Textarea value={availabilityForm.notes} onChange={e => setAvailabilityForm({ ...availabilityForm, notes: e.target.value })} placeholder="Zona, turno o detalle opcional" /></div>
+                <Button
+                  className="w-full"
+                  disabled={invalidAvailabilityRange}
+                  onClick={() => void create("/technicians/availability", {
+                    technicianUserId: Number(availabilityForm.technicianUserId),
+                    startsAt: dateTimeToIso(availabilityForm.startsAt),
+                    endsAt: dateTimeToIso(availabilityForm.endsAt),
+                    notes: availabilityForm.notes.trim() || null,
+                  }, () => setAvailabilityForm({ technicianUserId: "", startsAt: "", endsAt: "", notes: "" }))}
+                >
+                  <Plus className="mr-2 h-4 w-4" />Guardar bloque
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="text-base">Agenda de campo <Badge variant="outline" className="ml-2">{workOrders.length}</Badge></CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                {workOrders.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No hay órdenes.</p> : workOrders.map(order => {
+                  const edit = orderEditFor(order);
+                  const assignedPerson = technicians.find(person => person.id === order.assignedToUserId);
+                  return (
+                    <div key={order.id} className="space-y-3 rounded-lg border border-border/50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div><p className="font-medium">#{order.id} · {order.type.replaceAll("_", " ")}</p><p className="mt-1 text-sm text-muted-foreground">{order.address ?? "Sin dirección"}</p></div>
+                        <StatusBadge status={order.status} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {order.scheduledAt && order.scheduledEndAt
+                          ? `${supportDate(order.scheduledAt)} – ${supportDate(order.scheduledEndAt)}`
+                          : order.scheduledAt ? `${supportDate(order.scheduledAt)} · sin fin` : "Sin horario programado"}
+                        {" · "}{assignedPerson?.username ?? "Sin asignar"}
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <Select value={edit.assignedToUserId || "unassigned"} onValueChange={value => changeOrderEdit(order, { assignedToUserId: value === "unassigned" ? "" : value })}>
+                          <SelectTrigger aria-label="Responsable"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Sin asignar</SelectItem>
+                            {technicians.map(person => <SelectItem key={person.id} value={String(person.id)}>{person.username}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input aria-label="Inicio programado" type="datetime-local" value={edit.scheduledAt} onChange={e => changeOrderEdit(order, { scheduledAt: e.target.value })} />
+                        <Input aria-label="Fin programado" type="datetime-local" value={edit.scheduledEndAt} onChange={e => changeOrderEdit(order, { scheduledEndAt: e.target.value })} />
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => void saveOrderEdit(order)}>Guardar agenda</Button>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle className="text-base">Bloques de disponibilidad <Badge variant="outline" className="ml-2">{availability.length}</Badge></CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {availability.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No hay bloques registrados.</p> : availability.map(block => {
+                  const person = technicians.find(item => item.id === block.technicianUserId);
+                  return (
+                    <div key={block.id} className="flex items-start justify-between gap-3 rounded-lg border border-border/50 p-3">
+                      <div>
+                        <p className="font-medium">{person?.username ?? `Usuario #${block.technicianUserId}`}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{supportDate(block.startsAt)} – {supportDate(block.endsAt)}</p>
+                        {block.notes && <p className="mt-1 text-sm text-muted-foreground">{block.notes}</p>}
+                      </div>
+                      <Button size="sm" variant="ghost" aria-label={`Eliminar disponibilidad de ${person?.username ?? "usuario"}`} onClick={() => void removeAvailability(block)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="inventory" className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">

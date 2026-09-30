@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, ilike, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, or } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import {
   auditLogsTable,
@@ -16,6 +16,7 @@ import {
   supportNotificationsTable,
   inventoryItemsTable,
   fieldWorkOrdersTable,
+  technicianAvailabilityTable,
   incidentAlertsTable,
   organizationsTable,
   sitesTable,
@@ -31,17 +32,28 @@ import {
   AddSupportTicketCommentResponse,
   CreateSupportTicketBody,
   CreateSupportTicketResponse,
+  CreateFieldWorkOrderBody,
+  CreateFieldWorkOrderResponse,
   GetSupportTicketResponse,
+  ListFieldWorkOrdersResponse,
+  ListTechniciansResponse,
+  ListTechnicianAvailabilityResponse,
   ListSupportTicketHistoryResponse,
   ListSupportTicketAttachmentsResponse,
   ListTicketSlaPoliciesResponse,
   ListUserNotificationsResponse,
   UpdateSupportTicketBody,
   UpdateSupportTicketResponse,
+  UpdateFieldWorkOrderParams,
+  UpdateFieldWorkOrderBody,
+  UpdateFieldWorkOrderResponse,
   UpdateTicketSlaPolicyBody,
   UpdateTicketSlaPolicyResponse,
   UploadSupportTicketAttachmentBody,
   UploadSupportTicketAttachmentResponse,
+  CreateTechnicianAvailabilityBody,
+  CreateTechnicianAvailabilityResponse,
+  DeleteTechnicianAvailabilityParams,
 } from "@workspace/api-zod";
 import { TicketAttachmentStorageNotConfiguredError } from "../services/ticket-attachment-storage.service";
 import { createTicketAttachment } from "../services/ticket-attachments.service";
@@ -56,6 +68,12 @@ import {
   ticketSlaFields,
   transitionTicket,
 } from "../services/ticket-lifecycle.service";
+import {
+  containsScheduleRange,
+  isValidScheduleRange,
+  scheduledOrderConflicts,
+  scheduleRangesOverlap,
+} from "../services/field-work-scheduling.service";
 
 const router: IRouter = Router();
 
@@ -813,46 +831,209 @@ router.patch("/inventory/:id", async (req, res): Promise<void> => {
   res.json(serializeDates(item));
 });
 
+async function workOrderScheduleConflict(
+  technicianUserId: number,
+  startsAt: Date,
+  endsAt: Date,
+  excludedOrderId?: number,
+): Promise<{ status: 404 | 409; message: string } | null> {
+  const [technician] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.id, technicianUserId));
+  if (!technician) return { status: 404, message: "Usuario asignable no encontrado" };
+
+  const availability = await db.select().from(technicianAvailabilityTable)
+    .where(eq(technicianAvailabilityTable.technicianUserId, technicianUserId));
+  if (!availability.some(block => containsScheduleRange(block.startsAt, block.endsAt, startsAt, endsAt))) {
+    return { status: 409, message: "El horario debe quedar dentro de un bloque disponible del técnico" };
+  }
+
+  const orders = await db.select().from(fieldWorkOrdersTable)
+    .where(eq(fieldWorkOrdersTable.assignedToUserId, technicianUserId));
+  const activeStatuses = new Set(["completed", "cancelled", "closed"]);
+  const conflicts = orders.some(order =>
+    order.id !== excludedOrderId
+    && !activeStatuses.has(order.status.toLowerCase())
+    && order.scheduledAt !== null
+    && scheduledOrderConflicts(startsAt, endsAt, order.scheduledAt, order.scheduledEndAt),
+  );
+  return conflicts ? { status: 409, message: "El técnico ya tiene una orden en ese horario" } : null;
+}
+
 router.get("/work-orders", async (req, res): Promise<void> => {
   const status = text(req.query.status, 32);
   const rows = await db.select().from(fieldWorkOrdersTable)
     .where(status ? eq(fieldWorkOrdersTable.status, status) : undefined)
     .orderBy(desc(fieldWorkOrdersTable.scheduledAt), desc(fieldWorkOrdersTable.createdAt));
-  res.json(rows.map(serializeDates));
+  res.json(ListFieldWorkOrdersResponse.parse(rows.map(serializeDates)));
 });
 
 router.post("/work-orders", async (req, res): Promise<void> => {
+  const input = CreateFieldWorkOrderBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: input.error.message }); return; }
+  const assignedToUserId = input.data.assignedToUserId ?? null;
+  const scheduledAt = input.data.scheduledAt ? new Date(input.data.scheduledAt) : null;
+  const scheduledEndAt = input.data.scheduledEndAt ? new Date(input.data.scheduledEndAt) : null;
+  if ((scheduledAt === null) !== (scheduledEndAt === null)) {
+    res.status(400).json({ error: "La hora de inicio y de fin deben enviarse juntas" });
+    return;
+  }
+  if (scheduledAt && scheduledEndAt && !isValidScheduleRange(scheduledAt, scheduledEndAt)) {
+    res.status(400).json({ error: "La hora de fin debe ser posterior a la de inicio" });
+    return;
+  }
+  if (assignedToUserId !== null && scheduledAt && scheduledEndAt) {
+    const conflict = await workOrderScheduleConflict(assignedToUserId, scheduledAt, scheduledEndAt);
+    if (conflict) { res.status(conflict.status).json({ error: conflict.message }); return; }
+  } else if (assignedToUserId !== null) {
+    const [technician] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, assignedToUserId));
+    if (!technician) { res.status(404).json({ error: "Usuario asignable no encontrado" }); return; }
+  }
+
   const [order] = await db.insert(fieldWorkOrdersTable).values({
-    clientId: asId(req.body?.clientId), siteId: asId(req.body?.siteId),
-    assignedToUserId: asId(req.body?.assignedToUserId),
-    type: text(req.body?.type, 32) ?? "installation",
-    status: text(req.body?.status, 32) ?? "pending",
-    scheduledAt: optionalDate(req.body?.scheduledAt) ?? null,
-    address: text(req.body?.address, 500), latitude: req.body?.latitude ? String(req.body.latitude) : null,
-    longitude: req.body?.longitude ? String(req.body.longitude) : null,
-    notes: text(req.body?.notes), measuredPower: req.body?.measuredPower ? String(req.body.measuredPower) : null,
-    materials: Array.isArray(req.body?.materials) ? req.body.materials : [],
+    clientId: input.data.clientId ?? null,
+    siteId: input.data.siteId ?? null,
+    assignedToUserId,
+    type: input.data.type ?? "installation",
+    status: input.data.status ?? "pending",
+    scheduledAt,
+    scheduledEndAt,
+    address: input.data.address ?? null,
+    latitude: input.data.latitude ?? null,
+    longitude: input.data.longitude ?? null,
+    notes: input.data.notes ?? null,
+    materials: input.data.materials ?? [],
+    measuredPower: input.data.measuredPower ?? null,
   }).returning();
   await audit(res.locals.user, "FieldWorkOrder", "CREATE", `Orden de campo #${order.id}`);
-  res.status(201).json(serializeDates(order));
+  res.status(201).json(CreateFieldWorkOrderResponse.parse(serializeDates(order)));
 });
 
 router.patch("/work-orders/:id", async (req, res): Promise<void> => {
-  const id = asId(req.params.id);
-  if (!id) { res.status(400).json({ error: "Orden inválida" }); return; }
-  const update: Record<string, unknown> = { updatedAt: new Date() };
-  for (const key of ["status", "type", "address", "notes"]) {
-    if (req.body?.[key] !== undefined) update[key] = text(req.body[key], 2000);
+  const params = UpdateFieldWorkOrderParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const input = UpdateFieldWorkOrderBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: input.error.message }); return; }
+  const [current] = await db.select().from(fieldWorkOrdersTable)
+    .where(eq(fieldWorkOrdersTable.id, params.data.id));
+  if (!current) { res.status(404).json({ error: "Orden no encontrada" }); return; }
+
+  const assignedToUserId = input.data.assignedToUserId !== undefined
+    ? input.data.assignedToUserId
+    : current.assignedToUserId;
+  const scheduledAt = input.data.scheduledAt !== undefined
+    ? input.data.scheduledAt ? new Date(input.data.scheduledAt) : null
+    : current.scheduledAt;
+  const scheduledEndAt = input.data.scheduledEndAt !== undefined
+    ? input.data.scheduledEndAt ? new Date(input.data.scheduledEndAt) : null
+    : current.scheduledEndAt;
+  if ((scheduledAt === null) !== (scheduledEndAt === null)) {
+    res.status(400).json({ error: "La hora de inicio y de fin deben enviarse juntas" });
+    return;
   }
-  if (req.body?.assignedToUserId !== undefined) update.assignedToUserId = asId(req.body.assignedToUserId);
-  if (req.body?.scheduledAt !== undefined) update.scheduledAt = optionalDate(req.body.scheduledAt) ?? null;
-  if (req.body?.measuredPower !== undefined) update.measuredPower = String(req.body.measuredPower);
-  if (Array.isArray(req.body?.materials)) update.materials = req.body.materials;
-  if (req.body?.status === "completed") update.completedAt = new Date();
-  const [order] = await db.update(fieldWorkOrdersTable).set(update).where(eq(fieldWorkOrdersTable.id, id)).returning();
+  if (scheduledAt && scheduledEndAt && !isValidScheduleRange(scheduledAt, scheduledEndAt)) {
+    res.status(400).json({ error: "La hora de fin debe ser posterior a la de inicio" });
+    return;
+  }
+
+  const scheduleChanged = input.data.assignedToUserId !== undefined
+    || input.data.scheduledAt !== undefined
+    || input.data.scheduledEndAt !== undefined;
+  if (assignedToUserId !== null && scheduleChanged) {
+    if (scheduledAt && scheduledEndAt) {
+      const conflict = await workOrderScheduleConflict(
+        assignedToUserId,
+        scheduledAt,
+        scheduledEndAt,
+        params.data.id,
+      );
+      if (conflict) { res.status(conflict.status).json({ error: conflict.message }); return; }
+    } else {
+      const [technician] = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.id, assignedToUserId));
+      if (!technician) { res.status(404).json({ error: "Usuario asignable no encontrado" }); return; }
+    }
+  }
+
+  const update: Record<string, unknown> = { updatedAt: new Date() };
+  for (const key of ["status", "type", "address", "notes"] as const) {
+    if (input.data[key] !== undefined) update[key] = input.data[key];
+  }
+  for (const key of ["clientId", "siteId", "assignedToUserId"] as const) {
+    if (input.data[key] !== undefined) update[key] = input.data[key];
+  }
+  if (input.data.scheduledAt !== undefined) update.scheduledAt = scheduledAt;
+  if (input.data.scheduledEndAt !== undefined) update.scheduledEndAt = scheduledEndAt;
+  if (input.data.latitude !== undefined) update.latitude = input.data.latitude;
+  if (input.data.longitude !== undefined) update.longitude = input.data.longitude;
+  if (input.data.measuredPower !== undefined) update.measuredPower = input.data.measuredPower;
+  if (input.data.materials !== undefined) update.materials = input.data.materials;
+  if (input.data.status === "completed") update.completedAt = new Date();
+  const [order] = await db.update(fieldWorkOrdersTable).set(update)
+    .where(eq(fieldWorkOrdersTable.id, params.data.id)).returning();
   if (!order) { res.status(404).json({ error: "Orden no encontrada" }); return; }
-  await audit(res.locals.user, "FieldWorkOrder", "UPDATE", `Orden de campo #${id} actualizada`);
-  res.json(serializeDates(order));
+  await audit(res.locals.user, "FieldWorkOrder", "UPDATE", `Orden de campo #${params.data.id} actualizada`);
+  res.json(UpdateFieldWorkOrderResponse.parse(serializeDates(order)));
+});
+
+router.get("/technicians/availability", async (_req, res): Promise<void> => {
+  const rows = await db.select().from(technicianAvailabilityTable)
+    .orderBy(asc(technicianAvailabilityTable.startsAt), asc(technicianAvailabilityTable.id));
+  res.json(ListTechnicianAvailabilityResponse.parse(rows.map(serializeDates)));
+});
+
+router.post("/technicians/availability", async (req, res): Promise<void> => {
+  const input = CreateTechnicianAvailabilityBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: input.error.message }); return; }
+  const startsAt = new Date(input.data.startsAt);
+  const endsAt = new Date(input.data.endsAt);
+  if (!isValidScheduleRange(startsAt, endsAt)) {
+    res.status(400).json({ error: "La hora de fin debe ser posterior a la de inicio" });
+    return;
+  }
+  const [technician] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.id, input.data.technicianUserId));
+  if (!technician) { res.status(404).json({ error: "Usuario asignable no encontrado" }); return; }
+
+  const existing = await db.select().from(technicianAvailabilityTable)
+    .where(eq(technicianAvailabilityTable.technicianUserId, input.data.technicianUserId));
+  if (existing.some(block => scheduleRangesOverlap(startsAt, endsAt, block.startsAt, block.endsAt))) {
+    res.status(409).json({ error: "El bloque se solapa con otra disponibilidad del técnico" });
+    return;
+  }
+  const [block] = await db.insert(technicianAvailabilityTable).values({
+    technicianUserId: input.data.technicianUserId,
+    startsAt,
+    endsAt,
+    notes: input.data.notes ?? null,
+    createdByUserId: res.locals.user?.id ?? null,
+  }).returning();
+  await audit(res.locals.user, "TechnicianAvailability", "CREATE", `Disponibilidad añadida para usuario #${block.technicianUserId}`);
+  res.status(201).json(CreateTechnicianAvailabilityResponse.parse(serializeDates(block)));
+});
+
+router.delete("/technicians/availability/:id", async (req, res): Promise<void> => {
+  const params = DeleteTechnicianAvailabilityParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [block] = await db.select().from(technicianAvailabilityTable)
+    .where(eq(technicianAvailabilityTable.id, params.data.id));
+  if (!block) { res.status(404).json({ error: "Bloque de disponibilidad no encontrado" }); return; }
+
+  const orders = await db.select().from(fieldWorkOrdersTable)
+    .where(eq(fieldWorkOrdersTable.assignedToUserId, block.technicianUserId));
+  const terminalStatuses = new Set(["completed", "cancelled", "closed"]);
+  const scheduledOrder = orders.some(order =>
+    !terminalStatuses.has(order.status.toLowerCase())
+    && order.scheduledAt !== null
+    && scheduledOrderConflicts(block.startsAt, block.endsAt, order.scheduledAt, order.scheduledEndAt),
+  );
+  if (scheduledOrder) {
+    res.status(409).json({ error: "No se puede eliminar: hay órdenes activas en ese horario" });
+    return;
+  }
+  await db.delete(technicianAvailabilityTable).where(eq(technicianAvailabilityTable.id, block.id));
+  await audit(res.locals.user, "TechnicianAvailability", "DELETE", `Disponibilidad eliminada #${block.id}`);
+  res.status(204).end();
 });
 
 router.get("/incidents", async (req, res): Promise<void> => {
@@ -1013,7 +1194,7 @@ router.get("/reports/operations", async (req, res): Promise<void> => {
 router.get("/users/technicians", async (_req, res): Promise<void> => {
   const rows = await db.select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
     .from(usersTable).orderBy(usersTable.username);
-  res.json(rows);
+  res.json(ListTechniciansResponse.parse(rows));
 });
 
 export default router;

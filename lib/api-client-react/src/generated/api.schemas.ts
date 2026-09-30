@@ -680,6 +680,137 @@ export interface CommandResult {
   warning?: string | null;
 }
 
+export type FieldWorkOrderMaterialsItem = { [key: string]: unknown };
+
+export interface FieldWorkOrder {
+  id: number;
+  /** @nullable */
+  clientId: number | null;
+  /** @nullable */
+  siteId: number | null;
+  /** @nullable */
+  assignedToUserId: number | null;
+  type: string;
+  status: string;
+  /** @nullable */
+  scheduledAt: string | null;
+  /** @nullable */
+  scheduledEndAt: string | null;
+  /** @nullable */
+  address: string | null;
+  /** @nullable */
+  latitude: string | null;
+  /** @nullable */
+  longitude: string | null;
+  /** @nullable */
+  notes: string | null;
+  materials: FieldWorkOrderMaterialsItem[];
+  /** @nullable */
+  measuredPower: string | null;
+  /** @nullable */
+  signatureData: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FieldWorkOrderInputMaterialsItem = { [key: string]: unknown };
+
+export interface FieldWorkOrderInput {
+  /** @nullable */
+  clientId?: number | null;
+  /** @nullable */
+  siteId?: number | null;
+  /** @nullable */
+  assignedToUserId?: number | null;
+  /** @maxLength 32 */
+  type?: string;
+  /** @maxLength 32 */
+  status?: string;
+  /** @nullable */
+  scheduledAt?: string | null;
+  /** @nullable */
+  scheduledEndAt?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  address?: string | null;
+  /** @nullable */
+  latitude?: string | null;
+  /** @nullable */
+  longitude?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  materials?: FieldWorkOrderInputMaterialsItem[];
+  /** @nullable */
+  measuredPower?: string | null;
+}
+
+export type FieldWorkOrderUpdateMaterialsItem = { [key: string]: unknown };
+
+export interface FieldWorkOrderUpdate {
+  /** @nullable */
+  clientId?: number | null;
+  /** @nullable */
+  siteId?: number | null;
+  /** @nullable */
+  assignedToUserId?: number | null;
+  /** @maxLength 32 */
+  type?: string;
+  /** @maxLength 32 */
+  status?: string;
+  /** @nullable */
+  scheduledAt?: string | null;
+  /** @nullable */
+  scheduledEndAt?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  address?: string | null;
+  /** @nullable */
+  latitude?: string | null;
+  /** @nullable */
+  longitude?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  materials?: FieldWorkOrderUpdateMaterialsItem[];
+  /** @nullable */
+  measuredPower?: string | null;
+}
+
+export interface Technician {
+  id: number;
+  username: string;
+  role: string;
+}
+
+export interface TechnicianAvailability {
+  id: number;
+  technicianUserId: number;
+  startsAt: string;
+  endsAt: string;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  createdByUserId: number | null;
+  createdAt: string;
+}
+
+export interface TechnicianAvailabilityInput {
+  /** @minimum 1 */
+  technicianUserId: number;
+  startsAt: string;
+  endsAt: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  notes?: string | null;
+}
+
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 
@@ -1227,6 +1358,10 @@ type?: string;
  * @nullable
  */
 equipmentId?: number | null;
+};
+
+export type ListFieldWorkOrdersParams = {
+status?: string;
 };
 
 export type ListSupportTicketsParams = {

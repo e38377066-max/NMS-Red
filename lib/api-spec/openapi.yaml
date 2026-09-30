@@ -24,6 +24,8 @@ tags:
     description: Portal autenticado por token independiente del cliente
   - name: tickets
     description: Mesa de ayuda y permisos de reapertura
+  - name: field
+    description: Agenda de técnicos y órdenes de campo
   - name: ai
   - name: proxmox
     description: Proxmox VE hypervisor management
@@ -960,6 +962,211 @@ paths:
               schema:
                 type: string
                 format: binary
+
+  # FIELD OPERATIONS
+  /work-orders:
+    get:
+      operationId: listFieldWorkOrders
+      tags: [field]
+      summary: Listar órdenes de campo para la agenda
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Órdenes de campo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FieldWorkOrder"
+    post:
+      operationId: createFieldWorkOrder
+      tags: [field]
+      summary: Crear una orden de campo
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FieldWorkOrderInput"
+      responses:
+        "201":
+          description: Orden creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldWorkOrder"
+        "400":
+          description: Datos de la orden inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Usuario asignable no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Disponibilidad del técnico o agenda en conflicto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /work-orders/{id}:
+    patch:
+      operationId: updateFieldWorkOrder
+      tags: [field]
+      summary: Actualizar o reprogramar una orden de campo
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FieldWorkOrderUpdate"
+      responses:
+        "200":
+          description: Orden actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldWorkOrder"
+        "400":
+          description: Datos de la orden inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Orden no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Disponibilidad del técnico o agenda en conflicto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /users/technicians:
+    get:
+      operationId: listTechnicians
+      tags: [users]
+      summary: Listar cuentas asignables a órdenes de campo
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Personal asignable
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Technician"
+
+  /technicians/availability:
+    get:
+      operationId: listTechnicianAvailability
+      tags: [field]
+      summary: Listar bloques de disponibilidad de técnicos
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Bloques de disponibilidad
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TechnicianAvailability"
+    post:
+      operationId: createTechnicianAvailability
+      tags: [field]
+      summary: Registrar un bloque de disponibilidad
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TechnicianAvailabilityInput"
+      responses:
+        "201":
+          description: Disponibilidad registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TechnicianAvailability"
+        "400":
+          description: Rango horario inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: El bloque se solapa con otra disponibilidad
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /technicians/availability/{id}:
+    delete:
+      operationId: deleteTechnicianAvailability
+      tags: [field]
+      summary: Eliminar un bloque de disponibilidad
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Bloque eliminado
+        "404":
+          description: Bloque no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Hay órdenes programadas dentro del bloque
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # TICKETS / SUPPORT
   /tickets:
@@ -2738,6 +2945,181 @@ components:
           type: ["boolean", "null"]
         warning:
           type: ["string", "null"]
+
+    FieldWorkOrder:
+      type: object
+      required: [id, clientId, siteId, assignedToUserId, type, status, scheduledAt, scheduledEndAt, address, latitude, longitude, notes, materials, measuredPower, signatureData, completedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: ["integer", "null"]
+        siteId:
+          type: ["integer", "null"]
+        assignedToUserId:
+          type: ["integer", "null"]
+        type:
+          type: string
+        status:
+          type: string
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        scheduledEndAt:
+          type: ["string", "null"]
+          format: date-time
+        address:
+          type: ["string", "null"]
+        latitude:
+          type: ["string", "null"]
+        longitude:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        materials:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        measuredPower:
+          type: ["string", "null"]
+        signatureData:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FieldWorkOrderInput:
+      type: object
+      properties:
+        clientId:
+          type: ["integer", "null"]
+        siteId:
+          type: ["integer", "null"]
+        assignedToUserId:
+          type: ["integer", "null"]
+        type:
+          type: string
+          maxLength: 32
+        status:
+          type: string
+          maxLength: 32
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        scheduledEndAt:
+          type: ["string", "null"]
+          format: date-time
+        address:
+          type: ["string", "null"]
+          maxLength: 500
+        latitude:
+          type: ["string", "null"]
+        longitude:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        materials:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        measuredPower:
+          type: ["string", "null"]
+
+    FieldWorkOrderUpdate:
+      type: object
+      properties:
+        clientId:
+          type: ["integer", "null"]
+        siteId:
+          type: ["integer", "null"]
+        assignedToUserId:
+          type: ["integer", "null"]
+        type:
+          type: string
+          maxLength: 32
+        status:
+          type: string
+          maxLength: 32
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        scheduledEndAt:
+          type: ["string", "null"]
+          format: date-time
+        address:
+          type: ["string", "null"]
+          maxLength: 500
+        latitude:
+          type: ["string", "null"]
+        longitude:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        materials:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        measuredPower:
+          type: ["string", "null"]
+
+    Technician:
+      type: object
+      required: [id, username, role]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+
+    TechnicianAvailability:
+      type: object
+      required: [id, technicianUserId, startsAt, endsAt, notes, createdByUserId, createdAt]
+      properties:
+        id:
+          type: integer
+        technicianUserId:
+          type: integer
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdByUserId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    TechnicianAvailabilityInput:
+      type: object
+      required: [technicianUserId, startsAt, endsAt]
+      properties:
+        technicianUserId:
+          type: integer
+          minimum: 1
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        notes:
+          type: ["string", "null"]
+          maxLength: 1000
 
     User:
       type: object

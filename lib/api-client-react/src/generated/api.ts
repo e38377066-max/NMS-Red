@@ -49,6 +49,9 @@ import type {
   EquipmentLiveStatus,
   EquipmentUpdate,
   ExportBillingAccountingParams,
+  FieldWorkOrder,
+  FieldWorkOrderInput,
+  FieldWorkOrderUpdate,
   GetArrearsReportParams,
   GetClientMetricsParams,
   GetDailyBillingReportParams,
@@ -60,6 +63,7 @@ import type {
   ListAuditLogsParams,
   ListBackupsParams,
   ListBillingInvoicesParams,
+  ListFieldWorkOrdersParams,
   ListPaymentProofsParams,
   ListSupportTicketsParams,
   LoginInput,
@@ -97,6 +101,9 @@ import type {
   SupportTicketSlaPolicyUpdate,
   SupportTicketStatusEvent,
   SupportTicketUpdate,
+  Technician,
+  TechnicianAvailability,
+  TechnicianAvailabilityInput,
   TicketClientReopenPermission,
   TicketClientReopenPermissionUpdate,
   User,
@@ -4701,6 +4708,655 @@ export function useDownloadClientContract<TData = Awaited<ReturnType<typeof down
 
 
 
+
+export const getListFieldWorkOrdersUrl = (params?: ListFieldWorkOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/work-orders?${stringifiedParams}` : `/api/work-orders`
+}
+
+/**
+ * @summary Listar órdenes de campo para la agenda
+ */
+export const listFieldWorkOrders = async (params?: ListFieldWorkOrdersParams, options?: Parameters<typeof customFetch>[1]): Promise<FieldWorkOrder[]> => {
+
+  return customFetch<FieldWorkOrder[]>(getListFieldWorkOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFieldWorkOrdersQueryKey = (params?: ListFieldWorkOrdersParams,) => {
+    return [
+    `/api/work-orders`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListFieldWorkOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listFieldWorkOrders>>, TError = ErrorType<unknown>>(params?: ListFieldWorkOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listFieldWorkOrders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFieldWorkOrdersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFieldWorkOrders>>> = ({ signal }) => listFieldWorkOrders(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFieldWorkOrders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListFieldWorkOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listFieldWorkOrders>>>
+export type ListFieldWorkOrdersQueryError = ErrorType<unknown>
+
+
+export function useListFieldWorkOrders<TData = Awaited<ReturnType<typeof listFieldWorkOrders>>, TError = ErrorType<unknown>>(
+ params: undefined |  ListFieldWorkOrdersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listFieldWorkOrders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listFieldWorkOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listFieldWorkOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListFieldWorkOrders<TData = Awaited<ReturnType<typeof listFieldWorkOrders>>, TError = ErrorType<unknown>>(
+ params?: ListFieldWorkOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listFieldWorkOrders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listFieldWorkOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listFieldWorkOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListFieldWorkOrders<TData = Awaited<ReturnType<typeof listFieldWorkOrders>>, TError = ErrorType<unknown>>(
+ params?: ListFieldWorkOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listFieldWorkOrders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar órdenes de campo para la agenda
+ */
+
+export function useListFieldWorkOrders<TData = Awaited<ReturnType<typeof listFieldWorkOrders>>, TError = ErrorType<unknown>>(
+ params?: ListFieldWorkOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listFieldWorkOrders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListFieldWorkOrdersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateFieldWorkOrderUrl = () => {
+
+
+
+
+  return `/api/work-orders`
+}
+
+/**
+ * @summary Crear una orden de campo
+ */
+export const createFieldWorkOrder = async (fieldWorkOrderInput: FieldWorkOrderInput, options?: Parameters<typeof customFetch>[1]): Promise<FieldWorkOrder> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<FieldWorkOrder>(getCreateFieldWorkOrderUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(fieldWorkOrderInput)
+  }
+);}
+
+
+
+
+
+export const getCreateFieldWorkOrderMutationKey = () => ['createFieldWorkOrder'] as const;
+
+export const getCreateFieldWorkOrderMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFieldWorkOrder>>, TError,CreateFieldWorkOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFieldWorkOrder>>, TError,CreateFieldWorkOrderMutationVariables, TContext> => {
+
+const mutationKey = getCreateFieldWorkOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFieldWorkOrder>>, CreateFieldWorkOrderMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFieldWorkOrder(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFieldWorkOrderMutationResult = NonNullable<Awaited<ReturnType<typeof createFieldWorkOrder>>>
+    export type CreateFieldWorkOrderMutationBody = BodyType<FieldWorkOrderInput>
+    export type CreateFieldWorkOrderMutationError = ErrorType<ApiError>
+    export type CreateFieldWorkOrderMutationVariables = {data: BodyType<FieldWorkOrderInput>}
+
+    /**
+ * @summary Crear una orden de campo
+ */
+export const useCreateFieldWorkOrder = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFieldWorkOrder>>, TError,CreateFieldWorkOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createFieldWorkOrder>>,
+        TError,
+        CreateFieldWorkOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateFieldWorkOrderMutationOptions(options), queryClient);
+    }
+
+export const getUpdateFieldWorkOrderUrl = (id: number,) => {
+
+
+
+
+  return `/api/work-orders/${id}`
+}
+
+/**
+ * @summary Actualizar o reprogramar una orden de campo
+ */
+export const updateFieldWorkOrder = async (id: number,
+    fieldWorkOrderUpdate: FieldWorkOrderUpdate, options?: Parameters<typeof customFetch>[1]): Promise<FieldWorkOrder> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<FieldWorkOrder>(getUpdateFieldWorkOrderUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(fieldWorkOrderUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateFieldWorkOrderMutationKey = () => ['updateFieldWorkOrder'] as const;
+
+export const getUpdateFieldWorkOrderMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFieldWorkOrder>>, TError,UpdateFieldWorkOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFieldWorkOrder>>, TError,UpdateFieldWorkOrderMutationVariables, TContext> => {
+
+const mutationKey = getUpdateFieldWorkOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFieldWorkOrder>>, UpdateFieldWorkOrderMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateFieldWorkOrder(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFieldWorkOrderMutationResult = NonNullable<Awaited<ReturnType<typeof updateFieldWorkOrder>>>
+    export type UpdateFieldWorkOrderMutationBody = BodyType<FieldWorkOrderUpdate>
+    export type UpdateFieldWorkOrderMutationError = ErrorType<ApiError>
+    export type UpdateFieldWorkOrderMutationVariables = {id: number;data: BodyType<FieldWorkOrderUpdate>}
+
+    /**
+ * @summary Actualizar o reprogramar una orden de campo
+ */
+export const useUpdateFieldWorkOrder = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFieldWorkOrder>>, TError,UpdateFieldWorkOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateFieldWorkOrder>>,
+        TError,
+        UpdateFieldWorkOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateFieldWorkOrderMutationOptions(options), queryClient);
+    }
+
+export const getListTechniciansUrl = () => {
+
+
+
+
+  return `/api/users/technicians`
+}
+
+/**
+ * @summary Listar cuentas asignables a órdenes de campo
+ */
+export const listTechnicians = async ( options?: Parameters<typeof customFetch>[1]): Promise<Technician[]> => {
+
+  return customFetch<Technician[]>(getListTechniciansUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTechniciansQueryKey = () => {
+    return [
+    `/api/users/technicians`
+    ] as const;
+    }
+
+
+export const getListTechniciansQueryOptions = <TData = Awaited<ReturnType<typeof listTechnicians>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicians>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTechniciansQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTechnicians>>> = ({ signal }) => listTechnicians({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTechnicians>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListTechniciansQueryResult = NonNullable<Awaited<ReturnType<typeof listTechnicians>>>
+export type ListTechniciansQueryError = ErrorType<unknown>
+
+
+export function useListTechnicians<TData = Awaited<ReturnType<typeof listTechnicians>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicians>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTechnicians>>,
+          TError,
+          Awaited<ReturnType<typeof listTechnicians>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTechnicians<TData = Awaited<ReturnType<typeof listTechnicians>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicians>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTechnicians>>,
+          TError,
+          Awaited<ReturnType<typeof listTechnicians>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTechnicians<TData = Awaited<ReturnType<typeof listTechnicians>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicians>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar cuentas asignables a órdenes de campo
+ */
+
+export function useListTechnicians<TData = Awaited<ReturnType<typeof listTechnicians>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicians>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListTechniciansQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTechnicianAvailabilityUrl = () => {
+
+
+
+
+  return `/api/technicians/availability`
+}
+
+/**
+ * @summary Listar bloques de disponibilidad de técnicos
+ */
+export const listTechnicianAvailability = async ( options?: Parameters<typeof customFetch>[1]): Promise<TechnicianAvailability[]> => {
+
+  return customFetch<TechnicianAvailability[]>(getListTechnicianAvailabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTechnicianAvailabilityQueryKey = () => {
+    return [
+    `/api/technicians/availability`
+    ] as const;
+    }
+
+
+export const getListTechnicianAvailabilityQueryOptions = <TData = Awaited<ReturnType<typeof listTechnicianAvailability>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicianAvailability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTechnicianAvailabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTechnicianAvailability>>> = ({ signal }) => listTechnicianAvailability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTechnicianAvailability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListTechnicianAvailabilityQueryResult = NonNullable<Awaited<ReturnType<typeof listTechnicianAvailability>>>
+export type ListTechnicianAvailabilityQueryError = ErrorType<unknown>
+
+
+export function useListTechnicianAvailability<TData = Awaited<ReturnType<typeof listTechnicianAvailability>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicianAvailability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTechnicianAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof listTechnicianAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTechnicianAvailability<TData = Awaited<ReturnType<typeof listTechnicianAvailability>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicianAvailability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTechnicianAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof listTechnicianAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTechnicianAvailability<TData = Awaited<ReturnType<typeof listTechnicianAvailability>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicianAvailability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar bloques de disponibilidad de técnicos
+ */
+
+export function useListTechnicianAvailability<TData = Awaited<ReturnType<typeof listTechnicianAvailability>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTechnicianAvailability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListTechnicianAvailabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTechnicianAvailabilityUrl = () => {
+
+
+
+
+  return `/api/technicians/availability`
+}
+
+/**
+ * @summary Registrar un bloque de disponibilidad
+ */
+export const createTechnicianAvailability = async (technicianAvailabilityInput: TechnicianAvailabilityInput, options?: Parameters<typeof customFetch>[1]): Promise<TechnicianAvailability> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TechnicianAvailability>(getCreateTechnicianAvailabilityUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(technicianAvailabilityInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTechnicianAvailabilityMutationKey = () => ['createTechnicianAvailability'] as const;
+
+export const getCreateTechnicianAvailabilityMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTechnicianAvailability>>, TError,CreateTechnicianAvailabilityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTechnicianAvailability>>, TError,CreateTechnicianAvailabilityMutationVariables, TContext> => {
+
+const mutationKey = getCreateTechnicianAvailabilityMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTechnicianAvailability>>, CreateTechnicianAvailabilityMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTechnicianAvailability(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTechnicianAvailabilityMutationResult = NonNullable<Awaited<ReturnType<typeof createTechnicianAvailability>>>
+    export type CreateTechnicianAvailabilityMutationBody = BodyType<TechnicianAvailabilityInput>
+    export type CreateTechnicianAvailabilityMutationError = ErrorType<ApiError>
+    export type CreateTechnicianAvailabilityMutationVariables = {data: BodyType<TechnicianAvailabilityInput>}
+
+    /**
+ * @summary Registrar un bloque de disponibilidad
+ */
+export const useCreateTechnicianAvailability = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTechnicianAvailability>>, TError,CreateTechnicianAvailabilityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createTechnicianAvailability>>,
+        TError,
+        CreateTechnicianAvailabilityMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateTechnicianAvailabilityMutationOptions(options), queryClient);
+    }
+
+export const getDeleteTechnicianAvailabilityUrl = (id: number,) => {
+
+
+
+
+  return `/api/technicians/availability/${id}`
+}
+
+/**
+ * @summary Eliminar un bloque de disponibilidad
+ */
+export const deleteTechnicianAvailability = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteTechnicianAvailabilityUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTechnicianAvailabilityMutationKey = () => ['deleteTechnicianAvailability'] as const;
+
+export const getDeleteTechnicianAvailabilityMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTechnicianAvailability>>, TError,DeleteTechnicianAvailabilityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTechnicianAvailability>>, TError,DeleteTechnicianAvailabilityMutationVariables, TContext> => {
+
+const mutationKey = getDeleteTechnicianAvailabilityMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTechnicianAvailability>>, DeleteTechnicianAvailabilityMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteTechnicianAvailability(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTechnicianAvailabilityMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTechnicianAvailability>>>
+
+    export type DeleteTechnicianAvailabilityMutationError = ErrorType<ApiError>
+    export type DeleteTechnicianAvailabilityMutationVariables = {id: number}
+
+    /**
+ * @summary Eliminar un bloque de disponibilidad
+ */
+export const useDeleteTechnicianAvailability = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTechnicianAvailability>>, TError,DeleteTechnicianAvailabilityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTechnicianAvailability>>,
+        TError,
+        DeleteTechnicianAvailabilityMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteTechnicianAvailabilityMutationOptions(options), queryClient);
+    }
 
 export const getListSupportTicketsUrl = (params?: ListSupportTicketsParams,) => {
   const normalizedParams = new URLSearchParams();
