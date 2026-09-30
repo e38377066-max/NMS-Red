@@ -4,14 +4,14 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 
 ## Run & Operate
 
-- `pnpm install --frozen-lockfile` — install the workspace dependencies.
-- Replit preview uses the managed workflows `artifacts/nms-dashboard: web` and `artifacts/api-server: API Server`; the dashboard is at `/` and the API at `/api`.
+- `pnpm install --frozen-lockfile` — instalar las dependencias del workspace.
+- En Replit, la vista previa usa los workflows administrados `artifacts/nms-dashboard: web` y `artifacts/api-server: API Server`; el panel está en `/` y la API en `/api`.
 - `pnpm --filter @workspace/api-server run dev` — API server (puerto 8080)
 - `pnpm --filter @workspace/nms-dashboard run dev` — Dashboard React (puerto variable)
 - `pnpm run typecheck` — typecheck completo en todos los paquetes
 - `pnpm run build` — typecheck + build todos los paquetes
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
-- `pnpm --filter @workspace/db run push` — initialize the development schema only after confirming the database is empty; never use this against a database containing project data
+- `pnpm --filter @workspace/db run push` — inicializar el esquema de desarrollo solo después de confirmar que la base está vacía; no ejecutar sobre una base con datos del proyecto.
 - Alta administrativa: usar `POST /api/clients/provision` con `equipmentId`, `name`, `mac`, `fixedIp` y `planLimit`; verifica lease DHCP estático, Simple Queue y `Clientes_Activos`, con rollback si falla el alta.
 - Facturación administrativa: `GET/POST /api/billing/invoices` crea y consulta facturas; `POST /api/billing/invoices/:id/payments` aplica pagos completos o parciales y actualiza el saldo; `GET /api/billing/reports/daily` resume ingresos por método; `GET/POST /api/billing/cash-closures` consulta y registra cierres diarios.
 - Contratos formales: `GET /api/clients/:id/contracts` lista versiones; `POST` recibe un PDF privado con `X-Original-File-Name`; `PATCH /api/clients/:id/contracts/:contractId/review` aprueba o rechaza; `GET .../download` descarga con autenticación.
@@ -82,4 +82,4 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 ## Pointers
 
 - Ver skill `pnpm-workspace` para estructura de workspace, TypeScript y detalles de paquetes
-- Credenciales demo: admin/admin123 y operador1/op123
+- En el entorno de desarrollo de Replit, el usuario inicial es `superadmin`; la contraseña se configura como secreto `INITIAL_ADMIN_PASSWORD`. No hay contraseñas de demostración.
