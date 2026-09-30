@@ -16,3 +16,11 @@ Keep signal strength (dBm) and CCQ as separate visit measurements from the exist
 **Why:** The order model already contains a separate measured-power value, and inventory movement workflows are not implemented. Reusing that field could conflate measurements, while silently consuming stock would misrepresent inventory.
 
 **How to apply:** Future inventory integration should add an explicit movement/assignment workflow before changing stock. Keep the visit's model and serial snapshot available even if linked inventory support is added later.
+
+## Visit history
+
+Use finalized field work orders as visit-history entries instead of duplicating them in a second visit table. A technician completes the order, and its completion timestamp is retained for history sorting and display.
+
+**Why:** A field order already contains the client, schedule, technician, signal/CCQ, equipment, serial, and notes for one visit. A parallel log would create two records that could disagree.
+
+**How to apply:** Keep the one-order-per-visit assumption. If the product later needs multiple attempts or follow-up events under one work order, introduce an explicit visit-event model rather than silently duplicating order rows.

@@ -32,6 +32,7 @@ import {
   useUpdateTicketClientReopenPermission,
   useUpdateTicketSlaPolicy,
   useUploadSupportTicketAttachment,
+  type Client,
   type FieldWorkOrder,
   type Technician,
   type TechnicianAvailability,
@@ -108,6 +109,7 @@ const isOptionalNumberInRange = (value: string, min: number, max: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= min && parsed <= max;
 };
+const terminalWorkOrderStatuses = new Set(["completed", "closed", "cancelled", "canceled"]);
 
 const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -127,6 +129,7 @@ function SlaPill({ value, dueAt }: { value: string; dueAt?: string | null }) {
 
 export default function Operations() {
   const { toast } = useToast();
+  const [clients, setClients] = useState<Client[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
@@ -134,20 +137,22 @@ export default function Operations() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [availability, setAvailability] = useState<TechnicianAvailability[]>([]);
   const [orderEdits, setOrderEdits] = useState<Record<number, WorkOrderEdit>>({});
+  const [historyQuery, setHistoryQuery] = useState("");
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [ticketForm, setTicketForm] = useState({ subject: "", description: "", priority: "normal", category: "support" });
   const [inventoryForm, setInventoryForm] = useState({ name: "", category: "router", status: "in_stock", serialNumber: "", macAddress: "" });
-  const [workForm, setWorkForm] = useState({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", signalDbm: "", ccq: "", installedEquipment: "", installedSerialNumber: "", notes: "" });
+  const [workForm, setWorkForm] = useState({ clientId: "", type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", signalDbm: "", ccq: "", installedEquipment: "", installedSerialNumber: "", notes: "" });
   const [availabilityForm, setAvailabilityForm] = useState<AvailabilityForm>({ technicianUserId: "", startsAt: "", endsAt: "", notes: "" });
   const [planForm, setPlanForm] = useState({ name: "", downloadLimit: "", uploadLimit: "", monthlyFee: "" });
 
   const refresh = async () => {
     setLoading(true);
     try {
-      const [nextReport, nextTickets, nextInventory, nextOrders, nextTechnicians, nextAvailability, nextIncidents, nextPlans] = await Promise.all([
+      const [nextReport, nextClients, nextTickets, nextInventory, nextOrders, nextTechnicians, nextAvailability, nextIncidents, nextPlans] = await Promise.all([
         api<Report>("/reports/operations"),
+        api<Client[]>("/clients"),
         api<TicketRow[]>("/tickets"),
         api<InventoryRow[]>("/inventory"),
         api<FieldWorkOrder[]>("/work-orders"),
@@ -156,7 +161,7 @@ export default function Operations() {
         api<Incident[]>("/incidents"),
         api<Plan[]>("/plans"),
       ]);
-      setReport(nextReport); setTickets(nextTickets); setInventory(nextInventory);
+      setClients(nextClients); setReport(nextReport); setTickets(nextTickets); setInventory(nextInventory);
       setWorkOrders(nextOrders); setTechnicians(nextTechnicians); setAvailability(nextAvailability);
       setIncidents(nextIncidents); setPlans(nextPlans);
     } catch (error) {
@@ -206,9 +211,39 @@ export default function Operations() {
         return next;
       });
       await refresh();
-      toast({ title: "Agenda actualizada", description: `La orden #${order.id} quedó actualizada.` });
+      toast({ title: "Orden actualizada", description: `La orden #${order.id} quedó actualizada.` });
     } catch (error) {
       toast({ title: "No se pudo actualizar la agenda", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    }
+  };
+  const completeWorkOrder = async (order: FieldWorkOrder) => {
+    const edit = orderEditFor(order);
+    const body: Record<string, unknown> = {
+      status: "completed",
+      signalDbm: optionalNumber(edit.signalDbm),
+      ccq: optionalNumber(edit.ccq),
+      installedEquipment: edit.installedEquipment.trim() || null,
+      installedSerialNumber: edit.installedSerialNumber.trim() || null,
+    };
+    if (edit.assignedToUserId !== (order.assignedToUserId?.toString() ?? "")) {
+      body.assignedToUserId = edit.assignedToUserId ? Number(edit.assignedToUserId) : null;
+    }
+    if (edit.scheduledAt !== dateTimeInputValue(order.scheduledAt)) body.scheduledAt = dateTimeToIso(edit.scheduledAt);
+    if (edit.scheduledEndAt !== dateTimeInputValue(order.scheduledEndAt)) body.scheduledEndAt = dateTimeToIso(edit.scheduledEndAt);
+    try {
+      await api<FieldWorkOrder>(`/work-orders/${order.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      setOrderEdits(current => {
+        const next = { ...current };
+        delete next[order.id];
+        return next;
+      });
+      await refresh();
+      toast({ title: "Visita completada", description: `La orden #${order.id} quedó registrada en el historial.` });
+    } catch (error) {
+      toast({ title: "No se pudo completar la visita", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
     }
   };
   const removeAvailability = async (block: TechnicianAvailability) => {
@@ -242,6 +277,33 @@ export default function Operations() {
   };
 
   const openIncidents = useMemo(() => incidents.filter(item => item.status === "open"), [incidents]);
+  const activeWorkOrders = useMemo(
+    () => workOrders.filter(order => !terminalWorkOrderStatuses.has(order.status.toLowerCase())),
+    [workOrders],
+  );
+  const visitHistory = useMemo(() => {
+    const query = historyQuery.trim().toLowerCase();
+    return workOrders
+      .filter(order => terminalWorkOrderStatuses.has(order.status.toLowerCase()))
+      .filter(order => {
+        if (!query) return true;
+        const assignedPerson = technicians.find(person => person.id === order.assignedToUserId)?.username ?? "";
+        const clientName = clients.find(client => client.id === order.clientId)?.name ?? "";
+        const searchable = [
+          order.clientId === null ? "" : `cliente ${order.clientId}`,
+          clientName,
+          order.type,
+          order.status,
+          order.address ?? "",
+          order.notes ?? "",
+          order.installedEquipment ?? "",
+          order.installedSerialNumber ?? "",
+          assignedPerson,
+        ].join(" ").toLowerCase();
+        return searchable.includes(query);
+      })
+      .sort((a, b) => Date.parse(b.completedAt ?? b.scheduledAt ?? b.createdAt) - Date.parse(a.completedAt ?? a.scheduledAt ?? a.createdAt));
+  }, [workOrders, technicians, clients, historyQuery]);
   const invalidWorkSchedule = Boolean(workForm.scheduledAt) !== Boolean(workForm.scheduledEndAt)
     || Boolean(workForm.scheduledAt && workForm.scheduledEndAt && new Date(workForm.scheduledEndAt) <= new Date(workForm.scheduledAt));
   const invalidWorkMetrics = !isOptionalNumberInRange(workForm.signalDbm, -120, 0)
@@ -299,6 +361,16 @@ export default function Operations() {
                   </Select>
                 </div>
                 <div>
+                  <Label>Cliente (opcional)</Label>
+                  <Select value={workForm.clientId || "none"} onValueChange={clientId => setWorkForm({ ...workForm, clientId: clientId === "none" ? "" : clientId })}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin cliente</SelectItem>
+                      {clients.map(client => <SelectItem key={client.id} value={String(client.id)}>{client.name} · #{client.id}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label>Responsable</Label>
                   <Select value={workForm.assignedToUserId || "unassigned"} onValueChange={value => setWorkForm({ ...workForm, assignedToUserId: value === "unassigned" ? "" : value })}>
                     <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
@@ -326,6 +398,7 @@ export default function Operations() {
                   className="w-full"
                   disabled={invalidWorkSchedule || invalidWorkMetrics}
                   onClick={() => void create("/work-orders", {
+                    clientId: workForm.clientId ? Number(workForm.clientId) : null,
                     type: workForm.type,
                     address: workForm.address.trim() || null,
                     assignedToUserId: workForm.assignedToUserId ? Number(workForm.assignedToUserId) : null,
@@ -336,7 +409,7 @@ export default function Operations() {
                     installedEquipment: workForm.installedEquipment.trim() || null,
                     installedSerialNumber: workForm.installedSerialNumber.trim() || null,
                     notes: workForm.notes.trim() || null,
-                  }, () => setWorkForm({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", signalDbm: "", ccq: "", installedEquipment: "", installedSerialNumber: "", notes: "" }))}
+                  }, () => setWorkForm({ clientId: "", type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", signalDbm: "", ccq: "", installedEquipment: "", installedSerialNumber: "", notes: "" }))}
                 >
                   <Plus className="mr-2 h-4 w-4" />Crear orden
                 </Button>
@@ -381,11 +454,12 @@ export default function Operations() {
 
           <div className="grid gap-6 xl:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle className="text-base">Agenda de campo <Badge variant="outline" className="ml-2">{workOrders.length}</Badge></CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">Agenda de campo <Badge variant="outline" className="ml-2">{activeWorkOrders.length}</Badge></CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {workOrders.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No hay órdenes.</p> : workOrders.map(order => {
+                {activeWorkOrders.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No hay órdenes activas.</p> : activeWorkOrders.map(order => {
                   const edit = orderEditFor(order);
                   const assignedPerson = technicians.find(person => person.id === order.assignedToUserId);
+                  const client = clients.find(item => item.id === order.clientId);
                   const invalidEditSchedule = Boolean(edit.scheduledAt) !== Boolean(edit.scheduledEndAt)
                     || Boolean(edit.scheduledAt && edit.scheduledEndAt && new Date(edit.scheduledEndAt) <= new Date(edit.scheduledAt));
                   const invalidEditMetrics = !isOptionalNumberInRange(edit.signalDbm, -120, 0)
@@ -393,7 +467,11 @@ export default function Operations() {
                   return (
                     <div key={order.id} className="space-y-3 rounded-lg border border-border/50 p-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div><p className="font-medium">#{order.id} · {order.type.replaceAll("_", " ")}</p><p className="mt-1 text-sm text-muted-foreground">{order.address ?? "Sin dirección"}</p></div>
+                        <div>
+                          <p className="font-medium">#{order.id} · {order.type.replaceAll("_", " ")}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{order.address ?? "Sin dirección"}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{client ? `${client.name} · Cliente #${client.id}` : order.clientId ? `Cliente #${order.clientId}` : "Sin cliente"}</p>
+                        </div>
                         <StatusBadge status={order.status} />
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -423,7 +501,10 @@ export default function Operations() {
                       </div>
                       {invalidEditSchedule && <p className="text-xs text-amber-400">El horario requiere inicio y fin válidos.</p>}
                       {invalidEditMetrics && <p className="text-xs text-amber-400">Señal: -120 a 0 dBm; CCQ: 0 a 100 %.</p>}
-                      <Button size="sm" variant="outline" disabled={invalidEditSchedule || invalidEditMetrics} onClick={() => void saveOrderEdit(order)}>Guardar cambios</Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" disabled={invalidEditSchedule || invalidEditMetrics} onClick={() => void saveOrderEdit(order)}>Guardar cambios</Button>
+                        <Button size="sm" disabled={invalidEditSchedule || invalidEditMetrics} onClick={() => void completeWorkOrder(order)}>Completar visita</Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -451,6 +532,41 @@ export default function Operations() {
               </CardContent>
             </Card>
           </div>
+          <Card className="mt-6">
+            <CardHeader><CardTitle className="text-base">Historial de visitas <Badge variant="outline" className="ml-2">{visitHistory.length}</Badge></CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                aria-label="Buscar en el historial de visitas"
+                value={historyQuery}
+                onChange={event => setHistoryQuery(event.target.value)}
+                placeholder="Buscar por cliente, dirección, equipo, serie o técnico"
+              />
+              {visitHistory.length === 0
+                ? <p className="py-8 text-center text-sm text-muted-foreground">{historyQuery ? "No hay visitas que coincidan con la búsqueda." : "Las órdenes finalizadas aparecerán aquí."}</p>
+                : <div className="max-h-[36rem] space-y-2 overflow-y-auto pr-1">
+                  {visitHistory.map(order => {
+                    const client = clients.find(item => item.id === order.clientId);
+                    const assignedPerson = technicians.find(person => person.id === order.assignedToUserId);
+                    const visitDate = order.completedAt ?? order.scheduledAt ?? order.createdAt;
+                    return (
+                      <div key={order.id} className="space-y-2 rounded-lg border border-border/50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">#{order.id} · {order.type.replaceAll("_", " ")}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{client ? `${client.name} · Cliente #${client.id}` : order.clientId ? `Cliente #${order.clientId}` : "Sin cliente"} · {assignedPerson?.username ?? "Sin asignar"}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{supportDate(visitDate)} · {order.address ?? "Sin dirección"}</p>
+                          </div>
+                          <StatusBadge status={order.status} />
+                        </div>
+                        {order.notes && <p className="text-sm text-muted-foreground">{order.notes}</p>}
+                        {(order.signalDbm !== null || order.ccq !== null) && <p className="text-xs text-muted-foreground">Señal: {order.signalDbm === null ? "—" : `${order.signalDbm} dBm`} · CCQ: {order.ccq === null ? "—" : `${order.ccq}%`}</p>}
+                        {(order.installedEquipment || order.installedSerialNumber) && <p className="text-xs text-muted-foreground">Equipo: {order.installedEquipment ?? "—"} · Serie: {order.installedSerialNumber ?? "—"}</p>}
+                      </div>
+                    );
+                  })}
+                </div>}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="inventory" className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
