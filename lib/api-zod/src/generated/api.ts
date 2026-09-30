@@ -1371,6 +1371,8 @@ export const ListFieldWorkOrdersResponseItem = zod.object({
   "clientId": zod.int().nullable(),
   "siteId": zod.int().nullable(),
   "assignedToUserId": zod.int().nullable(),
+  "clientName": zod.string().nullish(),
+  "clientInstallationAddress": zod.string().nullish(),
   "type": zod.string(),
   "status": zod.string(),
   "scheduledAt": zod.coerce.date().nullable(),
@@ -1451,6 +1453,8 @@ export const CreateFieldWorkOrderResponse = zod.object({
   "clientId": zod.int().nullable(),
   "siteId": zod.int().nullable(),
   "assignedToUserId": zod.int().nullable(),
+  "clientName": zod.string().nullish(),
+  "clientInstallationAddress": zod.string().nullish(),
   "type": zod.string(),
   "status": zod.string(),
   "scheduledAt": zod.coerce.date().nullable(),
@@ -1534,6 +1538,8 @@ export const UpdateFieldWorkOrderResponse = zod.object({
   "clientId": zod.int().nullable(),
   "siteId": zod.int().nullable(),
   "assignedToUserId": zod.int().nullable(),
+  "clientName": zod.string().nullish(),
+  "clientInstallationAddress": zod.string().nullish(),
   "type": zod.string(),
   "status": zod.string(),
   "scheduledAt": zod.coerce.date().nullable(),
@@ -1548,6 +1554,120 @@ export const UpdateFieldWorkOrderResponse = zod.object({
   "ccq": zod.number().min(updateFieldWorkOrderResponseCcqMin).max(updateFieldWorkOrderResponseCcqMax).nullable(),
   "installedEquipment": zod.string().max(updateFieldWorkOrderResponseInstalledEquipmentMax).nullable(),
   "installedSerialNumber": zod.string().max(updateFieldWorkOrderResponseInstalledSerialNumberMax).nullable(),
+  "signatureData": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Listar únicamente las órdenes asignadas al usuario autenticado
+ */
+export const listMyFieldWorkOrdersResponseSignalDbmMin = -120;
+export const listMyFieldWorkOrdersResponseSignalDbmMax = 0;
+
+export const listMyFieldWorkOrdersResponseCcqMin = 0;
+export const listMyFieldWorkOrdersResponseCcqMax = 100;
+
+export const listMyFieldWorkOrdersResponseInstalledEquipmentMax = 200;
+
+export const listMyFieldWorkOrdersResponseInstalledSerialNumberMax = 128;
+
+
+
+export const ListMyFieldWorkOrdersResponseItem = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullable(),
+  "siteId": zod.int().nullable(),
+  "assignedToUserId": zod.int().nullable(),
+  "clientName": zod.string().nullish(),
+  "clientInstallationAddress": zod.string().nullish(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "scheduledAt": zod.coerce.date().nullable(),
+  "scheduledEndAt": zod.coerce.date().nullable(),
+  "address": zod.string().nullable(),
+  "latitude": zod.string().nullable(),
+  "longitude": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "materials": zod.array(zod.record(zod.string(), zod.unknown())),
+  "measuredPower": zod.string().nullable(),
+  "signalDbm": zod.number().min(listMyFieldWorkOrdersResponseSignalDbmMin).max(listMyFieldWorkOrdersResponseSignalDbmMax).nullable(),
+  "ccq": zod.number().min(listMyFieldWorkOrdersResponseCcqMin).max(listMyFieldWorkOrdersResponseCcqMax).nullable(),
+  "installedEquipment": zod.string().max(listMyFieldWorkOrdersResponseInstalledEquipmentMax).nullable(),
+  "installedSerialNumber": zod.string().max(listMyFieldWorkOrdersResponseInstalledSerialNumberMax).nullable(),
+  "signatureData": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListMyFieldWorkOrdersResponse = zod.array(ListMyFieldWorkOrdersResponseItem)
+
+
+/**
+ * @summary Iniciar o completar una orden asignada al usuario autenticado
+ */
+export const UpdateMyFieldWorkOrderParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateMyFieldWorkOrderBodyAddressMax = 500;
+
+export const updateMyFieldWorkOrderBodySignalDbmMin = -120;
+export const updateMyFieldWorkOrderBodySignalDbmMax = 0;
+
+export const updateMyFieldWorkOrderBodyCcqMin = 0;
+export const updateMyFieldWorkOrderBodyCcqMax = 100;
+
+export const updateMyFieldWorkOrderBodyInstalledEquipmentMax = 200;
+
+export const updateMyFieldWorkOrderBodyInstalledSerialNumberMax = 128;
+
+
+
+export const UpdateMyFieldWorkOrderBody = zod.object({
+  "status": zod.enum(['in_progress', 'completed']),
+  "address": zod.string().max(updateMyFieldWorkOrderBodyAddressMax).nullish(),
+  "signalDbm": zod.number().min(updateMyFieldWorkOrderBodySignalDbmMin).max(updateMyFieldWorkOrderBodySignalDbmMax).nullish(),
+  "ccq": zod.number().min(updateMyFieldWorkOrderBodyCcqMin).max(updateMyFieldWorkOrderBodyCcqMax).nullish(),
+  "installedEquipment": zod.string().max(updateMyFieldWorkOrderBodyInstalledEquipmentMax).nullish(),
+  "installedSerialNumber": zod.string().max(updateMyFieldWorkOrderBodyInstalledSerialNumberMax).nullish()
+})
+
+export const updateMyFieldWorkOrderResponseSignalDbmMin = -120;
+export const updateMyFieldWorkOrderResponseSignalDbmMax = 0;
+
+export const updateMyFieldWorkOrderResponseCcqMin = 0;
+export const updateMyFieldWorkOrderResponseCcqMax = 100;
+
+export const updateMyFieldWorkOrderResponseInstalledEquipmentMax = 200;
+
+export const updateMyFieldWorkOrderResponseInstalledSerialNumberMax = 128;
+
+
+
+export const UpdateMyFieldWorkOrderResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullable(),
+  "siteId": zod.int().nullable(),
+  "assignedToUserId": zod.int().nullable(),
+  "clientName": zod.string().nullish(),
+  "clientInstallationAddress": zod.string().nullish(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "scheduledAt": zod.coerce.date().nullable(),
+  "scheduledEndAt": zod.coerce.date().nullable(),
+  "address": zod.string().nullable(),
+  "latitude": zod.string().nullable(),
+  "longitude": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "materials": zod.array(zod.record(zod.string(), zod.unknown())),
+  "measuredPower": zod.string().nullable(),
+  "signalDbm": zod.number().min(updateMyFieldWorkOrderResponseSignalDbmMin).max(updateMyFieldWorkOrderResponseSignalDbmMax).nullable(),
+  "ccq": zod.number().min(updateMyFieldWorkOrderResponseCcqMin).max(updateMyFieldWorkOrderResponseCcqMax).nullable(),
+  "installedEquipment": zod.string().max(updateMyFieldWorkOrderResponseInstalledEquipmentMax).nullable(),
+  "installedSerialNumber": zod.string().max(updateMyFieldWorkOrderResponseInstalledSerialNumberMax).nullable(),
   "signatureData": zod.string().nullable(),
   "completedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),

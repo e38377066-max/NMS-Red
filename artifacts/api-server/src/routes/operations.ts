@@ -47,6 +47,7 @@ import {
   UpdateFieldWorkOrderParams,
   UpdateFieldWorkOrderBody,
   UpdateFieldWorkOrderResponse,
+  UpdateMyFieldWorkOrderBody,
   UpdateTicketSlaPolicyBody,
   UpdateTicketSlaPolicyResponse,
   UploadSupportTicketAttachmentBody,
@@ -858,6 +859,168 @@ async function workOrderScheduleConflict(
   );
   return conflicts ? { status: 409, message: "El técnico ya tiene una orden en ese horario" } : null;
 }
+
+router.get("/work-orders/mine", async (_req, res): Promise<void> => {
+  const userId = res.locals.user?.id;
+  if (!userId) { res.status(401).json({ error: "Sesión requerida" }); return; }
+
+  const rows = await db.select({
+    order: fieldWorkOrdersTable,
+    clientName: clientsTable.name,
+    clientInstallationAddress: clientsTable.installationAddress,
+  }).from(fieldWorkOrdersTable)
+    .leftJoin(clientsTable, eq(clientsTable.id, fieldWorkOrdersTable.clientId))
+    .where(eq(fieldWorkOrdersTable.assignedToUserId, userId))
+    .orderBy(asc(fieldWorkOrdersTable.scheduledAt), asc(fieldWorkOrdersTable.createdAt));
+
+  const response = rows.map(({ order, clientName, clientInstallationAddress }) => ({
+    ...serializeDates(order),
+    clientName,
+    clientInstallationAddress,
+  }));
+  res.json(ListFieldWorkOrdersResponse.parse(response));
+});
+
+router.patch("/work-orders/mine/:id", async (req, res): Promise<void> => {
+  const id = asId(req.params.id);
+  if (!id) { res.status(400).json({ error: "Identificador de orden inválido" }); return; }
+  const userId = res.locals.user?.id;
+  if (!userId) { res.status(401).json({ error: "Sesión requerida" }); return; }
+
+  const input = UpdateMyFieldWorkOrderBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: input.error.message }); return; }
+
+  const hasVisitReport = input.data.address !== undefined
+    || input.data.signalDbm !== undefined
+    || input.data.ccq !== undefined
+    || input.data.installedEquipment !== undefined
+    || input.data.installedSerialNumber !== undefined;
+  if (input.data.status === "in_progress" && hasVisitReport) {
+    res.status(400).json({ error: "Las mediciones y el equipo se registran al completar la visita" });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx.select({
+      id: fieldWorkOrdersTable.id,
+      clientId: fieldWorkOrdersTable.clientId,
+      assignedToUserId: fieldWorkOrdersTable.assignedToUserId,
+      type: fieldWorkOrdersTable.type,
+      status: fieldWorkOrdersTable.status,
+      address: fieldWorkOrdersTable.address,
+    }).from(fieldWorkOrdersTable)
+      .where(eq(fieldWorkOrdersTable.id, id))
+      .for("update");
+
+    // Hide both missing and unassigned orders so the mobile endpoint cannot be
+    // used to probe another technician's work.
+    if (!current || current.assignedToUserId !== userId) {
+      return { kind: "not_found" as const };
+    }
+
+    const currentStatus = current.status.toLowerCase();
+    if (["completed", "closed", "cancelled", "canceled"].includes(currentStatus)) {
+      return { kind: "conflict" as const, message: "La orden ya está cerrada" };
+    }
+    if (input.data.status === "completed" && currentStatus !== "in_progress") {
+      return { kind: "conflict" as const, message: "Inicia la visita antes de completarla" };
+    }
+
+    const isRelocation = current.type.toLowerCase() === "relocation";
+    if (input.data.address !== undefined && (!isRelocation || input.data.status !== "completed")) {
+      return {
+        kind: "invalid" as const,
+        message: "La dirección solo se puede actualizar al completar una reubicación",
+      };
+    }
+
+    const destination = input.data.address !== undefined
+      ? input.data.address?.trim() ?? ""
+      : current.address?.trim() ?? "";
+    if (input.data.status === "completed" && isRelocation && !destination) {
+      return { kind: "invalid" as const, message: "La reubicación requiere una dirección nueva" };
+    }
+    if (input.data.status === "completed" && isRelocation && !current.clientId) {
+      return { kind: "invalid" as const, message: "La orden de reubicación no tiene un cliente asociado" };
+    }
+
+    const update: Record<string, unknown> = {
+      status: input.data.status,
+      updatedAt: new Date(),
+    };
+    if (input.data.status === "completed") {
+      update.completedAt = new Date();
+      if (input.data.signalDbm !== undefined) update.signalDbm = input.data.signalDbm;
+      if (input.data.ccq !== undefined) update.ccq = input.data.ccq;
+      if (input.data.installedEquipment !== undefined) update.installedEquipment = input.data.installedEquipment;
+      if (input.data.installedSerialNumber !== undefined) update.installedSerialNumber = input.data.installedSerialNumber;
+      if (isRelocation) update.address = destination;
+    }
+
+    let previousAddress: string | null = null;
+    if (input.data.status === "completed" && isRelocation && current.clientId) {
+      const [client] = await tx.select({
+        installationAddress: clientsTable.installationAddress,
+      }).from(clientsTable)
+        .where(eq(clientsTable.id, current.clientId))
+        .for("update");
+      if (!client) return { kind: "client_missing" as const };
+      previousAddress = client.installationAddress;
+    }
+
+    const [order] = await tx.update(fieldWorkOrdersTable)
+      .set(update)
+      .where(eq(fieldWorkOrdersTable.id, id))
+      .returning();
+    if (!order) return { kind: "not_found" as const };
+
+    if (
+      input.data.status === "completed"
+      && isRelocation
+      && current.clientId
+      && previousAddress !== destination
+    ) {
+      await tx.update(clientsTable)
+        .set({ installationAddress: destination })
+        .where(eq(clientsTable.id, current.clientId));
+      await tx.insert(clientChangeHistoryTable).values({
+        clientId: current.clientId,
+        changedByUserId: userId,
+        changeType: "UPDATED",
+        reason: `Reubicación confirmada mediante orden de campo #${id}`,
+        previousData: { installationAddress: previousAddress },
+        newData: {
+          installationAddress: destination,
+          fieldWorkOrderId: id,
+          completedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    return { kind: "updated" as const, order };
+  });
+
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Orden no asignada al usuario autenticado" });
+    return;
+  }
+  if (result.kind === "client_missing") {
+    res.status(404).json({ error: "Cliente de reubicación no encontrado" });
+    return;
+  }
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: result.message });
+    return;
+  }
+  if (result.kind === "invalid") {
+    res.status(400).json({ error: result.message });
+    return;
+  }
+
+  await audit(res.locals.user, "FieldWorkOrder", "UPDATE", `Orden móvil #${id}: ${input.data.status}`);
+  const responseOrder = ListFieldWorkOrdersResponse.parse([serializeDates(result.order)])[0];
+  res.json(responseOrder);
+});
 
 router.get("/work-orders", async (req, res): Promise<void> => {
   const status = text(req.query.status, 32);

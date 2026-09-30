@@ -835,6 +835,10 @@ export interface FieldWorkOrder {
   siteId: number | null;
   /** @nullable */
   assignedToUserId: number | null;
+  /** @nullable */
+  clientName?: string | null;
+  /** @nullable */
+  clientInstallationAddress?: string | null;
   type: string;
   status: string;
   /** @nullable */
@@ -968,6 +972,45 @@ export interface FieldWorkOrderUpdate {
   materials?: FieldWorkOrderUpdateMaterialsItem[];
   /** @nullable */
   measuredPower?: string | null;
+  /**
+     * @minimum -120
+     * @maximum 0
+     * @nullable
+     */
+  signalDbm?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  ccq?: number | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  installedEquipment?: string | null;
+  /**
+     * @maxLength 128
+     * @nullable
+     */
+  installedSerialNumber?: string | null;
+}
+
+export type MyFieldWorkOrderUpdateStatus = typeof MyFieldWorkOrderUpdateStatus[keyof typeof MyFieldWorkOrderUpdateStatus];
+
+
+export const MyFieldWorkOrderUpdateStatus = {
+  in_progress: 'in_progress',
+  completed: 'completed',
+} as const;
+
+export interface MyFieldWorkOrderUpdate {
+  status: MyFieldWorkOrderUpdateStatus;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  address?: string | null;
   /**
      * @minimum -120
      * @maximum 0

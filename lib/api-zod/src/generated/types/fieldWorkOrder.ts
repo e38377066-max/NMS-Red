@@ -15,6 +15,10 @@ export interface FieldWorkOrder {
   siteId: number | null;
   /** @nullable */
   assignedToUserId: number | null;
+  /** @nullable */
+  clientName?: string | null;
+  /** @nullable */
+  clientInstallationAddress?: string | null;
   type: string;
   status: string;
   /** @nullable */

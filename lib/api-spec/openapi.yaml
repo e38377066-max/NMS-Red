@@ -1200,6 +1200,74 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /work-orders/mine:
+    get:
+      operationId: listMyFieldWorkOrders
+      tags: [field]
+      summary: Listar únicamente las órdenes asignadas al usuario autenticado
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Órdenes asignadas al usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FieldWorkOrder"
+        "401":
+          description: Sesión requerida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /work-orders/mine/{id}:
+    patch:
+      operationId: updateMyFieldWorkOrder
+      tags: [field]
+      summary: Iniciar o completar una orden asignada al usuario autenticado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MyFieldWorkOrderUpdate"
+      responses:
+        "200":
+          description: Orden actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldWorkOrder"
+        "400":
+          description: Datos de visita inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Orden no asignada al usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: La orden ya está cerrada o cambió durante la actualización
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /users/technicians:
     get:
       operationId: listTechnicians
@@ -3277,6 +3345,10 @@ components:
           type: ["integer", "null"]
         assignedToUserId:
           type: ["integer", "null"]
+        clientName:
+          type: ["string", "null"]
+        clientInstallationAddress:
+          type: ["string", "null"]
         type:
           type: string
         status:
@@ -3417,6 +3489,31 @@ components:
             additionalProperties: true
         measuredPower:
           type: ["string", "null"]
+        signalDbm:
+          type: ["number", "null"]
+          minimum: -120
+          maximum: 0
+        ccq:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+        installedEquipment:
+          type: ["string", "null"]
+          maxLength: 200
+        installedSerialNumber:
+          type: ["string", "null"]
+          maxLength: 128
+
+    MyFieldWorkOrderUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [in_progress, completed]
+        address:
+          type: ["string", "null"]
+          maxLength: 500
         signalDbm:
           type: ["number", "null"]
           minimum: -120

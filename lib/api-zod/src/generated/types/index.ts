@@ -89,6 +89,8 @@ export * from './listSupportTicketsSla';
 export * from './loginInput';
 export * from './loginResult';
 export * from './metricPoint';
+export * from './myFieldWorkOrderUpdate';
+export * from './myFieldWorkOrderUpdateStatus';
 export * from './networkSummary';
 export * from './networkTopology';
 export * from './node';
