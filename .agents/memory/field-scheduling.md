@@ -8,3 +8,11 @@ Use explicit start/end date-time blocks for technician availability. A scheduled
 **Why:** The product owner chose date-and-time blocks rather than recurring weekly hours. The existing user model has only admin and operator roles, so adding a new role would change account policy beyond the requested scope. Full containment and overlap checks avoid unstaffed appointments and double-booking.
 
 **How to apply:** Keep future field scheduling changes consistent with these rules. Do not add recurring availability or a new technician role without product direction.
+
+## Installation measurements and equipment capture
+
+Keep signal strength (dBm) and CCQ as separate visit measurements from the existing measured-power field. Store installed equipment name and serial number as work-order snapshots; do not change inventory quantities or statuses as a side effect.
+
+**Why:** The order model already contains a separate measured-power value, and inventory movement workflows are not implemented. Reusing that field could conflate measurements, while silently consuming stock would misrepresent inventory.
+
+**How to apply:** Future inventory integration should add an explicit movement/assignment workflow before changing stock. Keep the visit's model and serial snapshot available even if linked inventory support is added later.

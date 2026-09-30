@@ -36,4 +36,26 @@ export interface FieldWorkOrderInput {
   materials?: FieldWorkOrderInputMaterialsItem[];
   /** @nullable */
   measuredPower?: string | null;
+  /**
+     * @minimum -120
+     * @maximum 0
+     * @nullable
+     */
+  signalDbm?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  ccq?: number | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  installedEquipment?: string | null;
+  /**
+     * @maxLength 128
+     * @nullable
+     */
+  installedSerialNumber?: string | null;
 }

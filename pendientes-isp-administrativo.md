@@ -112,15 +112,11 @@ Existe una mesa de ayuda básica con tickets, categorías, prioridad, asignació
 
 ## 5. Operación de campo
 
-Existen órdenes de campo con tipo, asignación, dirección, coordenadas, materiales, potencia medida y firma. La agenda ya permite asignar personal, fijar/reprogramar inicio y fin, y registrar bloques de disponibilidad por fecha y hora. Se rechazan solapamientos y se exige que el horario de una orden asignada quede dentro de un bloque disponible. Se usan las cuentas existentes como personal asignable; no se añadió un rol de técnico independiente.
+Existen órdenes de campo con tipo, asignación, dirección, coordenadas, materiales, potencia medida y firma. La agenda permite asignar personal, fijar/reprogramar inicio y fin, y registrar bloques de disponibilidad por fecha y hora. Se rechazan solapamientos y se exige que el horario de una orden asignada quede dentro de un bloque disponible. La orden también captura señal del enlace en dBm, CCQ y equipo/serie instalado como datos de la visita; esto todavía no genera movimientos de inventario. Se usan las cuentas existentes como personal asignable; no se añadió un rol de técnico independiente.
 
 Falta:
 
 - Fotos antes y después.
-- Señal del enlace.
-- CCQ.
-- Equipo instalado.
-- Número de serie.
 - Acta de instalación.
 - Historial de visitas.
 - Reubicación del cliente.

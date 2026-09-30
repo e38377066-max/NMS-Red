@@ -56,7 +56,15 @@ type TicketRow = { id: number; clientId: number | null; clientReopenEnabled: boo
 type InventoryRow = { id: number; name: string; category: string; status: string; serialNumber: string | null; macAddress: string | null; supplier: string | null };
 type Incident = { id: number; type: string; severity: string; message: string; status: string; createdAt: string };
 type Plan = { id: number; name: string; downloadLimit: string; uploadLimit: string; monthlyFee: string; active: boolean };
-type WorkOrderEdit = { assignedToUserId: string; scheduledAt: string; scheduledEndAt: string };
+type WorkOrderEdit = {
+  assignedToUserId: string;
+  scheduledAt: string;
+  scheduledEndAt: string;
+  signalDbm: string;
+  ccq: string;
+  installedEquipment: string;
+  installedSerialNumber: string;
+};
 type AvailabilityForm = { technicianUserId: string; startsAt: string; endsAt: string; notes: string };
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -94,6 +102,12 @@ const dateTimeInputValue = (value?: string | null) => {
 };
 
 const dateTimeToIso = (value: string) => value ? new Date(value).toISOString() : null;
+const optionalNumber = (value: string) => value.trim() ? Number(value) : null;
+const isOptionalNumberInRange = (value: string, min: number, max: number) => {
+  if (!value.trim()) return true;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max;
+};
 
 const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -125,7 +139,7 @@ export default function Operations() {
   const [loading, setLoading] = useState(true);
   const [ticketForm, setTicketForm] = useState({ subject: "", description: "", priority: "normal", category: "support" });
   const [inventoryForm, setInventoryForm] = useState({ name: "", category: "router", status: "in_stock", serialNumber: "", macAddress: "" });
-  const [workForm, setWorkForm] = useState({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", notes: "" });
+  const [workForm, setWorkForm] = useState({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", signalDbm: "", ccq: "", installedEquipment: "", installedSerialNumber: "", notes: "" });
   const [availabilityForm, setAvailabilityForm] = useState<AvailabilityForm>({ technicianUserId: "", startsAt: "", endsAt: "", notes: "" });
   const [planForm, setPlanForm] = useState({ name: "", downloadLimit: "", uploadLimit: "", monthlyFee: "" });
 
@@ -161,6 +175,10 @@ export default function Operations() {
     assignedToUserId: order.assignedToUserId?.toString() ?? "",
     scheduledAt: dateTimeInputValue(order.scheduledAt),
     scheduledEndAt: dateTimeInputValue(order.scheduledEndAt),
+    signalDbm: order.signalDbm === null ? "" : String(order.signalDbm),
+    ccq: order.ccq === null ? "" : String(order.ccq),
+    installedEquipment: order.installedEquipment ?? "",
+    installedSerialNumber: order.installedSerialNumber ?? "",
   });
   const orderEditFor = (order: FieldWorkOrder) => orderEdits[order.id] ?? defaultOrderEdit(order);
   const changeOrderEdit = (order: FieldWorkOrder, changes: Partial<WorkOrderEdit>) => {
@@ -176,6 +194,10 @@ export default function Operations() {
           assignedToUserId: edit.assignedToUserId ? Number(edit.assignedToUserId) : null,
           scheduledAt: dateTimeToIso(edit.scheduledAt),
           scheduledEndAt: dateTimeToIso(edit.scheduledEndAt),
+          signalDbm: optionalNumber(edit.signalDbm),
+          ccq: optionalNumber(edit.ccq),
+          installedEquipment: edit.installedEquipment.trim() || null,
+          installedSerialNumber: edit.installedSerialNumber.trim() || null,
         }),
       });
       setOrderEdits(current => {
@@ -222,6 +244,8 @@ export default function Operations() {
   const openIncidents = useMemo(() => incidents.filter(item => item.status === "open"), [incidents]);
   const invalidWorkSchedule = Boolean(workForm.scheduledAt) !== Boolean(workForm.scheduledEndAt)
     || Boolean(workForm.scheduledAt && workForm.scheduledEndAt && new Date(workForm.scheduledEndAt) <= new Date(workForm.scheduledAt));
+  const invalidWorkMetrics = !isOptionalNumberInRange(workForm.signalDbm, -120, 0)
+    || !isOptionalNumberInRange(workForm.ccq, 0, 100);
   const invalidAvailabilityRange = !availabilityForm.technicianUserId
     || !availabilityForm.startsAt
     || !availabilityForm.endsAt
@@ -290,18 +314,29 @@ export default function Operations() {
                   <div><Label>Fin</Label><Input type="datetime-local" value={workForm.scheduledEndAt} onChange={e => setWorkForm({ ...workForm, scheduledEndAt: e.target.value })} /></div>
                 </div>
                 {invalidWorkSchedule && <p className="text-xs text-amber-400">Indica inicio y fin, y asegúrate de que el fin sea posterior.</p>}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div><Label>Señal del enlace (dBm)</Label><Input type="number" min="-120" max="0" step="0.1" value={workForm.signalDbm} onChange={e => setWorkForm({ ...workForm, signalDbm: e.target.value })} placeholder="-65" /></div>
+                  <div><Label>CCQ (%)</Label><Input type="number" min="0" max="100" step="0.1" value={workForm.ccq} onChange={e => setWorkForm({ ...workForm, ccq: e.target.value })} placeholder="95" /></div>
+                  <div><Label>Equipo instalado</Label><Input maxLength={200} value={workForm.installedEquipment} onChange={e => setWorkForm({ ...workForm, installedEquipment: e.target.value })} placeholder="Modelo o tipo de equipo" /></div>
+                  <div><Label>Número de serie</Label><Input maxLength={128} value={workForm.installedSerialNumber} onChange={e => setWorkForm({ ...workForm, installedSerialNumber: e.target.value })} /></div>
+                </div>
+                {invalidWorkMetrics && <p className="text-xs text-amber-400">La señal debe estar entre -120 y 0 dBm; CCQ entre 0 y 100 %.</p>}
                 <div><Label>Notas</Label><Textarea value={workForm.notes} onChange={e => setWorkForm({ ...workForm, notes: e.target.value })} /></div>
                 <Button
                   className="w-full"
-                  disabled={invalidWorkSchedule}
+                  disabled={invalidWorkSchedule || invalidWorkMetrics}
                   onClick={() => void create("/work-orders", {
                     type: workForm.type,
                     address: workForm.address.trim() || null,
                     assignedToUserId: workForm.assignedToUserId ? Number(workForm.assignedToUserId) : null,
                     scheduledAt: dateTimeToIso(workForm.scheduledAt),
                     scheduledEndAt: dateTimeToIso(workForm.scheduledEndAt),
+                    signalDbm: optionalNumber(workForm.signalDbm),
+                    ccq: optionalNumber(workForm.ccq),
+                    installedEquipment: workForm.installedEquipment.trim() || null,
+                    installedSerialNumber: workForm.installedSerialNumber.trim() || null,
                     notes: workForm.notes.trim() || null,
-                  }, () => setWorkForm({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", notes: "" }))}
+                  }, () => setWorkForm({ type: "installation", address: "", assignedToUserId: "", scheduledAt: "", scheduledEndAt: "", signalDbm: "", ccq: "", installedEquipment: "", installedSerialNumber: "", notes: "" }))}
                 >
                   <Plus className="mr-2 h-4 w-4" />Crear orden
                 </Button>
@@ -351,6 +386,10 @@ export default function Operations() {
                 {workOrders.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No hay órdenes.</p> : workOrders.map(order => {
                   const edit = orderEditFor(order);
                   const assignedPerson = technicians.find(person => person.id === order.assignedToUserId);
+                  const invalidEditSchedule = Boolean(edit.scheduledAt) !== Boolean(edit.scheduledEndAt)
+                    || Boolean(edit.scheduledAt && edit.scheduledEndAt && new Date(edit.scheduledEndAt) <= new Date(edit.scheduledAt));
+                  const invalidEditMetrics = !isOptionalNumberInRange(edit.signalDbm, -120, 0)
+                    || !isOptionalNumberInRange(edit.ccq, 0, 100);
                   return (
                     <div key={order.id} className="space-y-3 rounded-lg border border-border/50 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -363,6 +402,8 @@ export default function Operations() {
                           : order.scheduledAt ? `${supportDate(order.scheduledAt)} · sin fin` : "Sin horario programado"}
                         {" · "}{assignedPerson?.username ?? "Sin asignar"}
                       </p>
+                      {(order.signalDbm !== null || order.ccq !== null) && <p className="text-xs text-muted-foreground">Señal: {order.signalDbm === null ? "—" : `${order.signalDbm} dBm`} · CCQ: {order.ccq === null ? "—" : `${order.ccq}%`}</p>}
+                      {(order.installedEquipment || order.installedSerialNumber) && <p className="text-xs text-muted-foreground">Equipo: {order.installedEquipment ?? "—"} · Serie: {order.installedSerialNumber ?? "—"}</p>}
                       <div className="grid gap-2 sm:grid-cols-3">
                         <Select value={edit.assignedToUserId || "unassigned"} onValueChange={value => changeOrderEdit(order, { assignedToUserId: value === "unassigned" ? "" : value })}>
                           <SelectTrigger aria-label="Responsable"><SelectValue /></SelectTrigger>
@@ -374,7 +415,15 @@ export default function Operations() {
                         <Input aria-label="Inicio programado" type="datetime-local" value={edit.scheduledAt} onChange={e => changeOrderEdit(order, { scheduledAt: e.target.value })} />
                         <Input aria-label="Fin programado" type="datetime-local" value={edit.scheduledEndAt} onChange={e => changeOrderEdit(order, { scheduledEndAt: e.target.value })} />
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => void saveOrderEdit(order)}>Guardar agenda</Button>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <Input aria-label="Señal del enlace en dBm" type="number" min="-120" max="0" step="0.1" value={edit.signalDbm} onChange={e => changeOrderEdit(order, { signalDbm: e.target.value })} placeholder="Señal (dBm)" />
+                        <Input aria-label="CCQ en porcentaje" type="number" min="0" max="100" step="0.1" value={edit.ccq} onChange={e => changeOrderEdit(order, { ccq: e.target.value })} placeholder="CCQ (%)" />
+                        <Input aria-label="Equipo instalado" maxLength={200} value={edit.installedEquipment} onChange={e => changeOrderEdit(order, { installedEquipment: e.target.value })} placeholder="Equipo instalado" />
+                        <Input aria-label="Número de serie instalado" maxLength={128} value={edit.installedSerialNumber} onChange={e => changeOrderEdit(order, { installedSerialNumber: e.target.value })} placeholder="Número de serie" />
+                      </div>
+                      {invalidEditSchedule && <p className="text-xs text-amber-400">El horario requiere inicio y fin válidos.</p>}
+                      {invalidEditMetrics && <p className="text-xs text-amber-400">Señal: -120 a 0 dBm; CCQ: 0 a 100 %.</p>}
+                      <Button size="sm" variant="outline" disabled={invalidEditSchedule || invalidEditMetrics} onClick={() => void saveOrderEdit(order)}>Guardar cambios</Button>
                     </div>
                   );
                 })}

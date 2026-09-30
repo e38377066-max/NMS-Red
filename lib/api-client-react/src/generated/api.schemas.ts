@@ -707,6 +707,28 @@ export interface FieldWorkOrder {
   materials: FieldWorkOrderMaterialsItem[];
   /** @nullable */
   measuredPower: string | null;
+  /**
+     * @minimum -120
+     * @maximum 0
+     * @nullable
+     */
+  signalDbm: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  ccq: number | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  installedEquipment: string | null;
+  /**
+     * @maxLength 128
+     * @nullable
+     */
+  installedSerialNumber: string | null;
   /** @nullable */
   signatureData: string | null;
   /** @nullable */
@@ -746,6 +768,28 @@ export interface FieldWorkOrderInput {
   materials?: FieldWorkOrderInputMaterialsItem[];
   /** @nullable */
   measuredPower?: string | null;
+  /**
+     * @minimum -120
+     * @maximum 0
+     * @nullable
+     */
+  signalDbm?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  ccq?: number | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  installedEquipment?: string | null;
+  /**
+     * @maxLength 128
+     * @nullable
+     */
+  installedSerialNumber?: string | null;
 }
 
 export type FieldWorkOrderUpdateMaterialsItem = { [key: string]: unknown };
@@ -779,6 +823,28 @@ export interface FieldWorkOrderUpdate {
   materials?: FieldWorkOrderUpdateMaterialsItem[];
   /** @nullable */
   measuredPower?: string | null;
+  /**
+     * @minimum -120
+     * @maximum 0
+     * @nullable
+     */
+  signalDbm?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  ccq?: number | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  installedEquipment?: string | null;
+  /**
+     * @maxLength 128
+     * @nullable
+     */
+  installedSerialNumber?: string | null;
 }
 
 export interface Technician {

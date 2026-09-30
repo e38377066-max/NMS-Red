@@ -2948,7 +2948,7 @@ components:
 
     FieldWorkOrder:
       type: object
-      required: [id, clientId, siteId, assignedToUserId, type, status, scheduledAt, scheduledEndAt, address, latitude, longitude, notes, materials, measuredPower, signatureData, completedAt, createdAt, updatedAt]
+      required: [id, clientId, siteId, assignedToUserId, type, status, scheduledAt, scheduledEndAt, address, latitude, longitude, notes, materials, measuredPower, signalDbm, ccq, installedEquipment, installedSerialNumber, signatureData, completedAt, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -2983,6 +2983,20 @@ components:
             additionalProperties: true
         measuredPower:
           type: ["string", "null"]
+        signalDbm:
+          type: ["number", "null"]
+          minimum: -120
+          maximum: 0
+        ccq:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+        installedEquipment:
+          type: ["string", "null"]
+          maxLength: 200
+        installedSerialNumber:
+          type: ["string", "null"]
+          maxLength: 128
         signatureData:
           type: ["string", "null"]
         completedAt:
@@ -3032,6 +3046,20 @@ components:
             additionalProperties: true
         measuredPower:
           type: ["string", "null"]
+        signalDbm:
+          type: ["number", "null"]
+          minimum: -120
+          maximum: 0
+        ccq:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+        installedEquipment:
+          type: ["string", "null"]
+          maxLength: 200
+        installedSerialNumber:
+          type: ["string", "null"]
+          maxLength: 128
 
     FieldWorkOrderUpdate:
       type: object
@@ -3070,6 +3098,20 @@ components:
             additionalProperties: true
         measuredPower:
           type: ["string", "null"]
+        signalDbm:
+          type: ["number", "null"]
+          minimum: -120
+          maximum: 0
+        ccq:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+        installedEquipment:
+          type: ["string", "null"]
+          maxLength: 200
+        installedSerialNumber:
+          type: ["string", "null"]
+          maxLength: 128
 
     Technician:
       type: object

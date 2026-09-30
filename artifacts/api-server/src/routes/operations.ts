@@ -904,6 +904,10 @@ router.post("/work-orders", async (req, res): Promise<void> => {
     notes: input.data.notes ?? null,
     materials: input.data.materials ?? [],
     measuredPower: input.data.measuredPower ?? null,
+    signalDbm: input.data.signalDbm ?? null,
+    ccq: input.data.ccq ?? null,
+    installedEquipment: input.data.installedEquipment ?? null,
+    installedSerialNumber: input.data.installedSerialNumber ?? null,
   }).returning();
   await audit(res.locals.user, "FieldWorkOrder", "CREATE", `Orden de campo #${order.id}`);
   res.status(201).json(CreateFieldWorkOrderResponse.parse(serializeDates(order)));
@@ -967,6 +971,10 @@ router.patch("/work-orders/:id", async (req, res): Promise<void> => {
   if (input.data.latitude !== undefined) update.latitude = input.data.latitude;
   if (input.data.longitude !== undefined) update.longitude = input.data.longitude;
   if (input.data.measuredPower !== undefined) update.measuredPower = input.data.measuredPower;
+  if (input.data.signalDbm !== undefined) update.signalDbm = input.data.signalDbm;
+  if (input.data.ccq !== undefined) update.ccq = input.data.ccq;
+  if (input.data.installedEquipment !== undefined) update.installedEquipment = input.data.installedEquipment;
+  if (input.data.installedSerialNumber !== undefined) update.installedSerialNumber = input.data.installedSerialNumber;
   if (input.data.materials !== undefined) update.materials = input.data.materials;
   if (input.data.status === "completed") update.completedAt = new Date();
   const [order] = await db.update(fieldWorkOrdersTable).set(update)

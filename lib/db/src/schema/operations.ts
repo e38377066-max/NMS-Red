@@ -6,6 +6,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  real,
   serial,
   text,
   timestamp,
@@ -273,11 +274,18 @@ export const fieldWorkOrdersTable = pgTable("field_work_orders", {
   notes: text("notes"),
   materials: jsonb("materials").$type<Array<Record<string, unknown>>>().notNull().default([]),
   measuredPower: numeric("measured_power", { precision: 8, scale: 2 }),
+  signalDbm: real("signal_dbm"),
+  ccq: real("ccq"),
+  installedEquipment: text("installed_equipment"),
+  installedSerialNumber: text("installed_serial_number"),
   signatureData: text("signature_data"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  signalDbmRange: check("field_work_orders_signal_dbm_range", sql`${table.signalDbm} IS NULL OR (${table.signalDbm} >= -120 AND ${table.signalDbm} <= 0)`),
+  ccqRange: check("field_work_orders_ccq_range", sql`${table.ccq} IS NULL OR (${table.ccq} >= 0 AND ${table.ccq} <= 100)`),
+}));
 
 export const portalAccessTable = pgTable("portal_access", {
   id: serial("id").primaryKey(),
