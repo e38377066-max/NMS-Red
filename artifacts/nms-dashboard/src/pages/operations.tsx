@@ -13,7 +13,9 @@ import { getAuthToken } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
   downloadSupportTicketAttachment,
+  getGetClientQueryKey,
   getGetSupportTicketQueryKey,
+  getListClientsQueryKey,
   getListSupportTicketAttachmentsQueryKey,
   getListSupportTicketHistoryQueryKey,
   getListSupportTicketsQueryKey,
@@ -129,6 +131,7 @@ function SlaPill({ value, dueAt }: { value: string; dueAt?: string | null }) {
 
 export default function Operations() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [clients, setClients] = useState<Client[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
@@ -217,6 +220,18 @@ export default function Operations() {
     }
   };
   const completeWorkOrder = async (order: FieldWorkOrder) => {
+    const isRelocation = order.type.toLowerCase() === "relocation";
+    if (isRelocation) {
+      const client = clients.find(item => item.id === order.clientId);
+      const confirmed = window.confirm(
+        `Completar esta reubicación actualizará la dirección administrativa del cliente.\n\n`
+        + `Cliente: ${client?.name ?? `#${order.clientId ?? "sin asignar"}`}\n`
+        + `Dirección actual: ${client?.installationAddress?.trim() || "Sin registrar"}\n`
+        + `Nueva dirección: ${order.address?.trim() || "Sin registrar"}\n\n`
+        + "No cambiará el AP/SXT, la IP, la MAC ni la configuración de red.",
+      );
+      if (!confirmed) return;
+    }
     const edit = orderEditFor(order);
     const body: Record<string, unknown> = {
       status: "completed",
@@ -235,15 +250,26 @@ export default function Operations() {
         method: "PATCH",
         body: JSON.stringify(body),
       });
+      if (isRelocation && order.clientId !== null) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(order.clientId) }),
+        ]);
+      }
       setOrderEdits(current => {
         const next = { ...current };
         delete next[order.id];
         return next;
       });
       await refresh();
-      toast({ title: "Visita completada", description: `La orden #${order.id} quedó registrada en el historial.` });
+      toast({
+        title: isRelocation ? "Reubicación completada" : "Visita completada",
+        description: isRelocation
+          ? `La dirección del cliente se actualizó con la orden #${order.id}; la configuración de red no cambió.`
+          : `La orden #${order.id} quedó registrada en el historial.`,
+      });
     } catch (error) {
-      toast({ title: "No se pudo completar la visita", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+      toast({ title: isRelocation ? "No se pudo completar la reubicación" : "No se pudo completar la visita", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
     }
   };
   const removeAvailability = async (block: TechnicianAvailability) => {
@@ -308,6 +334,9 @@ export default function Operations() {
     || Boolean(workForm.scheduledAt && workForm.scheduledEndAt && new Date(workForm.scheduledEndAt) <= new Date(workForm.scheduledAt));
   const invalidWorkMetrics = !isOptionalNumberInRange(workForm.signalDbm, -120, 0)
     || !isOptionalNumberInRange(workForm.ccq, 0, 100);
+  const isRelocationForm = workForm.type.toLowerCase() === "relocation";
+  const selectedWorkClient = clients.find(client => String(client.id) === workForm.clientId);
+  const invalidWorkRelocation = isRelocationForm && (!workForm.clientId || !workForm.address.trim());
   const invalidAvailabilityRange = !availabilityForm.technicianUserId
     || !availabilityForm.startsAt
     || !availabilityForm.endsAt
@@ -361,11 +390,11 @@ export default function Operations() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Cliente (opcional)</Label>
+                  <Label>Cliente {isRelocationForm ? "(obligatorio)" : "(opcional)"}</Label>
                   <Select value={workForm.clientId || "none"} onValueChange={clientId => setWorkForm({ ...workForm, clientId: clientId === "none" ? "" : clientId })}>
                     <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Sin cliente</SelectItem>
+                      <SelectItem value="none" disabled={isRelocationForm}>{isRelocationForm ? "Seleccionar cliente" : "Sin cliente"}</SelectItem>
                       {clients.map(client => <SelectItem key={client.id} value={String(client.id)}>{client.name} · #{client.id}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -380,7 +409,21 @@ export default function Operations() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Dirección</Label><Input value={workForm.address} onChange={e => setWorkForm({ ...workForm, address: e.target.value })} /></div>
+                <div>
+                  <Label>{isRelocationForm ? "Nueva dirección de instalación" : "Dirección"}</Label>
+                  <Input
+                    value={workForm.address}
+                    onChange={e => setWorkForm({ ...workForm, address: e.target.value })}
+                    placeholder={isRelocationForm ? "Dirección de destino" : undefined}
+                  />
+                  {isRelocationForm && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {selectedWorkClient
+                        ? `Dirección actual: ${selectedWorkClient.installationAddress?.trim() || "Sin registrar"}. Se actualizará al completar esta orden; la configuración de red no cambiará.`
+                        : "Selecciona el cliente y registra la dirección nueva. La dirección se actualizará al completar la orden."}
+                    </p>
+                  )}
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div><Label>Inicio</Label><Input type="datetime-local" value={workForm.scheduledAt} onChange={e => setWorkForm({ ...workForm, scheduledAt: e.target.value })} /></div>
                   <div><Label>Fin</Label><Input type="datetime-local" value={workForm.scheduledEndAt} onChange={e => setWorkForm({ ...workForm, scheduledEndAt: e.target.value })} /></div>
@@ -393,10 +436,11 @@ export default function Operations() {
                   <div><Label>Número de serie</Label><Input maxLength={128} value={workForm.installedSerialNumber} onChange={e => setWorkForm({ ...workForm, installedSerialNumber: e.target.value })} /></div>
                 </div>
                 {invalidWorkMetrics && <p className="text-xs text-amber-400">La señal debe estar entre -120 y 0 dBm; CCQ entre 0 y 100 %.</p>}
+                {invalidWorkRelocation && <p className="text-xs text-amber-400">Para crear una reubicación, selecciona un cliente y registra la nueva dirección.</p>}
                 <div><Label>Notas</Label><Textarea value={workForm.notes} onChange={e => setWorkForm({ ...workForm, notes: e.target.value })} /></div>
                 <Button
                   className="w-full"
-                  disabled={invalidWorkSchedule || invalidWorkMetrics}
+                  disabled={invalidWorkSchedule || invalidWorkMetrics || invalidWorkRelocation}
                   onClick={() => void create("/work-orders", {
                     clientId: workForm.clientId ? Number(workForm.clientId) : null,
                     type: workForm.type,
@@ -469,8 +513,13 @@ export default function Operations() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-medium">#{order.id} · {order.type.replaceAll("_", " ")}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{order.address ?? "Sin dirección"}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {order.type.toLowerCase() === "relocation" ? `Nueva dirección: ${order.address ?? "Sin registrar"}` : order.address ?? "Sin dirección"}
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">{client ? `${client.name} · Cliente #${client.id}` : order.clientId ? `Cliente #${order.clientId}` : "Sin cliente"}</p>
+                          {order.type.toLowerCase() === "relocation" && (
+                            <p className="mt-1 text-xs text-muted-foreground">Dirección actual: {client?.installationAddress?.trim() || "Sin registrar"}</p>
+                          )}
                         </div>
                         <StatusBadge status={order.status} />
                       </div>
@@ -503,7 +552,9 @@ export default function Operations() {
                       {invalidEditMetrics && <p className="text-xs text-amber-400">Señal: -120 a 0 dBm; CCQ: 0 a 100 %.</p>}
                       <div className="flex flex-wrap gap-2">
                         <Button size="sm" variant="outline" disabled={invalidEditSchedule || invalidEditMetrics} onClick={() => void saveOrderEdit(order)}>Guardar cambios</Button>
-                        <Button size="sm" disabled={invalidEditSchedule || invalidEditMetrics} onClick={() => void completeWorkOrder(order)}>Completar visita</Button>
+                        <Button size="sm" disabled={invalidEditSchedule || invalidEditMetrics} onClick={() => void completeWorkOrder(order)}>
+                          {order.type.toLowerCase() === "relocation" ? "Completar reubicación" : "Completar visita"}
+                        </Button>
                       </div>
                     </div>
                   );

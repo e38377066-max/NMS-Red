@@ -870,6 +870,20 @@ router.get("/work-orders", async (req, res): Promise<void> => {
 router.post("/work-orders", async (req, res): Promise<void> => {
   const input = CreateFieldWorkOrderBody.safeParse(req.body);
   if (!input.success) { res.status(400).json({ error: input.error.message }); return; }
+  const isRelocation = (input.data.type ?? "installation").toLowerCase() === "relocation";
+  if (isRelocation) {
+    if (input.data.clientId == null || !input.data.address?.trim()) {
+      res.status(400).json({ error: "La reubicación requiere un cliente y una dirección nueva" });
+      return;
+    }
+    if (["completed", "closed"].includes((input.data.status ?? "pending").toLowerCase())) {
+      res.status(400).json({ error: "Crea la orden de reubicación pendiente y complétala desde la agenda" });
+      return;
+    }
+    const [client] = await db.select({ id: clientsTable.id }).from(clientsTable)
+      .where(eq(clientsTable.id, input.data.clientId));
+    if (!client) { res.status(404).json({ error: "Cliente de reubicación no encontrado" }); return; }
+  }
   const assignedToUserId = input.data.assignedToUserId ?? null;
   const scheduledAt = input.data.scheduledAt ? new Date(input.data.scheduledAt) : null;
   const scheduledEndAt = input.data.scheduledEndAt ? new Date(input.data.scheduledEndAt) : null;
@@ -961,9 +975,36 @@ router.patch("/work-orders/:id", async (req, res): Promise<void> => {
   }
 
   const update: Record<string, unknown> = { updatedAt: new Date() };
+  const isRelocationCompletion = current.type.toLowerCase() === "relocation"
+    && ["completed", "closed"].includes(input.data.status?.toLowerCase() ?? "")
+    && !["completed", "closed", "cancelled", "canceled"].includes(current.status.toLowerCase());
+  const relocationClientId = current.clientId;
+  const relocationDestination = input.data.address !== undefined
+    ? input.data.address?.trim() ?? ""
+    : current.address?.trim() ?? "";
+  if (isRelocationCompletion) {
+    if (!relocationClientId) {
+      res.status(400).json({ error: "La orden de reubicación no tiene un cliente asociado" });
+      return;
+    }
+    if (input.data.clientId !== undefined && input.data.clientId !== relocationClientId) {
+      res.status(400).json({ error: "No se puede cambiar el cliente durante la finalización de una reubicación" });
+      return;
+    }
+    if (input.data.type !== undefined && input.data.type.toLowerCase() !== "relocation") {
+      res.status(400).json({ error: "No se puede cambiar el tipo de orden al finalizar una reubicación" });
+      return;
+    }
+    if (!relocationDestination) {
+      res.status(400).json({ error: "La reubicación requiere una dirección nueva" });
+      return;
+    }
+  }
+
   for (const key of ["status", "type", "address", "notes"] as const) {
     if (input.data[key] !== undefined) update[key] = input.data[key];
   }
+  if (isRelocationCompletion) update.address = relocationDestination;
   for (const key of ["clientId", "siteId", "assignedToUserId"] as const) {
     if (input.data[key] !== undefined) update[key] = input.data[key];
   }
@@ -980,9 +1021,65 @@ router.patch("/work-orders/:id", async (req, res): Promise<void> => {
   if (input.data.status && ["completed", "closed"].includes(input.data.status.toLowerCase()) && !current.completedAt) {
     update.completedAt = new Date();
   }
-  const [order] = await db.update(fieldWorkOrdersTable).set(update)
-    .where(eq(fieldWorkOrdersTable.id, params.data.id)).returning();
-  if (!order) { res.status(404).json({ error: "Orden no encontrada" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [lockedOrder] = await tx.select({
+      id: fieldWorkOrdersTable.id,
+      clientId: fieldWorkOrdersTable.clientId,
+      type: fieldWorkOrdersTable.type,
+      status: fieldWorkOrdersTable.status,
+    }).from(fieldWorkOrdersTable)
+      .where(eq(fieldWorkOrdersTable.id, params.data.id))
+      .for("update");
+    if (!lockedOrder) return { kind: "order_missing" as const };
+    if (isRelocationCompletion && (
+      lockedOrder.clientId !== relocationClientId
+      || lockedOrder.type.toLowerCase() !== "relocation"
+      || ["completed", "closed", "cancelled", "canceled"].includes(lockedOrder.status.toLowerCase())
+    )) {
+      return { kind: "order_changed" as const };
+    }
+
+    let previousAddress: string | null = null;
+    if (isRelocationCompletion && relocationClientId) {
+      const [client] = await tx.select({
+        installationAddress: clientsTable.installationAddress,
+      }).from(clientsTable)
+        .where(eq(clientsTable.id, relocationClientId))
+        .for("update");
+      if (!client) return { kind: "client_missing" as const };
+      previousAddress = client.installationAddress;
+    }
+
+    const [order] = await tx.update(fieldWorkOrdersTable).set(update)
+      .where(eq(fieldWorkOrdersTable.id, params.data.id)).returning();
+    if (!order) return { kind: "order_missing" as const };
+
+    if (isRelocationCompletion && relocationClientId && previousAddress !== relocationDestination) {
+      await tx.update(clientsTable)
+        .set({ installationAddress: relocationDestination })
+        .where(eq(clientsTable.id, relocationClientId));
+      await tx.insert(clientChangeHistoryTable).values({
+        clientId: relocationClientId,
+        changedByUserId: res.locals.user?.id ?? null,
+        changeType: "UPDATED",
+        reason: `Reubicación confirmada mediante orden de campo #${params.data.id}`,
+        previousData: { installationAddress: previousAddress },
+        newData: {
+          installationAddress: relocationDestination,
+          fieldWorkOrderId: params.data.id,
+          completedAt: new Date().toISOString(),
+        },
+      });
+    }
+    return { kind: "updated" as const, order };
+  });
+  if (result.kind === "order_missing") { res.status(404).json({ error: "Orden no encontrada" }); return; }
+  if (result.kind === "client_missing") { res.status(404).json({ error: "Cliente de reubicación no encontrado" }); return; }
+  if (result.kind === "order_changed") {
+    res.status(409).json({ error: "La orden cambió mientras se completaba; actualiza la agenda e inténtalo de nuevo" });
+    return;
+  }
+  const order = result.order;
   await audit(res.locals.user, "FieldWorkOrder", "UPDATE", `Orden de campo #${params.data.id} actualizada`);
   res.json(UpdateFieldWorkOrderResponse.parse(serializeDates(order)));
 });

@@ -24,3 +24,11 @@ Use finalized field work orders as visit-history entries instead of duplicating 
 **Why:** A field order already contains the client, schedule, technician, signal/CCQ, equipment, serial, and notes for one visit. A parallel log would create two records that could disagree.
 
 **How to apply:** Keep the one-order-per-visit assumption. If the product later needs multiple attempts or follow-up events under one work order, introduce an explicit visit-event model rather than silently duplicating order rows.
+
+## Client relocation
+
+A relocation order must identify an existing client and a destination address. Only explicit completion updates the client's installation address; record the old and new addresses in client change history, and do not change IP, MAC, equipment/AP assignments, or router configuration.
+
+**Why:** The administrative address should follow a confirmed physical move, while network changes require a separately reviewed workflow and must not happen implicitly.
+
+**How to apply:** Require a client and destination when creating a relocation. On completion, update the address and history atomically, confirm the change in the UI, and leave network and inventory state untouched.
