@@ -1,4 +1,6 @@
 import {
+  check,
+  index,
   boolean,
   integer,
   jsonb,
@@ -9,6 +11,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { clientsTable } from "./clients";
 import { equipmentTable } from "./equipment";
 import { usersTable } from "./users";
@@ -163,9 +166,68 @@ export const ticketsTable = pgTable("tickets", {
   resolvedAt: timestamp("resolved_at"),
   closedAt: timestamp("closed_at"),
   closedByClient: boolean("closed_by_client").notNull().default(false),
+  clientReopenEnabled: boolean("client_reopen_enabled").notNull().default(false),
+  firstResponseDueAt: timestamp("first_response_due_at"),
+  resolutionDueAt: timestamp("resolution_due_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const ticketSlaPoliciesTable = pgTable("ticket_sla_policies", {
+  priority: text("priority").primaryKey(),
+  firstResponseMinutes: integer("first_response_minutes").notNull(),
+  resolutionMinutes: integer("resolution_minutes").notNull(),
+  updatedByUserId: integer("updated_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  positiveTargets: check("ticket_sla_positive_targets", sql`${table.firstResponseMinutes} > 0 AND ${table.resolutionMinutes} > 0`),
+}));
+
+export const ticketStatusHistoryTable = pgTable("ticket_status_history", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => ticketsTable.id, { onDelete: "cascade" }),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actorType: text("actor_type").notNull(),
+  actorUserId: integer("actor_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  actorClientId: integer("actor_client_id").references(() => clientsTable.id, { onDelete: "set null" }),
+  actorName: text("actor_name"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  ticketCreatedIdx: index("ticket_status_history_ticket_created_idx").on(table.ticketId, table.createdAt),
+}));
+
+export const ticketAttachmentsTable = pgTable("ticket_attachments", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => ticketsTable.id, { onDelete: "cascade" }),
+  uploadedByUserId: integer("uploaded_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  uploadedByClientId: integer("uploaded_by_client_id").references(() => clientsTable.id, { onDelete: "set null" }),
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  sha256: text("sha256").notNull(),
+  storagePath: text("storage_path").notNull(),
+  visibleToClient: boolean("visible_to_client").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  ticketCreatedIdx: index("ticket_attachments_ticket_created_idx").on(table.ticketId, table.createdAt),
+}));
+
+export const supportNotificationsTable = pgTable("support_notifications", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").references(() => ticketsTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  clientId: integer("client_id").references(() => clientsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  oneRecipient: check("support_notifications_one_recipient", sql`(${table.userId} IS NOT NULL) <> (${table.clientId} IS NOT NULL)`),
+  userCreatedIdx: index("support_notifications_user_created_idx").on(table.userId, table.createdAt),
+  clientCreatedIdx: index("support_notifications_client_created_idx").on(table.clientId, table.createdAt),
+}));
 
 export const ticketCommentsTable = pgTable("ticket_comments", {
   id: serial("id").primaryKey(),

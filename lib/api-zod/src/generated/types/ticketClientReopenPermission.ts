@@ -5,8 +5,8 @@
  * NMS Multi-Brand Platform API (MikroTik + Ubiquiti + Proxmox)
  * OpenAPI spec version: 0.1.0
  */
-import type { ListBillingInvoicesStatus } from './listBillingInvoicesStatus';
 
-export type ListBillingInvoicesParams = {
-status?: ListBillingInvoicesStatus;
-};
+export interface TicketClientReopenPermission {
+  ticketId: number;
+  enabled: boolean;
+}

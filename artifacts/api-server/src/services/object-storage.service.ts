@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 type StorageProvider = "s3" | "filesystem";
@@ -55,7 +55,7 @@ function s3RequestUrl(key: string): URL {
 }
 
 async function s3Request(
-  method: "GET" | "PUT",
+  method: "GET" | "PUT" | "DELETE",
   key: string,
   body?: Buffer,
   contentType = "application/octet-stream",
@@ -149,4 +149,22 @@ export async function downloadPrivateObject(objectPath: string): Promise<Respons
   const response = await s3Request("GET", objectKey(objectPath.slice(prefix.length)));
   if (!response.ok) throw new Error(`Object storage download failed (${response.status})`);
   return response;
+}
+
+export async function deletePrivateObject(objectPath: string): Promise<void> {
+  if (objectPath.startsWith("fs://")) {
+    try {
+      await unlink(filesystemPath(objectKey(objectPath.slice("fs://".length))));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    return;
+  }
+  if (!objectPath.startsWith("s3://")) throw new Error("Invalid private object path");
+  const prefix = `s3://${config("S3_BUCKET")}/`;
+  if (!objectPath.startsWith(prefix)) throw new Error("Object belongs to another storage bucket");
+  const response = await s3Request("DELETE", objectKey(objectPath.slice(prefix.length)));
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Object storage deletion failed (${response.status})`);
+  }
 }

@@ -18,6 +18,7 @@ import {
   Wifi,
   XCircle,
 } from "lucide-react";
+import { Bell, Download, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import {
+  downloadPortalTicketAttachment,
+  getListPortalNotificationsQueryKey,
+  getListPortalReopenableTicketsQueryKey,
+  getListPortalTicketAttachmentsQueryKey,
+  useListPortalNotifications,
+  useListPortalReopenableTickets,
+  useListPortalTicketAttachments,
+  useMarkPortalNotificationRead,
+  useReopenPortalTicket,
+  useUploadPortalTicketAttachment,
+  type SupportNotification,
+  type SupportTicketAttachment,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const TOKEN_KEY = "isp-cockpit-portal-token";
@@ -85,6 +101,7 @@ type TicketRow = {
   status: string;
   priority: string;
   closedByClient: boolean;
+  clientReopenEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -126,6 +143,19 @@ function statusLabel(status: string) {
     OPEN: "Pendiente",
   };
   return labels[status] ?? status;
+}
+
+function ticketStatusLabel(ticket: TicketRow) {
+  if (!["plan_change", "relocation", "reconnection"].includes(ticket.category)) {
+    return statusLabel(ticket.status);
+  }
+  const labels: Record<string, string> = {
+    open: "Pendiente de revisión",
+    in_progress: "En revisión",
+    resolved: "Atendida",
+    closed: "Cerrada",
+  };
+  return labels[ticket.status] ?? statusLabel(ticket.status);
 }
 
 async function portalApi<T>(token: string, path: string, options: RequestInit = {}): Promise<T> {
@@ -236,13 +266,15 @@ export default function ClientPortal() {
     setSession(null);
   };
 
-  const createRequest = async (path: string, body: Record<string, string>, success: string) => {
+  const createRequest = async (path: string, body: Record<string, string>, success: string): Promise<boolean> => {
     try {
-      await portalApi(token, path, { method: "POST", body: JSON.stringify(body) });
+      const ticket = await portalApi<{ id: number }>(token, path, { method: "POST", body: JSON.stringify(body) });
       await load(token);
-      toast({ title: "Solicitud enviada", description: success });
+      toast({ title: "Solicitud registrada", description: `Ticket #${ticket.id} · Pendiente de revisión. ${success}` });
+      return true;
     } catch (reason) {
       toast({ title: "No se pudo enviar", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" });
+      return false;
     }
   };
 
@@ -301,7 +333,7 @@ export default function ClientPortal() {
         </nav>
         {section === "overview" && <Overview session={session} onRequest={createRequest} />}
         {section === "payments" && <Payments session={session} onReceipt={downloadReceipt} onProof={downloadProof} onRefresh={() => load(token)} />}
-        {section === "tickets" && <Support session={session} onRequest={createRequest} />}
+        {section === "tickets" && <Support session={session} onRequest={createRequest} onRefresh={() => load(token)} />}
       </main>
     </div>
   );
@@ -311,7 +343,7 @@ function Metric({ icon: Icon, label, value, detail, tone }: { icon: typeof Gauge
   return <Card className="bg-card/60"><CardContent className="p-4"><div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground"><Icon className="h-4 w-4 text-primary" />{label}</div><p className={`mt-3 truncate text-xl font-bold ${tone === "success" ? "text-emerald-400" : tone === "warning" ? "text-yellow-400" : tone === "danger" ? "text-red-400" : ""}`}>{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></CardContent></Card>;
 }
 
-function Overview({ session, onRequest }: { session: PortalSession; onRequest: (path: string, body: Record<string, string>, success: string) => Promise<void> }) {
+function Overview({ session, onRequest }: { session: PortalSession; onRequest: (path: string, body: Record<string, string>, success: string) => Promise<boolean> }) {
   const [plan, setPlan] = useState("");
   const [planReason, setPlanReason] = useState("");
   const [requestType, setRequestType] = useState<"relocation" | "reconnection">("relocation");
@@ -322,8 +354,8 @@ function Overview({ session, onRequest }: { session: PortalSession; onRequest: (
       <div className="rounded-lg border border-border/60 bg-muted/20 p-4"><div className="flex items-center gap-2 text-sm font-medium"><MapPin className="h-4 w-4 text-primary" />Equipo de distribución</div><p className="mt-2 text-sm">{session.client.network.accessPoint?.model ?? "Todavía no hay un AP o enlace asociado."}</p><p className="mt-1 text-xs text-muted-foreground">{session.client.network.accessPoint?.ip ?? "Puedes solicitar una revisión desde soporte."}</p></div>
     </CardContent></Card>
     <div className="space-y-6">
-      <Card><CardHeader><CardTitle className="text-base">Solicitar cambio de plan</CardTitle></CardHeader><CardContent><form className="space-y-3" onSubmit={event => { event.preventDefault(); void onRequest("/plan-change", { requestedPlan: plan, reason: planReason }, "Revisaremos la disponibilidad y te responderemos en un ticket."); setPlan(""); setPlanReason(""); }}><div><Label htmlFor="requested-plan">Plan solicitado</Label><Input id="requested-plan" required value={plan} onChange={event => setPlan(event.target.value)} placeholder="Ej. 100 Mbps" className="mt-1" /></div><div><Label htmlFor="plan-reason">Comentario</Label><Textarea id="plan-reason" value={planReason} onChange={event => setPlanReason(event.target.value)} placeholder="Cuéntanos qué necesitas" className="mt-1" /></div><Button type="submit" size="sm">Solicitar cambio<Send className="ml-2 h-4 w-4" /></Button></form></CardContent></Card>
-      <Card><CardHeader><CardTitle className="text-base">Otra solicitud</CardTitle></CardHeader><CardContent><form className="space-y-3" onSubmit={event => { event.preventDefault(); void onRequest("/service-request", { type: requestType, details }, "Tu solicitud quedó registrada para el equipo de soporte."); setDetails(""); }}><div><Label>Tipo</Label><select value={requestType} onChange={event => setRequestType(event.target.value as typeof requestType)} className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"><option value="relocation">Solicitar traslado</option><option value="reconnection">Solicitar reconexión</option></select></div><div><Label htmlFor="request-details">Detalle</Label><Textarea id="request-details" required value={details} onChange={event => setDetails(event.target.value)} placeholder="Indica dirección, fecha o contexto" className="mt-1" /></div><Button type="submit" variant="outline" size="sm">Enviar solicitud<Send className="ml-2 h-4 w-4" /></Button></form></CardContent></Card>
+      <Card><CardHeader><CardTitle className="text-base">Solicitar cambio de plan</CardTitle></CardHeader><CardContent><form className="space-y-3" onSubmit={event => { event.preventDefault(); void onRequest("/plan-change", { requestedPlan: plan, reason: planReason }, "Revisaremos la disponibilidad y te responderemos en un ticket.").then(sent => { if (sent) { setPlan(""); setPlanReason(""); } }); }}><div><Label htmlFor="requested-plan">Plan solicitado</Label><Input id="requested-plan" required value={plan} onChange={event => setPlan(event.target.value)} placeholder="Ej. 100 Mbps" className="mt-1" /></div><div><Label htmlFor="plan-reason">Comentario</Label><Textarea id="plan-reason" value={planReason} onChange={event => setPlanReason(event.target.value)} placeholder="Cuéntanos qué necesitas" className="mt-1" /></div><Button type="submit" size="sm">Solicitar cambio<Send className="ml-2 h-4 w-4" /></Button></form></CardContent></Card>
+      <Card><CardHeader><CardTitle className="text-base">Otra solicitud</CardTitle></CardHeader><CardContent><form className="space-y-3" onSubmit={event => { event.preventDefault(); void onRequest("/service-request", { type: requestType, details }, "Tu solicitud quedó registrada para el equipo de soporte.").then(sent => { if (sent) setDetails(""); }); }}><div><Label>Tipo</Label><select value={requestType} onChange={event => setRequestType(event.target.value as typeof requestType)} className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"><option value="relocation">Solicitar traslado</option><option value="reconnection">Solicitar reconexión</option></select></div><div><Label htmlFor="request-details">Detalle</Label><Textarea id="request-details" required value={details} onChange={event => setDetails(event.target.value)} placeholder="Indica dirección, fecha o contexto" className="mt-1" /></div><Button type="submit" variant="outline" size="sm">Enviar solicitud<Send className="ml-2 h-4 w-4" /></Button></form></CardContent></Card>
     </div>
   </div>;
 }
@@ -404,28 +436,110 @@ function Payments({ session, onReceipt, onProof, onRefresh }: {
   </div>;
 }
 
-function Support({ session, onRequest }: { session: PortalSession; onRequest: (path: string, body: Record<string, string>, success: string) => Promise<void> }) {
+function Support({ session, onRequest, onRefresh }: { session: PortalSession; onRequest: (path: string, body: Record<string, string>, success: string) => Promise<boolean>; onRefresh: () => Promise<void> }) {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [busyTicketId, setBusyTicketId] = useState<number | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const portalToken = window.localStorage.getItem(TOKEN_KEY) ?? "";
+  const portalRequest = { headers: { "x-portal-token": portalToken } };
+  const notificationsQuery = useListPortalNotifications({ query: { queryKey: getListPortalNotificationsQueryKey(), staleTime: 10_000, refetchInterval: 30_000 }, request: portalRequest });
+  const reopenableQuery = useListPortalReopenableTickets({ query: { queryKey: getListPortalReopenableTicketsQueryKey(), staleTime: 10_000, refetchInterval: 30_000 }, request: portalRequest });
+  const attachmentsQuery = useListPortalTicketAttachments(selectedTicketId ?? 0, { query: { queryKey: getListPortalTicketAttachmentsQueryKey(selectedTicketId ?? 0), enabled: selectedTicketId !== null, refetchInterval: 30_000 }, request: portalRequest });
+  const markReadMutation = useMarkPortalNotificationRead({ request: portalRequest });
+  const uploadMutation = useUploadPortalTicketAttachment({ request: portalRequest });
+  const reopenMutation = useReopenPortalTicket({ request: portalRequest });
+  const notifications = notificationsQuery.data ?? [];
+  const reopenableTicketIds = (reopenableQuery.data ?? []).map(item => item.ticketId);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => { void onRefresh(); }, 30_000);
+    return () => window.clearInterval(interval);
+  }, [onRefresh]);
+
   const createTicket = async (event: FormEvent) => {
     event.preventDefault();
-    await onRequest("/tickets", { subject, description }, "Puedes seguir el estado desde esta misma pantalla.");
-    setSubject(""); setDescription("");
+    if (await onRequest("/tickets", { subject, description }, "Puedes seguir el estado desde esta misma pantalla.")) {
+      setSubject(""); setDescription("");
+    }
   };
   const closeTicket = async (ticketId: number) => {
+    setBusyTicketId(ticketId);
     try {
       const token = window.localStorage.getItem(TOKEN_KEY) ?? "";
       await portalApi(token, `/tickets/${ticketId}/close`, { method: "POST" });
       toast({ title: "Ticket cerrado", description: "Gracias por confirmar la atención." });
-      window.location.reload();
+      await onRefresh();
     } catch (reason) {
       toast({ title: "No se pudo cerrar", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" });
+    } finally {
+      setBusyTicketId(null);
+    }
+  };
+  const reopenTicket = async (ticketId: number) => {
+    setBusyTicketId(ticketId);
+    try {
+      reopenMutation.mutate({ id: ticketId }, {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: getListPortalReopenableTicketsQueryKey() });
+          toast({ title: "Ticket reabierto", description: `El ticket #${ticketId} volvió a soporte para continuar la atención.` });
+          await onRefresh();
+        },
+        onError: reason => toast({ title: "No se pudo reabrir", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" }),
+        onSettled: () => setBusyTicketId(null),
+      });
+    } catch (reason) {
+      toast({ title: "No se pudo reabrir", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" });
+      setBusyTicketId(null);
+    }
+  };
+  const uploadEvidence = async () => {
+    if (!selectedTicketId || !file) return;
+    if (file.size > 2 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type)) {
+      toast({ title: "Archivo no admitido", description: "Usa JPEG, PNG, WebP o PDF de hasta 2 MB.", variant: "destructive" });
+      return;
+    }
+    try {
+      const encoded = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => { const result = String(reader.result ?? ""); const comma = result.indexOf(","); comma < 0 ? reject(new Error("No se pudo leer el archivo")) : resolve(result.slice(comma + 1)); };
+        reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+        reader.readAsDataURL(file);
+      });
+      uploadMutation.mutate({ id: selectedTicketId, data: { fileName: file.name, mimeType: file.type as "image/jpeg" | "image/png" | "image/webp" | "application/pdf", dataBase64: encoded } }, {
+        onSuccess: async () => {
+          setFile(null);
+          await queryClient.invalidateQueries({ queryKey: getListPortalTicketAttachmentsQueryKey(selectedTicketId) });
+          toast({ title: "Archivo enviado", description: "El equipo de soporte ya puede revisarlo." });
+        },
+        onError: reason => toast({ title: "No se pudo enviar el archivo", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" }),
+      });
+    } catch (reason) {
+      toast({ title: "No se pudo leer el archivo", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" });
+    }
+  };
+  const downloadEvidence = async (attachment: SupportTicketAttachment) => {
+    if (!selectedTicketId) return;
+    try {
+      const blob = await downloadPortalTicketAttachment(selectedTicketId, attachment.id, portalRequest);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a"); anchor.href = url; anchor.download = attachment.fileName; anchor.click(); URL.revokeObjectURL(url);
+    } catch (reason) {
+      toast({ title: "No se pudo descargar", description: reason instanceof Error ? reason.message : "Intenta de nuevo", variant: "destructive" });
     }
   };
   return <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+    <div className="space-y-6">
     <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="h-4 w-4 text-primary" />Nuevo ticket</CardTitle></CardHeader><CardContent><form onSubmit={createTicket} className="space-y-3"><div><Label htmlFor="ticket-subject">Asunto</Label><Input id="ticket-subject" required value={subject} onChange={event => setSubject(event.target.value)} className="mt-1" /></div><div><Label htmlFor="ticket-description">Describe el problema</Label><Textarea id="ticket-description" required value={description} onChange={event => setDescription(event.target.value)} className="mt-1 min-h-32" /></div><Button type="submit">Crear ticket<Ticket className="ml-2 h-4 w-4" /></Button></form></CardContent></Card>
-    <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Headphones className="h-4 w-4 text-primary" />Mis tickets</CardTitle></CardHeader><CardContent className="space-y-3">{session.tickets.length === 0 ? <Empty text="No tienes tickets abiertos." /> : session.tickets.map(ticket => <div key={ticket.id} className="rounded-lg border border-border/60 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">#{ticket.id} {ticket.subject}</p><p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{ticket.description}</p></div><Badge variant="outline">{statusLabel(ticket.status)}</Badge></div><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>{date(ticket.updatedAt)} · Prioridad {ticket.priority}</span>{ticket.status !== "closed" && ticket.status !== "open" && !ticket.closedByClient && <Button size="sm" variant="outline" onClick={() => void closeTicket(ticket.id)}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar cierre</Button>}{ticket.closedByClient && <span className="flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" />Cerrado por ti</span>}</div></div>)}</CardContent></Card>
+    <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Headphones className="h-4 w-4 text-primary" />Mis tickets</CardTitle></CardHeader><CardContent className="space-y-3">{session.tickets.length === 0 ? <Empty text="No tienes tickets registrados." /> : session.tickets.map(ticket => <div key={ticket.id} className={`rounded-lg border p-4 ${selectedTicketId === ticket.id ? "border-primary/50 bg-primary/[0.04]" : "border-border/60"}`}><button data-testid={`button-portal-ticket-${ticket.id}`} onClick={() => setSelectedTicketId(ticket.id)} className="w-full text-left"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">#{ticket.id} {ticket.subject}</p><p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{ticket.description}</p>{["plan_change", "relocation", "reconnection"].includes(ticket.category) && <p className="mt-2 text-xs text-muted-foreground">{ticket.status === "open" ? "La solicitud quedó registrada y está pendiente de revisión por soporte." : "El estado de esta solicitud se actualizará aquí."}</p>}</div><Badge variant="outline">{ticketStatusLabel(ticket)}</Badge></div><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>{date(ticket.updatedAt)} · Prioridad {ticket.priority}</span></div></button><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">{ticket.status === "resolved" && !ticket.closedByClient && <Button size="sm" variant="outline" disabled={busyTicketId === ticket.id} onClick={() => void closeTicket(ticket.id)}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar cierre</Button>}{ticket.status === "closed" && reopenableTicketIds.includes(ticket.id) && <Button size="sm" variant="outline" disabled={busyTicketId === ticket.id || reopenMutation.isPending} onClick={() => void reopenTicket(ticket.id)}><Ticket className="mr-2 h-4 w-4" />Reabrir ticket</Button>}{ticket.closedByClient && <span className="flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" />Cerrado por ti</span>}</div></div>)}</CardContent></Card>
+    </div>
+    <div className="space-y-6">
+      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Bell className="h-4 w-4 text-primary" />Avisos de soporte</CardTitle><p className="text-sm text-muted-foreground">Te avisaremos cuando cambie el estado de una solicitud.</p></CardHeader><CardContent className="space-y-2">{notificationsQuery.isLoading ? <div className="h-16 animate-pulse rounded-lg bg-muted/30" /> : notifications.length === 0 ? <p className="py-5 text-sm text-muted-foreground">No tienes avisos nuevos.</p> : notifications.slice(0, 5).map((notification: SupportNotification) => <button key={notification.id} data-testid={`button-portal-notification-${notification.id}`} onClick={() => { if (!notification.readAt) markReadMutation.mutate({ id: notification.id }, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: getListPortalNotificationsQueryKey() }) }); }} className={`w-full rounded-lg border p-3 text-left ${notification.readAt ? "border-border/40 opacity-70" : "border-primary/30 bg-primary/[0.04]"}`}><div className="flex items-start gap-3"><div className={`mt-1 h-2 w-2 rounded-full ${notification.readAt ? "bg-muted-foreground/40" : "bg-primary"}`} /><div><p className="text-sm font-medium">{notification.title}</p><p className="mt-1 text-xs text-muted-foreground">{notification.message}</p><p className="mt-2 text-[11px] text-muted-foreground">{date(notification.createdAt)}{notification.readAt ? " · Leído" : " · Marcar como leído"}</p></div></div></button>)}</CardContent></Card>
+       {selectedTicketId !== null && <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Paperclip className="h-4 w-4 text-primary" />Evidencia de tu ticket</CardTitle><p className="text-sm text-muted-foreground">Solo se muestran archivos compartidos contigo por soporte.</p></CardHeader><CardContent className="space-y-3">{attachmentsQuery.isLoading ? <div className="h-12 animate-pulse rounded-lg bg-muted/30" /> : (attachmentsQuery.data ?? []).length === 0 ? <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">Todavía no hay evidencia compartida.</p> : (attachmentsQuery.data ?? []).map(attachment => <div key={attachment.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 p-3"><div className="flex min-w-0 items-center gap-2"><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="truncate text-sm">{attachment.fileName}</p><p className="text-[11px] text-muted-foreground">{Math.ceil(attachment.sizeBytes / 1024)} KB · {date(attachment.createdAt)}</p></div></div><Button size="sm" variant="ghost" onClick={() => void downloadEvidence(attachment)}><Download className="h-4 w-4" /></Button></div>)}<div className="border-t border-border/50 pt-3"><Label htmlFor="portal-ticket-file">Añadir foto o documento</Label><Input key={file?.name ?? "empty"} id="portal-ticket-file" data-testid="input-portal-ticket-attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={uploadMutation.isPending} onChange={event => setFile(event.target.files?.[0] ?? null)} className="mt-2" /><p className="mt-1 text-xs text-muted-foreground">JPEG, PNG, WebP o PDF · máximo 2 MB.</p><Button size="sm" className="mt-3" onClick={() => void uploadEvidence()} disabled={!file || uploadMutation.isPending}>{uploadMutation.isPending ? "Enviando..." : "Enviar archivo"}</Button></div></CardContent></Card>}
+    </div>
   </div>;
 }
 

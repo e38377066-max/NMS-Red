@@ -237,7 +237,7 @@ los saldos de las facturas.
 - cambios de plan ascendentes cobran solo la diferencia proporcional y los
   descendentes generan crédito sin facturas negativas.
 
-### 3. Portal del cliente restante
+### 3. Portal del cliente restante — completada
 
 **Objetivo:** cerrar las capacidades que el cliente puede ejecutar sin entrar
 al dashboard administrativo.
@@ -262,6 +262,10 @@ tickets, avisos, cambio de plan, traslado, reconexión y cierre básico.
 del portal puede modificar directamente colas, DHCP o suspensión sin pasar por
 la operación administrativa correspondiente.
 
+**Estado:** completada. El recibo del portal es imprimible y apto para guardar
+como PDF; las solicitudes muestran su ticket y estado pendiente; soporte puede
+autorizar una reapertura de un solo uso, que queda auditada.
+
 ### 4. Soporte y tickets
 
 **Objetivo:** convertir los tickets básicos en una mesa de ayuda medible.
@@ -282,6 +286,22 @@ la operación administrativa correspondiente.
 
 **Cierre:** cada ticket muestra fechas objetivo, historial completo, evidencia,
 responsable y estado de SLA; las transiciones inválidas son rechazadas.
+
+**Estado (2026-09-30):** contrato OpenAPI, esquema, rutas, interfaz operativa y
+portal de adjuntos implementados. Codegen, typechecks, build y push del esquema
+de desarrollo pasan; `/api/healthz` responde y las rutas protegidas rechazan
+solicitudes sin autenticación. No marcar esta sección como completada todavía:
+la carga/descarga privada requiere verificar un proveedor de almacenamiento.
+En las variables de desarrollo de Replit no aparece `BACKUP_STORAGE_PROVIDER`
+y no hay credenciales S3 configuradas. No se modificó la configuración ni se
+inventaron credenciales.
+
+**Próximo paso seguro:** elegir y configurar el proveedor existente (S3 con
+credenciales por Secrets, o filesystem con un directorio persistente); después
+probar carga y descarga desde soporte, visibilidad privada/pública al cliente,
+permisos por token y rechazo de archivos inválidos o mayores de 2 MiB. Los SLA
+se calculan en minutos corridos y sus objetivos son editables; el horario
+laboral aún no está definido.
 
 ### 5. Operación de campo
 

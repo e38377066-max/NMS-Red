@@ -12,8 +12,26 @@ import {
   ticketsTable,
   paymentsTable,
   maintenanceNoticesTable,
+  ticketAttachmentsTable,
+  supportNotificationsTable,
 } from "@workspace/db";
 import { downloadPrivateObject, uploadPrivateObject } from "../services/object-storage.service";
+import {
+  ListPortalNotificationsResponse,
+  ListPortalReopenableTicketsResponse,
+  ListPortalTicketAttachmentsResponse,
+  MarkPortalNotificationReadParams,
+  ReopenPortalTicketResponse,
+  UploadPortalTicketAttachmentBody,
+  UploadPortalTicketAttachmentResponse,
+} from "@workspace/api-zod";
+import {
+  createSupportTicket,
+  listTicketSlaPolicies,
+  ticketSlaFields,
+  transitionTicket,
+} from "../services/ticket-lifecycle.service";
+import { createTicketAttachment } from "../services/ticket-attachments.service";
 
 const router: IRouter = Router();
 
@@ -113,6 +131,7 @@ router.get("/session", async (req, res): Promise<void> => {
     }).from(equipmentTable),
   ]);
   const equipmentById = new Map(equipment.map(item => [item.id, item]));
+  const policyByPriority = new Map((await listTicketSlaPolicies()).map(policy => [policy.priority, policy]));
   res.json({
     client: {
       ...client,
@@ -125,6 +144,10 @@ router.get("/session", async (req, res): Promise<void> => {
     payments: payments.map(payment => ({ ...payment, paidAt: payment.paidAt.toISOString(), createdAt: payment.createdAt.toISOString() })),
     tickets: tickets.map(ticket => ({
       ...ticket,
+      ...ticketSlaFields(ticket, policyByPriority.get(ticket.priority) ?? {
+        firstResponseMinutes: 240,
+        resolutionMinutes: 1440,
+      }),
       firstResponseAt: ticket.firstResponseAt?.toISOString() ?? null,
       resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
       closedAt: ticket.closedAt?.toISOString() ?? null,
@@ -146,6 +169,36 @@ router.get("/session", async (req, res): Promise<void> => {
   });
 });
 
+router.get("/notifications", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  const notifications = await db.select().from(supportNotificationsTable)
+    .where(eq(supportNotificationsTable.clientId, clientId))
+    .orderBy(supportNotificationsTable.createdAt)
+    .limit(50);
+  res.json(ListPortalNotificationsResponse.parse(notifications.map(notification => ({
+    ...notification,
+    createdAt: notification.createdAt.toISOString(),
+    readAt: notification.readAt?.toISOString() ?? null,
+  }))));
+});
+
+router.post("/notifications/:id/read", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  const params = MarkPortalNotificationReadParams.safeParse(req.params);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  if (!params.success) { res.status(400).json({ error: "Notificación inválida" }); return; }
+  const [notification] = await db.update(supportNotificationsTable)
+    .set({ readAt: new Date() })
+    .where(and(
+      eq(supportNotificationsTable.id, params.data.id),
+      eq(supportNotificationsTable.clientId, clientId),
+    ))
+    .returning({ id: supportNotificationsTable.id });
+  if (!notification) { res.status(404).json({ error: "Notificación no encontrada" }); return; }
+  res.status(204).end();
+});
+
 router.post("/tickets", async (req, res): Promise<void> => {
   const clientId = await getPortalClient(req);
   const subject = typeof req.body?.subject === "string" ? req.body.subject.trim() : "";
@@ -155,10 +208,16 @@ router.post("/tickets", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Asunto y descripción son obligatorios" });
     return;
   }
-  const [ticket] = await db.insert(ticketsTable).values({
+  const ticket = await createSupportTicket({
     clientId, subject, description, category: "client_report",
     priority: "normal", status: "open",
-  }).returning();
+  }, {
+    type: "client",
+    clientId,
+    name: `Cliente ${clientId}`,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+  });
   res.status(201).json({ id: ticket.id, status: ticket.status, createdAt: ticket.createdAt.toISOString() });
 });
 
@@ -171,14 +230,20 @@ router.post("/plan-change", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Indica el plan solicitado" });
     return;
   }
-  const [ticket] = await db.insert(ticketsTable).values({
+  const ticket = await createSupportTicket({
     clientId,
     subject: `Solicitud de cambio de plan: ${requestedPlan}`,
     description: reason || "El cliente solicita revisar un cambio de plan.",
     category: "plan_change",
     priority: "normal",
     status: "open",
-  }).returning({ id: ticketsTable.id, status: ticketsTable.status, createdAt: ticketsTable.createdAt });
+  }, {
+    type: "client",
+    clientId,
+    name: `Cliente ${clientId}`,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+  });
   res.status(201).json({ ...ticket, createdAt: ticket.createdAt.toISOString() });
 });
 
@@ -195,14 +260,20 @@ router.post("/service-request", async (req, res): Promise<void> => {
     return;
   }
   const labels: Record<"relocation" | "reconnection", string> = { relocation: "traslado", reconnection: "reconexión" };
-  const [ticket] = await db.insert(ticketsTable).values({
+  const ticket = await createSupportTicket({
     clientId,
     subject: `Solicitud de ${labels[type]}`,
     description: details,
     category: type,
     priority: "normal",
     status: "open",
-  }).returning({ id: ticketsTable.id, status: ticketsTable.status, createdAt: ticketsTable.createdAt });
+  }, {
+    type: "client",
+    clientId,
+    name: `Cliente ${clientId}`,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+  });
   res.status(201).json({ ...ticket, createdAt: ticket.createdAt.toISOString() });
 });
 
@@ -306,17 +377,156 @@ router.post("/tickets/:id/close", async (req, res): Promise<void> => {
   const ticketId = id(req.params.id);
   if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
   if (!ticketId) { res.status(400).json({ error: "Ticket inválido" }); return; }
-  const [ticket] = await db.update(ticketsTable).set({
-    status: "closed",
-    closedByClient: true,
-    closedAt: new Date(),
-    updatedAt: new Date(),
-  }).where(and(
+  const result = await transitionTicket({
+    ticketId,
+    toStatus: "closed",
+    actor: {
+      type: "client",
+      clientId,
+      name: `Cliente ${clientId}`,
+      sourceIp: req.ip,
+      device: req.get("user-agent"),
+    },
+    closeByClient: true,
+    reason: "Cierre confirmado desde el portal",
+    command: "POST /portal/tickets/:id/close",
+  });
+  if (result.kind === "not_found") { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  if (result.kind === "invalid_transition") {
+    res.status(409).json({ error: "Solo se puede confirmar el cierre de un ticket resuelto" });
+    return;
+  }
+  res.json({ id: result.ticket.id, status: result.ticket.status });
+});
+
+router.get("/tickets/reopenable", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  const tickets = await db.select({ ticketId: ticketsTable.id }).from(ticketsTable).where(and(
+    eq(ticketsTable.clientId, clientId),
+    eq(ticketsTable.status, "closed"),
+    eq(ticketsTable.clientReopenEnabled, true),
+  ));
+  res.json(ListPortalReopenableTicketsResponse.parse(tickets));
+});
+
+router.post("/tickets/:id/reopen", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  const ticketId = id(req.params.id);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  if (!ticketId) { res.status(400).json({ error: "Ticket inválido" }); return; }
+  const result = await transitionTicket({
+    ticketId,
+    toStatus: "open",
+    actor: {
+      type: "client",
+      clientId,
+      name: `Cliente ${clientId}`,
+      sourceIp: req.ip,
+      device: req.get("user-agent"),
+    },
+    allowReopen: true,
+    reason: "Reapertura solicitada desde el portal del cliente",
+    command: "POST /portal/tickets/:id/reopen",
+  });
+  if (result.kind === "not_found") { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  if (result.kind === "invalid_transition") {
+    res.status(409).json({ error: "Este ticket no está habilitado para reapertura" });
+    return;
+  }
+  res.json(ReopenPortalTicketResponse.parse({
+    ticketId: result.ticket.id,
+    status: result.ticket.status,
+    clientReopenEnabled: result.ticket.clientReopenEnabled,
+    updatedAt: result.ticket.updatedAt.toISOString(),
+  }));
+});
+
+router.get("/tickets/:id/attachments", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  const ticketId = id(req.params.id);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  if (!ticketId) { res.status(400).json({ error: "Ticket inválido" }); return; }
+  const [ticket] = await db.select({ id: ticketsTable.id }).from(ticketsTable).where(and(
     eq(ticketsTable.id, ticketId),
     eq(ticketsTable.clientId, clientId),
-  )).returning({ id: ticketsTable.id, status: ticketsTable.status });
+  ));
   if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
-  res.json(ticket);
+  const attachments = await db.select({
+    id: ticketAttachmentsTable.id,
+    ticketId: ticketAttachmentsTable.ticketId,
+    fileName: ticketAttachmentsTable.fileName,
+    mimeType: ticketAttachmentsTable.mimeType,
+    sizeBytes: ticketAttachmentsTable.sizeBytes,
+    visibleToClient: ticketAttachmentsTable.visibleToClient,
+    createdAt: ticketAttachmentsTable.createdAt,
+  }).from(ticketAttachmentsTable).where(and(
+    eq(ticketAttachmentsTable.ticketId, ticketId),
+    eq(ticketAttachmentsTable.visibleToClient, true),
+  )).orderBy(ticketAttachmentsTable.createdAt);
+  res.json(ListPortalTicketAttachmentsResponse.parse(attachments.map(attachment => ({
+    ...attachment,
+    createdAt: attachment.createdAt.toISOString(),
+  }))));
+});
+
+router.post("/tickets/:id/attachments", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  const ticketId = id(req.params.id);
+  const input = UploadPortalTicketAttachmentBody.safeParse(req.body);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  if (!ticketId || !input.success) { res.status(400).json({ error: "Ticket o archivo inválido" }); return; }
+  const [ticket] = await db.select().from(ticketsTable).where(and(
+    eq(ticketsTable.id, ticketId),
+    eq(ticketsTable.clientId, clientId),
+  ));
+  if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  const attachment = await createTicketAttachment({
+    ticketId,
+    fileName: input.data.fileName,
+    mimeType: input.data.mimeType,
+    dataBase64: input.data.dataBase64,
+    visibleToClient: true,
+    uploadedByClientId: clientId,
+  });
+  if (!attachment) { res.status(400).json({ error: "Archivo inválido, no compatible o mayor a 2 MiB" }); return; }
+  if (ticket.assignedToUserId !== null) {
+    await db.insert(supportNotificationsTable).values({
+      ticketId,
+      userId: ticket.assignedToUserId,
+      title: `Nueva evidencia en el ticket #${ticketId}`,
+      message: `El cliente añadió ${attachment.fileName}.`,
+    });
+  }
+  res.status(201).json(UploadPortalTicketAttachmentResponse.parse({
+    ...attachment,
+    createdAt: attachment.createdAt.toISOString(),
+  }));
+});
+
+router.get("/tickets/:id/attachments/:attachmentId/download", async (req, res): Promise<void> => {
+  const clientId = await getPortalClient(req);
+  const ticketId = id(req.params.id);
+  const attachmentId = id(req.params.attachmentId);
+  if (!clientId) { res.status(401).json({ error: "Token de portal inválido o expirado" }); return; }
+  if (!ticketId || !attachmentId) { res.status(400).json({ error: "Ticket o archivo inválido" }); return; }
+  const [attachment] = await db.select().from(ticketAttachmentsTable)
+    .innerJoin(ticketsTable, eq(ticketAttachmentsTable.ticketId, ticketsTable.id))
+    .where(and(
+      eq(ticketAttachmentsTable.id, attachmentId),
+      eq(ticketAttachmentsTable.ticketId, ticketId),
+      eq(ticketAttachmentsTable.visibleToClient, true),
+      eq(ticketsTable.clientId, clientId),
+    ))
+    .then(rows => rows.map(row => row.ticket_attachments));
+  if (!attachment) { res.status(404).json({ error: "Archivo no encontrado" }); return; }
+  const response = await downloadPrivateObject(attachment.storagePath);
+  const data = Buffer.from(await response.arrayBuffer());
+  res.setHeader("Content-Type", attachment.mimeType);
+  res.setHeader("Content-Length", data.length);
+  res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.send(data);
 });
 
 router.get("/notices", async (req, res): Promise<void> => {
@@ -352,10 +562,86 @@ router.get("/payments/:id/receipt", async (req, res): Promise<void> => {
   ));
   if (!payment) { res.status(404).json({ error: "Recibo no encontrado" }); return; }
   const [client] = await db.select({ name: clientsTable.name }).from(clientsTable).where(eq(clientsTable.id, clientId));
-  const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  const escapeHtml = (value: string) => value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+  const receiptFilename = payment.receiptNumber.replace(/[^A-Za-z0-9_.-]/g, "_");
+  const paidAt = new Intl.DateTimeFormat("es-CU", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "America/Havana",
+  }).format(payment.paidAt);
+  const clientName = escapeHtml(client?.name ?? `Cliente ${clientId}`);
+  const receiptNumber = escapeHtml(payment.receiptNumber);
+  const amount = escapeHtml(`${payment.currency} ${payment.amount}`);
+  const method = escapeHtml(payment.method);
+  const reference = escapeHtml(payment.reference ?? "—");
+  const status = escapeHtml(payment.status);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Content-Disposition", `inline; filename="${payment.receiptNumber}.html"`);
-  res.send(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Recibo ${escapeHtml(payment.receiptNumber)}</title><style>body{font:16px system-ui;max-width:680px;margin:40px auto;padding:0 20px;color:#17202a}h1{font-size:24px}dl{display:grid;grid-template-columns:180px 1fr;gap:10px;border-top:1px solid #ddd;padding-top:20px}dt{font-weight:600}dd{margin:0}</style><h1>Recibo de pago</h1><dl><dt>Número</dt><dd>${escapeHtml(payment.receiptNumber)}</dd><dt>Cliente</dt><dd>${escapeHtml(client?.name ?? `Cliente ${clientId}`)}</dd><dt>Fecha</dt><dd>${payment.paidAt.toISOString()}</dd><dt>Importe</dt><dd>${escapeHtml(payment.currency)} ${escapeHtml(payment.amount)}</dd><dt>Método</dt><dd>${escapeHtml(payment.method)}</dd><dt>Referencia</dt><dd>${escapeHtml(payment.reference ?? "—")}</dd></dl></html>`);
+  res.setHeader("Content-Disposition", `inline; filename="${receiptFilename}.html"`);
+  res.send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Recibo ${receiptNumber} · ISP Cockpit</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f1f5f9}
+    *{box-sizing:border-box}
+    body{margin:0;padding:48px 20px}
+    .receipt{max-width:720px;margin:0 auto;background:#fff;border:1px solid #dce3ec;border-radius:18px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,.09)}
+    .top{padding:32px 36px 28px;background:linear-gradient(135deg,#0b1f3a,#123f69);color:#fff}
+    .brand{font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#a9d5ff}
+    h1{margin:18px 0 6px;font-size:28px;line-height:1.15}
+    .subtitle{margin:0;color:#d7e8f8;font-size:14px}
+    .body{padding:30px 36px 34px}
+    .amount{margin-bottom:26px;padding:20px 22px;border:1px solid #c9e6d8;border-radius:12px;background:#f1fbf5}
+    .amount-label{color:#52705e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+    .amount-value{margin-top:5px;color:#14683c;font-size:30px;font-weight:750;letter-spacing:-.03em}
+    .details{display:grid;grid-template-columns:minmax(130px,.7fr) 1.3fr;gap:0;margin:0;border-top:1px solid #e7ebf0}
+    .details dt,.details dd{margin:0;padding:14px 0;border-bottom:1px solid #e7ebf0;font-size:14px}
+    .details dt{color:#657286}
+    .details dd{font-weight:600;overflow-wrap:anywhere}
+    .number{font-variant-numeric:tabular-nums}
+    .footer{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-top:26px;color:#657286;font-size:12px}
+    .print{border:0;border-radius:9px;padding:10px 14px;background:#1167a8;color:white;font:inherit;font-weight:650;cursor:pointer}
+    .print:hover{background:#0b568f}
+    @media(max-width:520px){body{padding:16px 10px}.top{padding:26px 22px}.body{padding:24px 22px}.details{grid-template-columns:1fr;gap:0}.details dt{padding-bottom:2px;border-bottom:0}.details dd{padding-top:0}.footer{align-items:flex-start;flex-direction:column}}
+    @media print{@page{size:auto;margin:16mm} :root{background:#fff}body{padding:0;background:#fff}.receipt{max-width:none;border:0;border-radius:0;box-shadow:none}.top{-webkit-print-color-adjust:exact;print-color-adjust:exact}.amount{break-inside:avoid}.print{display:none}}
+  </style>
+</head>
+<body>
+  <main class="receipt">
+    <header class="top">
+      <div class="brand">ISP Cockpit · Portal del cliente</div>
+      <h1>Recibo de pago</h1>
+      <p class="subtitle">Comprobante electrónico de un pago registrado en tu cuenta.</p>
+    </header>
+    <section class="body" aria-label="Detalles del pago">
+      <div class="amount">
+        <div class="amount-label">Importe recibido</div>
+        <div class="amount-value">${amount}</div>
+      </div>
+      <dl class="details">
+        <dt>Número de recibo</dt><dd class="number">${receiptNumber}</dd>
+        <dt>Cliente</dt><dd>${clientName}</dd>
+        <dt>Fecha de pago</dt><dd>${escapeHtml(paidAt)} (hora de Cuba)</dd>
+        <dt>Método de pago</dt><dd>${method}</dd>
+        <dt>Referencia</dt><dd>${reference}</dd>
+        <dt>Estado</dt><dd>${status}</dd>
+      </dl>
+      <footer class="footer">
+        <span>Conserva este recibo para tus registros.</span>
+        <button class="print" type="button" onclick="window.print()">Imprimir o guardar como PDF</button>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>`);
 });
 
 router.get("/payment-proofs/:id/download", async (req, res): Promise<void> => {

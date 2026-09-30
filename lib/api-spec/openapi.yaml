@@ -20,6 +20,10 @@ tags:
   - name: audit
   - name: users
   - name: monitoring
+  - name: portal
+    description: Portal autenticado por token independiente del cliente
+  - name: tickets
+    description: Mesa de ayuda y permisos de reapertura
   - name: ai
   - name: proxmox
     description: Proxmox VE hypervisor management
@@ -628,6 +632,7 @@ paths:
           in: query
           schema:
             type: string
+            enum: [open, in_progress, resolved, closed]
       responses:
         "200":
           description: Invoices
@@ -955,6 +960,553 @@ paths:
               schema:
                 type: string
                 format: binary
+
+  # TICKETS / SUPPORT
+  /tickets:
+    get:
+      operationId: listSupportTickets
+      tags: [tickets]
+      summary: Filtrar tickets, incluidos los SLA vencidos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, normal, high, critical]
+        - name: assignedToUserId
+          in: query
+          description: Número de usuario o unassigned para tickets sin responsable
+          schema:
+            type: string
+        - name: sla
+          in: query
+          description: Filtra por overdue o por estado de SLA de primera respuesta/resolución
+          schema:
+            type: string
+            enum: [overdue, first_response, resolution]
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tickets filtrados con fechas y estado de SLA
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicket"
+    post:
+      operationId: createSupportTicket
+      tags: [tickets]
+      summary: Crear un ticket de soporte
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketCreate"
+      responses:
+        "201":
+          description: Ticket creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
+  /tickets/{id}:
+    get:
+      operationId: getSupportTicket
+      tags: [tickets]
+      summary: Consultar ticket y comentarios
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle del ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicketDetail"
+    patch:
+      operationId: updateSupportTicket
+      tags: [tickets]
+      summary: Actualizar campos y ejecutar una transición válida
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketUpdate"
+      responses:
+        "200":
+          description: Ticket actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+        "409":
+          description: Transición de estado no permitida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /tickets/{id}/comments:
+    post:
+      operationId: addSupportTicketComment
+      tags: [tickets]
+      summary: Añadir un comentario al ticket
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketCommentCreate"
+      responses:
+        "201":
+          description: Comentario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicketComment"
+
+  /tickets/{id}/history:
+    get:
+      operationId: listSupportTicketHistory
+      tags: [tickets]
+      summary: Consultar el historial inmutable de estados
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Historial del ticket en orden cronológico
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicketStatusEvent"
+
+  /tickets/{id}/attachments:
+    get:
+      operationId: listSupportTicketAttachments
+      tags: [tickets]
+      summary: Listar evidencias privadas de un ticket
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Metadatos de adjuntos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicketAttachment"
+    post:
+      operationId: uploadSupportTicketAttachment
+      tags: [tickets]
+      summary: Cargar evidencia privada en un ticket
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketAttachmentCreate"
+      responses:
+        "201":
+          description: Evidencia cargada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicketAttachment"
+
+  /tickets/{id}/attachments/{attachmentId}/download:
+    get:
+      operationId: downloadSupportTicketAttachment
+      tags: [tickets]
+      summary: Descargar una evidencia privada
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Archivo de evidencia
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /tickets/sla-policies:
+    get:
+      operationId: listTicketSlaPolicies
+      tags: [tickets]
+      summary: Consultar objetivos de SLA por prioridad
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Políticas de SLA
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicketSlaPolicy"
+
+  /tickets/sla-policies/{priority}:
+    patch:
+      operationId: updateTicketSlaPolicy
+      tags: [tickets]
+      summary: Actualizar tiempos objetivo por prioridad
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: priority
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [low, normal, high, critical]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketSlaPolicyUpdate"
+      responses:
+        "200":
+          description: Política actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicketSlaPolicy"
+
+  /notifications:
+    get:
+      operationId: listUserNotifications
+      tags: [tickets]
+      summary: Listar notificaciones internas del usuario
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Notificaciones recientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportNotification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markUserNotificationRead
+      tags: [tickets]
+      summary: Marcar una notificación como leída
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Notificación marcada como leída
+
+  /portal/notifications:
+    get:
+      operationId: listPortalNotifications
+      tags: [portal]
+      summary: Listar notificaciones del cliente
+      security:
+        - PortalToken: []
+      responses:
+        "200":
+          description: Notificaciones recientes del portal
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportNotification"
+
+  /portal/notifications/{id}/read:
+    post:
+      operationId: markPortalNotificationRead
+      tags: [portal]
+      summary: Marcar una notificación del portal como leída
+      security:
+        - PortalToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Notificación marcada como leída
+
+  /portal/tickets/{id}/attachments:
+    get:
+      operationId: listPortalTicketAttachments
+      tags: [portal]
+      summary: Listar evidencias visibles al cliente
+      security:
+        - PortalToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Adjuntos no internos del ticket
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicketAttachment"
+    post:
+      operationId: uploadPortalTicketAttachment
+      tags: [portal]
+      summary: Cargar una fotografía o evidencia al ticket
+      security:
+        - PortalToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketAttachmentCreate"
+      responses:
+        "201":
+          description: Evidencia cargada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicketAttachment"
+
+  /portal/tickets/{id}/attachments/{attachmentId}/download:
+    get:
+      operationId: downloadPortalTicketAttachment
+      tags: [portal]
+      summary: Descargar evidencia visible al cliente
+      security:
+        - PortalToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Archivo de evidencia
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  # CLIENT TICKET REOPEN
+  /tickets/{id}/client-reopen:
+    patch:
+      operationId: updateTicketClientReopenPermission
+      tags: [tickets]
+      summary: Permitir o revocar la reapertura de un ticket por su cliente
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketClientReopenPermissionUpdate"
+      responses:
+        "200":
+          description: Permiso actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketClientReopenPermission"
+        "400":
+          description: Solicitud inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Sesión administrativa requerida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Ticket no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: El permiso solo se puede cambiar en un ticket cerrado de un cliente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /portal/tickets/reopenable:
+    get:
+      operationId: listPortalReopenableTickets
+      tags: [portal]
+      summary: Listar tickets cerrados que soporte autorizó a reabrir
+      security:
+        - PortalToken: []
+      responses:
+        "200":
+          description: Tickets que este cliente puede reabrir
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PortalReopenableTicket"
+        "401":
+          description: Token de portal inválido o vencido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /portal/tickets/{id}/reopen:
+    post:
+      operationId: reopenPortalTicket
+      tags: [portal]
+      summary: Reabrir un ticket cuando soporte haya habilitado el permiso
+      security:
+        - PortalToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ticket reabierto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalTicketReopenResult"
+        "400":
+          description: Identificador inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Token de portal inválido o vencido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Ticket no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: El ticket no está cerrado o soporte no autorizó la reapertura
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # USERS (RBAC)
   /users:
@@ -1292,6 +1844,14 @@ paths:
                 $ref: "#/components/schemas/CommandResult"
 
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+    PortalToken:
+      type: apiKey
+      in: header
+      name: x-portal-token
   schemas:
     HealthStatus:
       type: object
@@ -2425,3 +2985,304 @@ components:
           type: integer
         description:
           type: string
+
+    TicketClientReopenPermissionUpdate:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+
+    TicketClientReopenPermission:
+      type: object
+      required: [ticketId, enabled]
+      properties:
+        ticketId:
+          type: integer
+        enabled:
+          type: boolean
+
+    PortalReopenableTicket:
+      type: object
+      required: [ticketId]
+      properties:
+        ticketId:
+          type: integer
+
+    PortalTicketReopenResult:
+      type: object
+      required: [ticketId, status, clientReopenEnabled, updatedAt]
+      properties:
+        ticketId:
+          type: integer
+        status:
+          type: string
+          enum: [open]
+        clientReopenEnabled:
+          type: boolean
+          enum: [false]
+        updatedAt:
+          type: string
+          format: date-time
+
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    SupportTicket:
+      type: object
+      required: [id, subject, description, category, priority, status, createdAt, updatedAt, firstResponseSla, resolutionSla]
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: ["integer", "null"]
+        equipmentId:
+          type: ["integer", "null"]
+        siteId:
+          type: ["integer", "null"]
+        assignedToUserId:
+          type: ["integer", "null"]
+        subject:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        firstResponseAt:
+          type: ["string", "null"]
+          format: date-time
+        firstResponseDueAt:
+          type: ["string", "null"]
+          format: date-time
+        resolvedAt:
+          type: ["string", "null"]
+          format: date-time
+        resolutionDueAt:
+          type: ["string", "null"]
+          format: date-time
+        closedAt:
+          type: ["string", "null"]
+          format: date-time
+        closedByClient:
+          type: boolean
+        clientReopenEnabled:
+          type: boolean
+        firstResponseSla:
+          type: string
+          enum: [pending, met, breached]
+        resolutionSla:
+          type: string
+          enum: [pending, met, breached]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SupportTicketCreate:
+      type: object
+      required: [subject, description]
+      properties:
+        subject:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 4000
+        clientId:
+          type: ["integer", "null"]
+        equipmentId:
+          type: ["integer", "null"]
+        siteId:
+          type: ["integer", "null"]
+        assignedToUserId:
+          type: ["integer", "null"]
+        category:
+          type: string
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+
+    SupportTicketUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+        category:
+          type: string
+        rootCause:
+          type: ["string", "null"]
+        assignedToUserId:
+          type: ["integer", "null"]
+        equipmentId:
+          type: ["integer", "null"]
+        siteId:
+          type: ["integer", "null"]
+        clientId:
+          type: ["integer", "null"]
+        reason:
+          type: string
+
+    SupportTicketDetail:
+      allOf:
+        - $ref: "#/components/schemas/SupportTicket"
+        - type: object
+          required: [comments]
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: "#/components/schemas/SupportTicketComment"
+
+    SupportTicketComment:
+      type: object
+      required: [id, ticketId, body, internal, createdAt]
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        body:
+          type: string
+        internal:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    SupportTicketCommentCreate:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          maxLength: 4000
+        internal:
+          type: boolean
+
+    SupportTicketStatusEvent:
+      type: object
+      required: [id, ticketId, toStatus, actorType, createdAt]
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: integer
+        fromStatus:
+          type: ["string", "null"]
+        toStatus:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        actorType:
+          type: string
+          enum: [user, client, system]
+        actorUserId:
+          type: ["integer", "null"]
+        actorClientId:
+          type: ["integer", "null"]
+        actorName:
+          type: ["string", "null"]
+        reason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    SupportTicketAttachment:
+      type: object
+      required: [id, ticketId, fileName, mimeType, sizeBytes, visibleToClient, createdAt]
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: integer
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        visibleToClient:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    SupportTicketAttachmentCreate:
+      type: object
+      required: [fileName, mimeType, dataBase64]
+      properties:
+        fileName:
+          type: string
+          maxLength: 255
+        mimeType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+        dataBase64:
+          type: string
+        visibleToClient:
+          type: boolean
+
+    SupportTicketSlaPolicy:
+      type: object
+      required: [priority, firstResponseMinutes, resolutionMinutes, updatedAt]
+      properties:
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+        firstResponseMinutes:
+          type: integer
+          minimum: 1
+        resolutionMinutes:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
+
+    SupportTicketSlaPolicyUpdate:
+      type: object
+      required: [firstResponseMinutes, resolutionMinutes]
+      properties:
+        firstResponseMinutes:
+          type: integer
+          minimum: 1
+        resolutionMinutes:
+          type: integer
+          minimum: 1
+
+    SupportNotification:
+      type: object
+      required: [id, title, message, createdAt]
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: ["integer", "null"]
+        title:
+          type: string
+        message:
+          type: string
+        readAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time

@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, ilike, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNotNull, isNull, or } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import {
+  auditLogsTable,
   db,
   servicePlansTable,
   clientLifecycleEventsTable,
@@ -9,6 +10,10 @@ import {
   paymentsTable,
   ticketsTable,
   ticketCommentsTable,
+  ticketStatusHistoryTable,
+  ticketSlaPoliciesTable,
+  ticketAttachmentsTable,
+  supportNotificationsTable,
   inventoryItemsTable,
   fieldWorkOrdersTable,
   incidentAlertsTable,
@@ -19,6 +24,37 @@ import {
   portalAccessTable,
   maintenanceNoticesTable,
 } from "@workspace/db";
+import {
+  UpdateTicketClientReopenPermissionBody,
+  UpdateTicketClientReopenPermissionResponse,
+  AddSupportTicketCommentBody,
+  AddSupportTicketCommentResponse,
+  CreateSupportTicketBody,
+  CreateSupportTicketResponse,
+  GetSupportTicketResponse,
+  ListSupportTicketHistoryResponse,
+  ListSupportTicketAttachmentsResponse,
+  ListTicketSlaPoliciesResponse,
+  ListUserNotificationsResponse,
+  UpdateSupportTicketBody,
+  UpdateSupportTicketResponse,
+  UpdateTicketSlaPolicyBody,
+  UpdateTicketSlaPolicyResponse,
+  UploadSupportTicketAttachmentBody,
+  UploadSupportTicketAttachmentResponse,
+} from "@workspace/api-zod";
+import { downloadPrivateObject } from "../services/object-storage.service";
+import { createTicketAttachment } from "../services/ticket-attachments.service";
+import {
+  getTicketSlaPolicy,
+  listTicketSlaPolicies,
+  notifyTicketAssignment,
+  notifyTicketComment,
+  recordTicketCreated,
+  ticketPriorities,
+  ticketSlaFields,
+  transitionTicket,
+} from "../services/ticket-lifecycle.service";
 
 const router: IRouter = Router();
 
@@ -234,30 +270,87 @@ router.get("/payments/:id/receipt", async (req, res): Promise<void> => {
 
 router.get("/tickets", async (req, res): Promise<void> => {
   const status = text(req.query.status, 32);
+  const priority = text(req.query.priority, 20);
+  const assigneeFilter = text(req.query.assignedToUserId, 32);
+  const slaFilter = text(req.query.sla, 32);
   const query = text(req.query.q, 120);
   const conditions = [];
+  if (priority && !ticketPriorities.includes(priority as typeof ticketPriorities[number])) {
+    res.status(400).json({ error: "Prioridad inválida" });
+    return;
+  }
   if (status) conditions.push(eq(ticketsTable.status, status));
+  if (priority) conditions.push(eq(ticketsTable.priority, priority));
+  if (assigneeFilter === "unassigned") conditions.push(isNull(ticketsTable.assignedToUserId));
+  else if (assigneeFilter) {
+    const assignedToUserId = asId(assigneeFilter);
+    if (!assignedToUserId) { res.status(400).json({ error: "Responsable inválido" }); return; }
+    conditions.push(eq(ticketsTable.assignedToUserId, assignedToUserId));
+  }
   if (query) conditions.push(or(ilike(ticketsTable.subject, `%${query}%`), ilike(ticketsTable.description, `%${query}%`)));
   const rows = await db.select().from(ticketsTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(ticketsTable.updatedAt));
-  res.json(rows.map(serializeDates));
+  const policies = new Map((await listTicketSlaPolicies()).map(policy => [policy.priority, policy]));
+  const decorated = rows.map(ticket => {
+    const policy = policies.get(ticket.priority) ?? { firstResponseMinutes: 240, resolutionMinutes: 1440 };
+    return { ...serializeDates(ticket), ...ticketSlaFields(ticket, policy) };
+  });
+  const filtered = slaFilter === "overdue"
+    ? decorated.filter(ticket => ticket.firstResponseSla === "breached" || ticket.resolutionSla === "breached")
+    : slaFilter === "first_response"
+      ? decorated.filter(ticket => ticket.firstResponseSla !== "met")
+      : slaFilter === "resolution"
+        ? decorated.filter(ticket => ticket.resolutionSla !== "met")
+        : decorated;
+  res.json(filtered);
 });
 
 router.post("/tickets", async (req, res): Promise<void> => {
-  const subject = text(req.body?.subject, 200);
-  const description = text(req.body?.description);
-  if (!subject || !description) { res.status(400).json({ error: "subject y description son obligatorios" }); return; }
+  const input = CreateSupportTicketBody.safeParse(req.body);
+  const subject = input.success ? text(input.data.subject, 200) : null;
+  const description = input.success ? text(input.data.description) : null;
+  if (!input.success || !subject || !description) {
+    res.status(400).json({ error: "subject y description son obligatorios y deben tener formato válido" });
+    return;
+  }
+  const priority = input.data.priority ?? "normal";
+  if (!ticketPriorities.includes(priority as typeof ticketPriorities[number])) {
+    res.status(400).json({ error: "Prioridad inválida" });
+    return;
+  }
+  const policy = await getTicketSlaPolicy(priority);
+  const createdAt = new Date();
   const [ticket] = await db.insert(ticketsTable).values({
-    subject, description, clientId: asId(req.body?.clientId),
-    equipmentId: asId(req.body?.equipmentId), siteId: asId(req.body?.siteId),
+    subject,
+    description,
+    clientId: asId(input.data.clientId),
+    equipmentId: asId(input.data.equipmentId),
+    siteId: asId(input.data.siteId),
     createdByUserId: res.locals.user?.id ?? null,
-    assignedToUserId: asId(req.body?.assignedToUserId),
-    category: text(req.body?.category, 40) ?? "other",
-    priority: text(req.body?.priority, 20) ?? "normal",
+    assignedToUserId: asId(input.data.assignedToUserId),
+    category: text(input.data.category, 40) ?? "other",
+    priority,
+    firstResponseDueAt: new Date(createdAt.getTime() + policy.firstResponseMinutes * 60_000),
+    resolutionDueAt: new Date(createdAt.getTime() + policy.resolutionMinutes * 60_000),
+    createdAt,
+    updatedAt: createdAt,
   }).returning();
-  await audit(res.locals.user, "Ticket", "CREATE", `Ticket #${ticket.id}: ${subject}`, { clientId: ticket.clientId ?? undefined, equipmentId: ticket.equipmentId ?? undefined });
-  res.status(201).json(serializeDates(ticket));
+  await recordTicketCreated(ticket, {
+    type: "user",
+    userId: res.locals.user?.id,
+    name: res.locals.user?.username,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+  });
+  res.status(201).json(CreateSupportTicketResponse.parse({
+    ...ticket,
+    ...ticketSlaFields(ticket, policy),
+  }));
+});
+
+router.get("/tickets/sla-policies", async (_req, res): Promise<void> => {
+  res.json(ListTicketSlaPoliciesResponse.parse((await listTicketSlaPolicies()).map(serializeDates)));
 });
 
 router.get("/tickets/:id", async (req, res): Promise<void> => {
@@ -267,39 +360,392 @@ router.get("/tickets/:id", async (req, res): Promise<void> => {
   if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
   const comments = await db.select().from(ticketCommentsTable)
     .where(eq(ticketCommentsTable.ticketId, id)).orderBy(ticketCommentsTable.createdAt);
-  res.json({ ...serializeDates(ticket), comments: comments.map(serializeDates) });
+  const policy = await getTicketSlaPolicy(ticket.priority);
+  res.json(GetSupportTicketResponse.parse({
+    ...ticket,
+    ...ticketSlaFields(ticket, policy),
+    comments: comments.map(serializeDates),
+  }));
 });
 
 router.patch("/tickets/:id", async (req, res): Promise<void> => {
-  const id = asId(req.params.id);
-  if (!id) { res.status(400).json({ error: "Ticket inválido" }); return; }
-  const update: Record<string, unknown> = { updatedAt: new Date() };
-  for (const key of ["status", "priority", "category", "rootCause"]) {
-    const value = text(req.body?.[key], 2000);
-    if (value !== null) update[key] = value;
+  const ticketId = asId(req.params.id);
+  const input = UpdateSupportTicketBody.safeParse(req.body);
+  if (!ticketId || !input.success) { res.status(400).json({ error: "Ticket o cambios inválidos" }); return; }
+
+  if (input.data.status !== undefined) {
+    if (Object.keys(input.data).some(key => key !== "status" && key !== "reason")) {
+      res.status(400).json({ error: "Una transición de estado debe enviarse por separado de otros cambios" });
+      return;
+    }
+    const transition = await transitionTicket({
+      ticketId,
+      toStatus: input.data.status,
+      actor: {
+        type: "user",
+        userId: res.locals.user?.id,
+        name: res.locals.user?.username,
+        sourceIp: req.ip,
+        device: req.get("user-agent"),
+      },
+      reason: text(input.data.reason, 500),
+      command: "PATCH /tickets/:id",
+    });
+    if (transition.kind === "not_found") { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+    if (transition.kind === "invalid_transition") {
+      res.status(409).json({ error: `No se permite pasar de ${transition.currentStatus} a ${input.data.status}` });
+      return;
+    }
+    const policy = await getTicketSlaPolicy(transition.ticket.priority);
+    res.json(UpdateSupportTicketResponse.parse({
+      ...transition.ticket,
+      ...ticketSlaFields(transition.ticket, policy),
+    }));
+    return;
   }
-  for (const key of ["assignedToUserId", "equipmentId", "siteId", "clientId"]) {
-    if (req.body?.[key] !== undefined) update[key] = asId(req.body[key]);
+
+  const [before] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, ticketId));
+  if (!before) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  const update: Partial<typeof ticketsTable.$inferInsert> = { updatedAt: new Date() };
+  if (input.data.priority !== undefined) {
+    if (!ticketPriorities.includes(input.data.priority as typeof ticketPriorities[number])) {
+      res.status(400).json({ error: "Prioridad inválida" });
+      return;
+    }
+    const policy = await getTicketSlaPolicy(input.data.priority);
+    update.priority = input.data.priority;
+    update.firstResponseDueAt = new Date(before.createdAt.getTime() + policy.firstResponseMinutes * 60_000);
+    update.resolutionDueAt = new Date(before.createdAt.getTime() + policy.resolutionMinutes * 60_000);
   }
-  if (req.body?.status === "in_progress") update.firstResponseAt = new Date();
-  if (req.body?.status === "resolved") update.resolvedAt = new Date();
-  if (req.body?.status === "closed") update.closedAt = new Date();
-  const [ticket] = await db.update(ticketsTable).set(update).where(eq(ticketsTable.id, id)).returning();
+  if (input.data.category !== undefined) update.category = text(input.data.category, 40) ?? before.category;
+  if (input.data.rootCause !== undefined) update.rootCause = input.data.rootCause === null ? null : text(input.data.rootCause, 2000);
+  for (const key of ["assignedToUserId", "equipmentId", "siteId", "clientId"] as const) {
+    if (input.data[key] !== undefined) update[key] = asId(input.data[key]);
+  }
+  const changedFields = Object.keys(input.data).filter(key => key !== "reason");
+  if (changedFields.length === 0) { res.status(400).json({ error: "Indica al menos un cambio" }); return; }
+  if (update.assignedToUserId) {
+    const [assignee] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, update.assignedToUserId));
+    if (!assignee) { res.status(400).json({ error: "El responsable seleccionado no existe" }); return; }
+  }
+  const [ticket] = await db.update(ticketsTable).set(update).where(eq(ticketsTable.id, ticketId)).returning();
   if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
-  await audit(res.locals.user, "Ticket", "UPDATE", `Ticket #${id} actualizado`, { clientId: ticket.clientId ?? undefined, equipmentId: ticket.equipmentId ?? undefined });
-  res.json(serializeDates(ticket));
+  const afterState = Object.fromEntries(changedFields.map(key => [key, (ticket as Record<string, unknown>)[key]]));
+  const beforeState = Object.fromEntries(changedFields.map(key => [key, (before as Record<string, unknown>)[key]]));
+  await db.insert(auditLogsTable).values({
+    userId: res.locals.user?.id ?? null,
+    username: res.locals.user?.username ?? "sistema",
+    clientId: ticket.clientId,
+    equipmentId: ticket.equipmentId,
+    entity: "Ticket",
+    action: ticket.assignedToUserId !== before.assignedToUserId ? "ASSIGNMENT_CHANGE" : "UPDATE",
+    commandSent: "PATCH /tickets/:id",
+    result: "Success",
+    details: `Ticket #${ticket.id} actualizado: ${changedFields.join(", ")}`,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+    beforeState: JSON.stringify(beforeState),
+    afterState: JSON.stringify(afterState),
+    reason: text(input.data.reason, 500),
+  });
+  if (ticket.assignedToUserId !== before.assignedToUserId) {
+    await notifyTicketAssignment({
+      ticket,
+      actor: {
+        type: "user",
+        userId: res.locals.user?.id,
+        name: res.locals.user?.username,
+      },
+    });
+  }
+  const policy = await getTicketSlaPolicy(ticket.priority);
+  res.json(UpdateSupportTicketResponse.parse({
+    ...ticket,
+    ...ticketSlaFields(ticket, policy),
+  }));
+});
+
+router.patch("/tickets/:id/client-reopen", async (req, res): Promise<void> => {
+  const ticketId = asId(req.params.id);
+  const input = UpdateTicketClientReopenPermissionBody.safeParse(req.body);
+  if (!ticketId || !input.success) {
+    res.status(400).json({ error: "Ticket o permiso de reapertura inválido" });
+    return;
+  }
+  const [existing] = await db.select({
+    id: ticketsTable.id,
+    clientId: ticketsTable.clientId,
+    status: ticketsTable.status,
+    clientReopenEnabled: ticketsTable.clientReopenEnabled,
+  }).from(ticketsTable).where(eq(ticketsTable.id, ticketId));
+  if (!existing) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  if (existing.status !== "closed" || existing.clientId === null) {
+    res.status(409).json({ error: "Solo puedes cambiar el permiso de un ticket cerrado de un cliente" });
+    return;
+  }
+  const [ticket] = await db.update(ticketsTable).set({
+    clientReopenEnabled: input.data.enabled,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(ticketsTable.id, ticketId),
+    eq(ticketsTable.status, "closed"),
+    isNotNull(ticketsTable.clientId),
+  )).returning({
+    id: ticketsTable.id,
+    clientId: ticketsTable.clientId,
+    clientReopenEnabled: ticketsTable.clientReopenEnabled,
+  });
+  if (!ticket) {
+    res.status(409).json({ error: "El ticket cambió de estado; actualiza y vuelve a intentarlo" });
+    return;
+  }
+  await db.insert(auditLogsTable).values({
+    userId: res.locals.user?.id ?? null,
+    username: res.locals.user?.username ?? "sistema",
+    clientId: ticket.clientId,
+    entity: "Ticket",
+    action: "CLIENT_REOPEN_PERMISSION",
+    commandSent: "PATCH /tickets/:id/client-reopen",
+    result: "Success",
+    details: `Permiso de reapertura del cliente ${ticket.clientReopenEnabled ? "habilitado" : "revocado"} para el ticket #${ticket.id}`,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+    beforeState: JSON.stringify({ clientReopenEnabled: existing.clientReopenEnabled }),
+    afterState: JSON.stringify({ clientReopenEnabled: ticket.clientReopenEnabled }),
+    reason: "Permiso de reapertura de un solo uso actualizado por soporte",
+  });
+  res.json(UpdateTicketClientReopenPermissionResponse.parse({
+    ticketId: ticket.id,
+    enabled: ticket.clientReopenEnabled,
+  }));
 });
 
 router.post("/tickets/:id/comments", async (req, res): Promise<void> => {
   const ticketId = asId(req.params.id);
-  const body = text(req.body?.body);
-  if (!ticketId || !body) { res.status(400).json({ error: "Ticket y comentario son obligatorios" }); return; }
+  const input = AddSupportTicketCommentBody.safeParse(req.body);
+  const body = input.success ? text(input.data.body) : null;
+  if (!ticketId || !input.success || !body) {
+    res.status(400).json({ error: "Ticket y comentario son obligatorios" });
+    return;
+  }
+  const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, ticketId));
+  if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  const internal = input.data.internal === true;
   const [comment] = await db.insert(ticketCommentsTable).values({
-    ticketId, body, userId: res.locals.user?.id ?? null, internal: req.body?.internal === true,
+    ticketId,
+    body,
+    userId: res.locals.user?.id ?? null,
+    internal,
   }).returning();
-  await db.update(ticketsTable).set({ updatedAt: new Date(), firstResponseAt: new Date() })
-    .where(and(eq(ticketsTable.id, ticketId), isNull(ticketsTable.firstResponseAt)));
-  res.status(201).json(serializeDates(comment));
+  const firstResponseAt = new Date();
+  const [firstResponse] = internal || ticket.firstResponseAt
+    ? []
+    : await db.update(ticketsTable).set({ updatedAt: firstResponseAt, firstResponseAt })
+      .where(and(eq(ticketsTable.id, ticketId), isNull(ticketsTable.firstResponseAt)))
+      .returning({ id: ticketsTable.id });
+  if (firstResponse) {
+    await db.insert(auditLogsTable).values({
+      userId: res.locals.user?.id ?? null,
+      username: res.locals.user?.username ?? "sistema",
+      clientId: ticket.clientId,
+      equipmentId: ticket.equipmentId,
+      entity: "Ticket",
+      action: "FIRST_RESPONSE",
+      commandSent: "POST /tickets/:id/comments",
+      result: "Success",
+      details: `Primera respuesta registrada para el ticket #${ticket.id}`,
+      sourceIp: req.ip,
+      device: req.get("user-agent"),
+      beforeState: JSON.stringify({ firstResponseAt: null }),
+      afterState: JSON.stringify({ firstResponseAt: firstResponseAt.toISOString() }),
+    });
+  } else {
+    await db.update(ticketsTable).set({ updatedAt: new Date() }).where(eq(ticketsTable.id, ticketId));
+  }
+  await notifyTicketComment({
+    ticket,
+    actor: {
+      type: "user",
+      userId: res.locals.user?.id,
+      name: res.locals.user?.username,
+    },
+    internal,
+  });
+  res.status(201).json(AddSupportTicketCommentResponse.parse(serializeDates(comment)));
+});
+
+router.get("/tickets/:id/history", async (req, res): Promise<void> => {
+  const ticketId = asId(req.params.id);
+  if (!ticketId) { res.status(400).json({ error: "Ticket inválido" }); return; }
+  const [ticket] = await db.select({ id: ticketsTable.id }).from(ticketsTable)
+    .where(eq(ticketsTable.id, ticketId));
+  if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  const history = await db.select().from(ticketStatusHistoryTable)
+    .where(eq(ticketStatusHistoryTable.ticketId, ticketId))
+    .orderBy(ticketStatusHistoryTable.createdAt);
+  res.json(ListSupportTicketHistoryResponse.parse(history.map(serializeDates)));
+});
+
+router.get("/tickets/:id/attachments", async (req, res): Promise<void> => {
+  const ticketId = asId(req.params.id);
+  if (!ticketId) { res.status(400).json({ error: "Ticket inválido" }); return; }
+  const [ticket] = await db.select({ id: ticketsTable.id }).from(ticketsTable)
+    .where(eq(ticketsTable.id, ticketId));
+  if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  const attachments = await db.select({
+    id: ticketAttachmentsTable.id,
+    ticketId: ticketAttachmentsTable.ticketId,
+    fileName: ticketAttachmentsTable.fileName,
+    mimeType: ticketAttachmentsTable.mimeType,
+    sizeBytes: ticketAttachmentsTable.sizeBytes,
+    visibleToClient: ticketAttachmentsTable.visibleToClient,
+    createdAt: ticketAttachmentsTable.createdAt,
+  }).from(ticketAttachmentsTable)
+    .where(eq(ticketAttachmentsTable.ticketId, ticketId))
+    .orderBy(ticketAttachmentsTable.createdAt);
+  res.json(ListSupportTicketAttachmentsResponse.parse(attachments.map(serializeDates)));
+});
+
+router.post("/tickets/:id/attachments", async (req, res): Promise<void> => {
+  const ticketId = asId(req.params.id);
+  const input = UploadSupportTicketAttachmentBody.safeParse(req.body);
+  if (!ticketId || !input.success) { res.status(400).json({ error: "Ticket o archivo inválido" }); return; }
+  const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, ticketId));
+  if (!ticket) { res.status(404).json({ error: "Ticket no encontrado" }); return; }
+  const attachment = await createTicketAttachment({
+    ticketId,
+    fileName: input.data.fileName,
+    mimeType: input.data.mimeType,
+    dataBase64: input.data.dataBase64,
+    visibleToClient: input.data.visibleToClient ?? false,
+    uploadedByUserId: res.locals.user?.id ?? null,
+  });
+  if (!attachment) { res.status(400).json({ error: "Archivo inválido, no compatible o mayor a 2 MiB" }); return; }
+  const now = new Date();
+  await db.update(ticketsTable).set({ updatedAt: now }).where(eq(ticketsTable.id, ticketId));
+  await db.insert(auditLogsTable).values({
+    userId: res.locals.user?.id ?? null,
+    username: res.locals.user?.username ?? "sistema",
+    clientId: ticket.clientId,
+    equipmentId: ticket.equipmentId,
+    entity: "Ticket attachment",
+    action: "UPLOAD",
+    commandSent: "POST /tickets/:id/attachments",
+    result: "Success",
+    details: `Evidencia ${attachment.fileName} añadida al ticket #${ticketId}`,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+    afterState: JSON.stringify({
+      attachmentId: attachment.id,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      visibleToClient: attachment.visibleToClient,
+      sha256: attachment.sha256,
+    }),
+  });
+  if (attachment.visibleToClient && ticket.clientId !== null) {
+    await db.insert(supportNotificationsTable).values({
+      ticketId,
+      clientId: ticket.clientId,
+      title: `Nueva evidencia en el ticket #${ticketId}`,
+      message: `Soporte añadió ${attachment.fileName}.`,
+    });
+  }
+  res.status(201).json(UploadSupportTicketAttachmentResponse.parse({
+    ...attachment,
+    createdAt: attachment.createdAt.toISOString(),
+  }));
+});
+
+router.get("/tickets/:id/attachments/:attachmentId/download", async (req, res): Promise<void> => {
+  const ticketId = asId(req.params.id);
+  const attachmentId = asId(req.params.attachmentId);
+  if (!ticketId || !attachmentId) { res.status(400).json({ error: "Ticket o archivo inválido" }); return; }
+  const [attachment] = await db.select().from(ticketAttachmentsTable).where(and(
+    eq(ticketAttachmentsTable.id, attachmentId),
+    eq(ticketAttachmentsTable.ticketId, ticketId),
+  ));
+  if (!attachment) { res.status(404).json({ error: "Archivo no encontrado" }); return; }
+  const response = await downloadPrivateObject(attachment.storagePath);
+  const data = Buffer.from(await response.arrayBuffer());
+  res.setHeader("Content-Type", attachment.mimeType);
+  res.setHeader("Content-Length", data.length);
+  res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.send(data);
+});
+
+router.patch("/tickets/sla-policies/:priority", async (req, res): Promise<void> => {
+  const priority = text(req.params.priority, 20);
+  const input = UpdateTicketSlaPolicyBody.safeParse(req.body);
+  if (!priority || !ticketPriorities.includes(priority as typeof ticketPriorities[number]) || !input.success) {
+    res.status(400).json({ error: "Prioridad o política SLA inválida" });
+    return;
+  }
+  const [before] = await db.select().from(ticketSlaPoliciesTable)
+    .where(eq(ticketSlaPoliciesTable.priority, priority));
+  const [policy] = await db.insert(ticketSlaPoliciesTable).values({
+    priority,
+    firstResponseMinutes: input.data.firstResponseMinutes,
+    resolutionMinutes: input.data.resolutionMinutes,
+    updatedByUserId: res.locals.user?.id ?? null,
+    updatedAt: new Date(),
+  }).onConflictDoUpdate({
+    target: ticketSlaPoliciesTable.priority,
+    set: {
+      firstResponseMinutes: input.data.firstResponseMinutes,
+      resolutionMinutes: input.data.resolutionMinutes,
+      updatedByUserId: res.locals.user?.id ?? null,
+      updatedAt: new Date(),
+    },
+  }).returning();
+  await db.insert(auditLogsTable).values({
+    userId: res.locals.user?.id ?? null,
+    username: res.locals.user?.username ?? "sistema",
+    entity: "Ticket SLA",
+    action: "UPDATE",
+    commandSent: "PATCH /tickets/sla-policies/:priority",
+    result: "Success",
+    details: `Objetivos de SLA actualizados para prioridad ${priority}`,
+    sourceIp: req.ip,
+    device: req.get("user-agent"),
+    beforeState: before ? JSON.stringify({
+      firstResponseMinutes: before.firstResponseMinutes,
+      resolutionMinutes: before.resolutionMinutes,
+    }) : null,
+    afterState: JSON.stringify({
+      firstResponseMinutes: policy.firstResponseMinutes,
+      resolutionMinutes: policy.resolutionMinutes,
+    }),
+    reason: "Cambio de configuración SLA",
+  });
+  res.json(UpdateTicketSlaPolicyResponse.parse(serializeDates(policy)));
+});
+
+router.get("/notifications", async (_req, res): Promise<void> => {
+  const userId = res.locals.user?.id;
+  if (!userId) { res.status(401).json({ error: "Usuario no autenticado" }); return; }
+  const notifications = await db.select().from(supportNotificationsTable)
+    .where(eq(supportNotificationsTable.userId, userId))
+    .orderBy(desc(supportNotificationsTable.createdAt))
+    .limit(50);
+  res.json(ListUserNotificationsResponse.parse(notifications.map(serializeDates)));
+});
+
+router.post("/notifications/:id/read", async (req, res): Promise<void> => {
+  const notificationId = asId(req.params.id);
+  const userId = res.locals.user?.id;
+  if (!notificationId || !userId) { res.status(400).json({ error: "Notificación inválida" }); return; }
+  const [notification] = await db.update(supportNotificationsTable)
+    .set({ readAt: new Date() })
+    .where(and(
+      eq(supportNotificationsTable.id, notificationId),
+      eq(supportNotificationsTable.userId, userId),
+    ))
+    .returning({ id: supportNotificationsTable.id });
+  if (!notification) { res.status(404).json({ error: "Notificación no encontrada" }); return; }
+  res.status(204).end();
 });
 
 router.get("/inventory", async (req, res): Promise<void> => {

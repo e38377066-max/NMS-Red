@@ -913,7 +913,7 @@ export const DownloadPaymentProofResponse = zod.unknown()
  * @summary Listar facturas y saldos
  */
 export const ListBillingInvoicesQueryParams = zod.object({
-  "status": zod.coerce.string().optional()
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']).optional()
 })
 
 export const ListBillingInvoicesResponseItem = zod.object({
@@ -1216,6 +1216,472 @@ export const DownloadClientContractParams = zod.object({
 })
 
 export const DownloadClientContractResponse = zod.unknown()
+
+
+/**
+ * @summary Filtrar tickets, incluidos los SLA vencidos
+ */
+export const ListSupportTicketsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']).optional(),
+  "assignedToUserId": zod.coerce.string().optional().describe('Número de usuario o unassigned para tickets sin responsable'),
+  "sla": zod.enum(['overdue', 'first_response', 'resolution']).optional().describe('Filtra por overdue o por estado de SLA de primera respuesta/resolución'),
+  "q": zod.coerce.string().optional()
+})
+
+export const ListSupportTicketsResponseItem = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullish(),
+  "equipmentId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "category": zod.string(),
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "firstResponseAt": zod.coerce.date().nullish(),
+  "firstResponseDueAt": zod.coerce.date().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "resolutionDueAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "closedByClient": zod.boolean().optional(),
+  "clientReopenEnabled": zod.boolean().optional(),
+  "firstResponseSla": zod.enum(['pending', 'met', 'breached']),
+  "resolutionSla": zod.enum(['pending', 'met', 'breached']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListSupportTicketsResponse = zod.array(ListSupportTicketsResponseItem)
+
+
+/**
+ * @summary Crear un ticket de soporte
+ */
+export const createSupportTicketBodySubjectMax = 200;
+
+export const createSupportTicketBodyDescriptionMax = 4000;
+
+
+
+export const CreateSupportTicketBody = zod.object({
+  "subject": zod.string().max(createSupportTicketBodySubjectMax),
+  "description": zod.string().max(createSupportTicketBodyDescriptionMax),
+  "clientId": zod.int().nullish(),
+  "equipmentId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "category": zod.string().optional(),
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']).optional()
+})
+
+export const CreateSupportTicketResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullish(),
+  "equipmentId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "category": zod.string(),
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "firstResponseAt": zod.coerce.date().nullish(),
+  "firstResponseDueAt": zod.coerce.date().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "resolutionDueAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "closedByClient": zod.boolean().optional(),
+  "clientReopenEnabled": zod.boolean().optional(),
+  "firstResponseSla": zod.enum(['pending', 'met', 'breached']),
+  "resolutionSla": zod.enum(['pending', 'met', 'breached']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Consultar ticket y comentarios
+ */
+export const GetSupportTicketParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSupportTicketResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullish(),
+  "equipmentId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "category": zod.string(),
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "firstResponseAt": zod.coerce.date().nullish(),
+  "firstResponseDueAt": zod.coerce.date().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "resolutionDueAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "closedByClient": zod.boolean().optional(),
+  "clientReopenEnabled": zod.boolean().optional(),
+  "firstResponseSla": zod.enum(['pending', 'met', 'breached']),
+  "resolutionSla": zod.enum(['pending', 'met', 'breached']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "comments": zod.array(zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int(),
+  "userId": zod.int().nullish(),
+  "body": zod.string(),
+  "internal": zod.boolean(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary Actualizar campos y ejecutar una transición válida
+ */
+export const UpdateSupportTicketParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateSupportTicketBody = zod.object({
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']).optional(),
+  "category": zod.string().optional(),
+  "rootCause": zod.string().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "equipmentId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "clientId": zod.int().nullish(),
+  "reason": zod.string().optional()
+})
+
+export const UpdateSupportTicketResponse = zod.object({
+  "id": zod.int(),
+  "clientId": zod.int().nullish(),
+  "equipmentId": zod.int().nullish(),
+  "siteId": zod.int().nullish(),
+  "assignedToUserId": zod.int().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "category": zod.string(),
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "firstResponseAt": zod.coerce.date().nullish(),
+  "firstResponseDueAt": zod.coerce.date().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "resolutionDueAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "closedByClient": zod.boolean().optional(),
+  "clientReopenEnabled": zod.boolean().optional(),
+  "firstResponseSla": zod.enum(['pending', 'met', 'breached']),
+  "resolutionSla": zod.enum(['pending', 'met', 'breached']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Añadir un comentario al ticket
+ */
+export const AddSupportTicketCommentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const addSupportTicketCommentBodyBodyMax = 4000;
+
+
+
+export const AddSupportTicketCommentBody = zod.object({
+  "body": zod.string().max(addSupportTicketCommentBodyBodyMax),
+  "internal": zod.boolean().optional()
+})
+
+export const AddSupportTicketCommentResponse = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int(),
+  "userId": zod.int().nullish(),
+  "body": zod.string(),
+  "internal": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Consultar el historial inmutable de estados
+ */
+export const ListSupportTicketHistoryParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListSupportTicketHistoryResponseItem = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int(),
+  "fromStatus": zod.string().nullish(),
+  "toStatus": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "actorType": zod.enum(['user', 'client', 'system']),
+  "actorUserId": zod.int().nullish(),
+  "actorClientId": zod.int().nullish(),
+  "actorName": zod.string().nullish(),
+  "reason": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSupportTicketHistoryResponse = zod.array(ListSupportTicketHistoryResponseItem)
+
+
+/**
+ * @summary Listar evidencias privadas de un ticket
+ */
+export const ListSupportTicketAttachmentsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListSupportTicketAttachmentsResponseItem = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToClient": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSupportTicketAttachmentsResponse = zod.array(ListSupportTicketAttachmentsResponseItem)
+
+
+/**
+ * @summary Cargar evidencia privada en un ticket
+ */
+export const UploadSupportTicketAttachmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const uploadSupportTicketAttachmentBodyFileNameMax = 255;
+
+
+
+export const UploadSupportTicketAttachmentBody = zod.object({
+  "fileName": zod.string().max(uploadSupportTicketAttachmentBodyFileNameMax),
+  "mimeType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+  "dataBase64": zod.string(),
+  "visibleToClient": zod.boolean().optional()
+})
+
+export const UploadSupportTicketAttachmentResponse = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToClient": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Descargar una evidencia privada
+ */
+export const DownloadSupportTicketAttachmentParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "attachmentId": zod.coerce.number().int()
+})
+
+export const DownloadSupportTicketAttachmentResponse = zod.unknown()
+
+
+/**
+ * @summary Consultar objetivos de SLA por prioridad
+ */
+
+
+
+
+export const ListTicketSlaPoliciesResponseItem = zod.object({
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']),
+  "firstResponseMinutes": zod.int().min(1),
+  "resolutionMinutes": zod.int().min(1),
+  "updatedAt": zod.coerce.date()
+})
+export const ListTicketSlaPoliciesResponse = zod.array(ListTicketSlaPoliciesResponseItem)
+
+
+/**
+ * @summary Actualizar tiempos objetivo por prioridad
+ */
+export const UpdateTicketSlaPolicyParams = zod.object({
+  "priority": zod.enum(['low', 'normal', 'high', 'critical'])
+})
+
+
+
+
+
+export const UpdateTicketSlaPolicyBody = zod.object({
+  "firstResponseMinutes": zod.int().min(1),
+  "resolutionMinutes": zod.int().min(1)
+})
+
+
+
+
+
+export const UpdateTicketSlaPolicyResponse = zod.object({
+  "priority": zod.enum(['low', 'normal', 'high', 'critical']),
+  "firstResponseMinutes": zod.int().min(1),
+  "resolutionMinutes": zod.int().min(1),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Listar notificaciones internas del usuario
+ */
+export const ListUserNotificationsResponseItem = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int().nullish(),
+  "title": zod.string(),
+  "message": zod.string(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListUserNotificationsResponse = zod.array(ListUserNotificationsResponseItem)
+
+
+/**
+ * @summary Marcar una notificación como leída
+ */
+export const MarkUserNotificationReadParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const MarkUserNotificationReadResponse = zod.void()
+
+
+/**
+ * @summary Listar notificaciones del cliente
+ */
+export const ListPortalNotificationsResponseItem = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int().nullish(),
+  "title": zod.string(),
+  "message": zod.string(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPortalNotificationsResponse = zod.array(ListPortalNotificationsResponseItem)
+
+
+/**
+ * @summary Marcar una notificación del portal como leída
+ */
+export const MarkPortalNotificationReadParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const MarkPortalNotificationReadResponse = zod.void()
+
+
+/**
+ * @summary Listar evidencias visibles al cliente
+ */
+export const ListPortalTicketAttachmentsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListPortalTicketAttachmentsResponseItem = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToClient": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPortalTicketAttachmentsResponse = zod.array(ListPortalTicketAttachmentsResponseItem)
+
+
+/**
+ * @summary Cargar una fotografía o evidencia al ticket
+ */
+export const UploadPortalTicketAttachmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const uploadPortalTicketAttachmentBodyFileNameMax = 255;
+
+
+
+export const UploadPortalTicketAttachmentBody = zod.object({
+  "fileName": zod.string().max(uploadPortalTicketAttachmentBodyFileNameMax),
+  "mimeType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+  "dataBase64": zod.string(),
+  "visibleToClient": zod.boolean().optional()
+})
+
+export const UploadPortalTicketAttachmentResponse = zod.object({
+  "id": zod.int(),
+  "ticketId": zod.int(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.int(),
+  "visibleToClient": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Descargar evidencia visible al cliente
+ */
+export const DownloadPortalTicketAttachmentParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "attachmentId": zod.coerce.number().int()
+})
+
+export const DownloadPortalTicketAttachmentResponse = zod.unknown()
+
+
+/**
+ * @summary Permitir o revocar la reapertura de un ticket por su cliente
+ */
+export const UpdateTicketClientReopenPermissionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateTicketClientReopenPermissionBody = zod.object({
+  "enabled": zod.boolean()
+})
+
+export const UpdateTicketClientReopenPermissionResponse = zod.object({
+  "ticketId": zod.int(),
+  "enabled": zod.boolean()
+})
+
+
+/**
+ * @summary Listar tickets cerrados que soporte autorizó a reabrir
+ */
+export const ListPortalReopenableTicketsResponseItem = zod.object({
+  "ticketId": zod.int()
+})
+export const ListPortalReopenableTicketsResponse = zod.array(ListPortalReopenableTicketsResponseItem)
+
+
+/**
+ * @summary Reabrir un ticket cuando soporte haya habilitado el permiso
+ */
+export const ReopenPortalTicketParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReopenPortalTicketResponse = zod.object({
+  "ticketId": zod.int(),
+  "status": zod.enum(['open']),
+  "clientReopenEnabled": zod.literal(false),
+  "updatedAt": zod.coerce.date()
+})
 
 
 /**

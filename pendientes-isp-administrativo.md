@@ -89,6 +89,10 @@ La interfaz web y el backend base ya están conectados:
 - Confirmar el cierre de un ticket atendido.
 - Ver el router central y el AP/enlace asociado cuando están registrados.
 - Enviar comprobantes privados, consultar su estado y reenviar formalmente los rechazados.
+- Ver solicitudes como pendientes de revisión con su número de ticket.
+- Imprimir o guardar recibos como PDF desde una plantilla mejorada.
+- Reabrir un ticket cerrado sólo si soporte habilita el permiso de un solo uso.
+- Soporte y tickets: filtros, SLA, historial, asignación, comentarios, avisos y evidencias están implementados; falta configurar/verificar el almacenamiento privado para cerrar las pruebas de adjuntos.
 
 El flujo formal de comprobantes está conectado con facturación: almacenamiento privado, revisión administrativa, aplicación idempotente del pago y reenvío de rechazados.
 

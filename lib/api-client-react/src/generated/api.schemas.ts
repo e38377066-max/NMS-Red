@@ -880,6 +880,294 @@ export interface VmConfigUpdate {
   description?: string;
 }
 
+export interface TicketClientReopenPermissionUpdate {
+  enabled: boolean;
+}
+
+export interface TicketClientReopenPermission {
+  ticketId: number;
+  enabled: boolean;
+}
+
+export interface PortalReopenableTicket {
+  ticketId: number;
+}
+
+export type PortalTicketReopenResultStatus = typeof PortalTicketReopenResultStatus[keyof typeof PortalTicketReopenResultStatus];
+
+
+export const PortalTicketReopenResultStatus = {
+  open: 'open',
+} as const;
+
+export interface PortalTicketReopenResult {
+  ticketId: number;
+  status: PortalTicketReopenResultStatus;
+  clientReopenEnabled: false;
+  updatedAt: string;
+}
+
+export interface ApiError {
+  error: string;
+}
+
+export type SupportTicketPriority = typeof SupportTicketPriority[keyof typeof SupportTicketPriority];
+
+
+export const SupportTicketPriority = {
+  low: 'low',
+  normal: 'normal',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export type SupportTicketStatus = typeof SupportTicketStatus[keyof typeof SupportTicketStatus];
+
+
+export const SupportTicketStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export type SupportTicketFirstResponseSla = typeof SupportTicketFirstResponseSla[keyof typeof SupportTicketFirstResponseSla];
+
+
+export const SupportTicketFirstResponseSla = {
+  pending: 'pending',
+  met: 'met',
+  breached: 'breached',
+} as const;
+
+export type SupportTicketResolutionSla = typeof SupportTicketResolutionSla[keyof typeof SupportTicketResolutionSla];
+
+
+export const SupportTicketResolutionSla = {
+  pending: 'pending',
+  met: 'met',
+  breached: 'breached',
+} as const;
+
+export interface SupportTicket {
+  id: number;
+  /** @nullable */
+  clientId?: number | null;
+  /** @nullable */
+  equipmentId?: number | null;
+  /** @nullable */
+  siteId?: number | null;
+  /** @nullable */
+  assignedToUserId?: number | null;
+  subject: string;
+  description: string;
+  category: string;
+  priority: SupportTicketPriority;
+  status: SupportTicketStatus;
+  /** @nullable */
+  firstResponseAt?: string | null;
+  /** @nullable */
+  firstResponseDueAt?: string | null;
+  /** @nullable */
+  resolvedAt?: string | null;
+  /** @nullable */
+  resolutionDueAt?: string | null;
+  /** @nullable */
+  closedAt?: string | null;
+  closedByClient?: boolean;
+  clientReopenEnabled?: boolean;
+  firstResponseSla: SupportTicketFirstResponseSla;
+  resolutionSla: SupportTicketResolutionSla;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SupportTicketCreatePriority = typeof SupportTicketCreatePriority[keyof typeof SupportTicketCreatePriority];
+
+
+export const SupportTicketCreatePriority = {
+  low: 'low',
+  normal: 'normal',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export interface SupportTicketCreate {
+  /** @maxLength 200 */
+  subject: string;
+  /** @maxLength 4000 */
+  description: string;
+  /** @nullable */
+  clientId?: number | null;
+  /** @nullable */
+  equipmentId?: number | null;
+  /** @nullable */
+  siteId?: number | null;
+  /** @nullable */
+  assignedToUserId?: number | null;
+  category?: string;
+  priority?: SupportTicketCreatePriority;
+}
+
+export type SupportTicketUpdateStatus = typeof SupportTicketUpdateStatus[keyof typeof SupportTicketUpdateStatus];
+
+
+export const SupportTicketUpdateStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export type SupportTicketUpdatePriority = typeof SupportTicketUpdatePriority[keyof typeof SupportTicketUpdatePriority];
+
+
+export const SupportTicketUpdatePriority = {
+  low: 'low',
+  normal: 'normal',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export interface SupportTicketUpdate {
+  status?: SupportTicketUpdateStatus;
+  priority?: SupportTicketUpdatePriority;
+  category?: string;
+  /** @nullable */
+  rootCause?: string | null;
+  /** @nullable */
+  assignedToUserId?: number | null;
+  /** @nullable */
+  equipmentId?: number | null;
+  /** @nullable */
+  siteId?: number | null;
+  /** @nullable */
+  clientId?: number | null;
+  reason?: string;
+}
+
+export interface SupportTicketComment {
+  id: number;
+  ticketId: number;
+  /** @nullable */
+  userId?: number | null;
+  body: string;
+  internal: boolean;
+  createdAt: string;
+}
+
+export type SupportTicketDetail = SupportTicket & {
+  comments: SupportTicketComment[];
+};
+
+export interface SupportTicketCommentCreate {
+  /** @maxLength 4000 */
+  body: string;
+  internal?: boolean;
+}
+
+export type SupportTicketStatusEventToStatus = typeof SupportTicketStatusEventToStatus[keyof typeof SupportTicketStatusEventToStatus];
+
+
+export const SupportTicketStatusEventToStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export type SupportTicketStatusEventActorType = typeof SupportTicketStatusEventActorType[keyof typeof SupportTicketStatusEventActorType];
+
+
+export const SupportTicketStatusEventActorType = {
+  user: 'user',
+  client: 'client',
+  system: 'system',
+} as const;
+
+export interface SupportTicketStatusEvent {
+  id: number;
+  ticketId: number;
+  /** @nullable */
+  fromStatus?: string | null;
+  toStatus: SupportTicketStatusEventToStatus;
+  actorType: SupportTicketStatusEventActorType;
+  /** @nullable */
+  actorUserId?: number | null;
+  /** @nullable */
+  actorClientId?: number | null;
+  /** @nullable */
+  actorName?: string | null;
+  /** @nullable */
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface SupportTicketAttachment {
+  id: number;
+  ticketId: number;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  visibleToClient: boolean;
+  createdAt: string;
+}
+
+export type SupportTicketAttachmentCreateMimeType = typeof SupportTicketAttachmentCreateMimeType[keyof typeof SupportTicketAttachmentCreateMimeType];
+
+
+export const SupportTicketAttachmentCreateMimeType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'application/pdf': 'application/pdf',
+} as const;
+
+export interface SupportTicketAttachmentCreate {
+  /** @maxLength 255 */
+  fileName: string;
+  mimeType: SupportTicketAttachmentCreateMimeType;
+  dataBase64: string;
+  visibleToClient?: boolean;
+}
+
+export type SupportTicketSlaPolicyPriority = typeof SupportTicketSlaPolicyPriority[keyof typeof SupportTicketSlaPolicyPriority];
+
+
+export const SupportTicketSlaPolicyPriority = {
+  low: 'low',
+  normal: 'normal',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export interface SupportTicketSlaPolicy {
+  priority: SupportTicketSlaPolicyPriority;
+  /** @minimum 1 */
+  firstResponseMinutes: number;
+  /** @minimum 1 */
+  resolutionMinutes: number;
+  updatedAt: string;
+}
+
+export interface SupportTicketSlaPolicyUpdate {
+  /** @minimum 1 */
+  firstResponseMinutes: number;
+  /** @minimum 1 */
+  resolutionMinutes: number;
+}
+
+export interface SupportNotification {
+  id: number;
+  /** @nullable */
+  ticketId?: number | null;
+  title: string;
+  message: string;
+  /** @nullable */
+  readAt?: string | null;
+  createdAt: string;
+}
+
 export type CreateProrationInvoice201 = {
   invoice: Invoice;
   calculation: ProrationPreview;
@@ -908,8 +1196,18 @@ export const ListPaymentProofsStatus = {
 } as const;
 
 export type ListBillingInvoicesParams = {
-status?: string;
+status?: ListBillingInvoicesStatus;
 };
+
+export type ListBillingInvoicesStatus = typeof ListBillingInvoicesStatus[keyof typeof ListBillingInvoicesStatus];
+
+
+export const ListBillingInvoicesStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
 
 export type GetDailyBillingReportParams = {
 date?: string;
@@ -930,6 +1228,39 @@ type?: string;
  */
 equipmentId?: number | null;
 };
+
+export type ListSupportTicketsParams = {
+status?: string;
+priority?: ListSupportTicketsPriority;
+/**
+ * Número de usuario o unassigned para tickets sin responsable
+ */
+assignedToUserId?: string;
+/**
+ * Filtra por overdue o por estado de SLA de primera respuesta/resolución
+ */
+sla?: ListSupportTicketsSla;
+q?: string;
+};
+
+export type ListSupportTicketsPriority = typeof ListSupportTicketsPriority[keyof typeof ListSupportTicketsPriority];
+
+
+export const ListSupportTicketsPriority = {
+  low: 'low',
+  normal: 'normal',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export type ListSupportTicketsSla = typeof ListSupportTicketsSla[keyof typeof ListSupportTicketsSla];
+
+
+export const ListSupportTicketsSla = {
+  overdue: 'overdue',
+  first_response: 'first_response',
+  resolution: 'resolution',
+} as const;
 
 export type ListAuditLogsParams = {
 limit?: number;

@@ -28,6 +28,7 @@ import type {
   AiChatInput,
   AiReply,
   Alert,
+  ApiError,
   ArrearsReport,
   AuditLog,
   BackupFile,
@@ -60,6 +61,7 @@ import type {
   ListBackupsParams,
   ListBillingInvoicesParams,
   ListPaymentProofsParams,
+  ListSupportTicketsParams,
   LoginInput,
   LoginResult,
   MetricPoint,
@@ -71,6 +73,8 @@ import type {
   PaymentInput,
   PaymentProof,
   PaymentProofReviewInput,
+  PortalReopenableTicket,
+  PortalTicketReopenResult,
   ProrationInput,
   ProrationPreview,
   ProvisionClientInput,
@@ -81,6 +85,20 @@ import type {
   ProxmoxVm,
   SnapshotInput,
   SpeedChangeInput,
+  SupportNotification,
+  SupportTicket,
+  SupportTicketAttachment,
+  SupportTicketAttachmentCreate,
+  SupportTicketComment,
+  SupportTicketCommentCreate,
+  SupportTicketCreate,
+  SupportTicketDetail,
+  SupportTicketSlaPolicy,
+  SupportTicketSlaPolicyUpdate,
+  SupportTicketStatusEvent,
+  SupportTicketUpdate,
+  TicketClientReopenPermission,
+  TicketClientReopenPermissionUpdate,
   User,
   UserInput,
   VmConfigUpdate,
@@ -4683,6 +4701,1984 @@ export function useDownloadClientContract<TData = Awaited<ReturnType<typeof down
 
 
 
+
+export const getListSupportTicketsUrl = (params?: ListSupportTicketsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/tickets?${stringifiedParams}` : `/api/tickets`
+}
+
+/**
+ * @summary Filtrar tickets, incluidos los SLA vencidos
+ */
+export const listSupportTickets = async (params?: ListSupportTicketsParams, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicket[]> => {
+
+  return customFetch<SupportTicket[]>(getListSupportTicketsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupportTicketsQueryKey = (params?: ListSupportTicketsParams,) => {
+    return [
+    `/api/tickets`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSupportTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listSupportTickets>>, TError = ErrorType<unknown>>(params?: ListSupportTicketsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTickets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupportTicketsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupportTickets>>> = ({ signal }) => listSupportTickets(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupportTickets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSupportTicketsQueryResult = NonNullable<Awaited<ReturnType<typeof listSupportTickets>>>
+export type ListSupportTicketsQueryError = ErrorType<unknown>
+
+
+export function useListSupportTickets<TData = Awaited<ReturnType<typeof listSupportTickets>>, TError = ErrorType<unknown>>(
+ params: undefined |  ListSupportTicketsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTickets>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportTickets>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportTickets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportTickets<TData = Awaited<ReturnType<typeof listSupportTickets>>, TError = ErrorType<unknown>>(
+ params?: ListSupportTicketsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTickets>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportTickets>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportTickets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportTickets<TData = Awaited<ReturnType<typeof listSupportTickets>>, TError = ErrorType<unknown>>(
+ params?: ListSupportTicketsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTickets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Filtrar tickets, incluidos los SLA vencidos
+ */
+
+export function useListSupportTickets<TData = Awaited<ReturnType<typeof listSupportTickets>>, TError = ErrorType<unknown>>(
+ params?: ListSupportTicketsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTickets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSupportTicketsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSupportTicketUrl = () => {
+
+
+
+
+  return `/api/tickets`
+}
+
+/**
+ * @summary Crear un ticket de soporte
+ */
+export const createSupportTicket = async (supportTicketCreate: SupportTicketCreate, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicket> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SupportTicket>(getCreateSupportTicketUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(supportTicketCreate)
+  }
+);}
+
+
+
+
+
+export const getCreateSupportTicketMutationKey = () => ['createSupportTicket'] as const;
+
+export const getCreateSupportTicketMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupportTicket>>, TError,CreateSupportTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSupportTicket>>, TError,CreateSupportTicketMutationVariables, TContext> => {
+
+const mutationKey = getCreateSupportTicketMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSupportTicket>>, CreateSupportTicketMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSupportTicket(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSupportTicketMutationResult = NonNullable<Awaited<ReturnType<typeof createSupportTicket>>>
+    export type CreateSupportTicketMutationBody = BodyType<SupportTicketCreate>
+    export type CreateSupportTicketMutationError = ErrorType<unknown>
+    export type CreateSupportTicketMutationVariables = {data: BodyType<SupportTicketCreate>}
+
+    /**
+ * @summary Crear un ticket de soporte
+ */
+export const useCreateSupportTicket = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupportTicket>>, TError,CreateSupportTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createSupportTicket>>,
+        TError,
+        CreateSupportTicketMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSupportTicketMutationOptions(options), queryClient);
+    }
+
+export const getGetSupportTicketUrl = (id: number,) => {
+
+
+
+
+  return `/api/tickets/${id}`
+}
+
+/**
+ * @summary Consultar ticket y comentarios
+ */
+export const getSupportTicket = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketDetail> => {
+
+  return customFetch<SupportTicketDetail>(getGetSupportTicketUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSupportTicketQueryKey = (id: number,) => {
+    return [
+    `/api/tickets/${id}`
+    ] as const;
+    }
+
+
+export const getGetSupportTicketQueryOptions = <TData = Awaited<ReturnType<typeof getSupportTicket>>, TError = ErrorType<unknown>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportTicket>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSupportTicketQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupportTicket>>> = ({ signal }) => getSupportTicket(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSupportTicket>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSupportTicketQueryResult = NonNullable<Awaited<ReturnType<typeof getSupportTicket>>>
+export type GetSupportTicketQueryError = ErrorType<unknown>
+
+
+export function useGetSupportTicket<TData = Awaited<ReturnType<typeof getSupportTicket>>, TError = ErrorType<unknown>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportTicket>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSupportTicket>>,
+          TError,
+          Awaited<ReturnType<typeof getSupportTicket>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSupportTicket<TData = Awaited<ReturnType<typeof getSupportTicket>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportTicket>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSupportTicket>>,
+          TError,
+          Awaited<ReturnType<typeof getSupportTicket>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSupportTicket<TData = Awaited<ReturnType<typeof getSupportTicket>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportTicket>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Consultar ticket y comentarios
+ */
+
+export function useGetSupportTicket<TData = Awaited<ReturnType<typeof getSupportTicket>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportTicket>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSupportTicketQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateSupportTicketUrl = (id: number,) => {
+
+
+
+
+  return `/api/tickets/${id}`
+}
+
+/**
+ * @summary Actualizar campos y ejecutar una transición válida
+ */
+export const updateSupportTicket = async (id: number,
+    supportTicketUpdate: SupportTicketUpdate, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicket> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SupportTicket>(getUpdateSupportTicketUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(supportTicketUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateSupportTicketMutationKey = () => ['updateSupportTicket'] as const;
+
+export const getUpdateSupportTicketMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSupportTicket>>, TError,UpdateSupportTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSupportTicket>>, TError,UpdateSupportTicketMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSupportTicketMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSupportTicket>>, UpdateSupportTicketMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateSupportTicket(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSupportTicketMutationResult = NonNullable<Awaited<ReturnType<typeof updateSupportTicket>>>
+    export type UpdateSupportTicketMutationBody = BodyType<SupportTicketUpdate>
+    export type UpdateSupportTicketMutationError = ErrorType<ApiError>
+    export type UpdateSupportTicketMutationVariables = {id: number;data: BodyType<SupportTicketUpdate>}
+
+    /**
+ * @summary Actualizar campos y ejecutar una transición válida
+ */
+export const useUpdateSupportTicket = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSupportTicket>>, TError,UpdateSupportTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateSupportTicket>>,
+        TError,
+        UpdateSupportTicketMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSupportTicketMutationOptions(options), queryClient);
+    }
+
+export const getAddSupportTicketCommentUrl = (id: number,) => {
+
+
+
+
+  return `/api/tickets/${id}/comments`
+}
+
+/**
+ * @summary Añadir un comentario al ticket
+ */
+export const addSupportTicketComment = async (id: number,
+    supportTicketCommentCreate: SupportTicketCommentCreate, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketComment> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SupportTicketComment>(getAddSupportTicketCommentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(supportTicketCommentCreate)
+  }
+);}
+
+
+
+
+
+export const getAddSupportTicketCommentMutationKey = () => ['addSupportTicketComment'] as const;
+
+export const getAddSupportTicketCommentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSupportTicketComment>>, TError,AddSupportTicketCommentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addSupportTicketComment>>, TError,AddSupportTicketCommentMutationVariables, TContext> => {
+
+const mutationKey = getAddSupportTicketCommentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addSupportTicketComment>>, AddSupportTicketCommentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addSupportTicketComment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddSupportTicketCommentMutationResult = NonNullable<Awaited<ReturnType<typeof addSupportTicketComment>>>
+    export type AddSupportTicketCommentMutationBody = BodyType<SupportTicketCommentCreate>
+    export type AddSupportTicketCommentMutationError = ErrorType<unknown>
+    export type AddSupportTicketCommentMutationVariables = {id: number;data: BodyType<SupportTicketCommentCreate>}
+
+    /**
+ * @summary Añadir un comentario al ticket
+ */
+export const useAddSupportTicketComment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSupportTicketComment>>, TError,AddSupportTicketCommentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addSupportTicketComment>>,
+        TError,
+        AddSupportTicketCommentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddSupportTicketCommentMutationOptions(options), queryClient);
+    }
+
+export const getListSupportTicketHistoryUrl = (id: number,) => {
+
+
+
+
+  return `/api/tickets/${id}/history`
+}
+
+/**
+ * @summary Consultar el historial inmutable de estados
+ */
+export const listSupportTicketHistory = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketStatusEvent[]> => {
+
+  return customFetch<SupportTicketStatusEvent[]>(getListSupportTicketHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupportTicketHistoryQueryKey = (id: number,) => {
+    return [
+    `/api/tickets/${id}/history`
+    ] as const;
+    }
+
+
+export const getListSupportTicketHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listSupportTicketHistory>>, TError = ErrorType<unknown>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupportTicketHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupportTicketHistory>>> = ({ signal }) => listSupportTicketHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketHistory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSupportTicketHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listSupportTicketHistory>>>
+export type ListSupportTicketHistoryQueryError = ErrorType<unknown>
+
+
+export function useListSupportTicketHistory<TData = Awaited<ReturnType<typeof listSupportTicketHistory>>, TError = ErrorType<unknown>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketHistory>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportTicketHistory>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportTicketHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportTicketHistory<TData = Awaited<ReturnType<typeof listSupportTicketHistory>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketHistory>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportTicketHistory>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportTicketHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportTicketHistory<TData = Awaited<ReturnType<typeof listSupportTicketHistory>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Consultar el historial inmutable de estados
+ */
+
+export function useListSupportTicketHistory<TData = Awaited<ReturnType<typeof listSupportTicketHistory>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSupportTicketHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSupportTicketAttachmentsUrl = (id: number,) => {
+
+
+
+
+  return `/api/tickets/${id}/attachments`
+}
+
+/**
+ * @summary Listar evidencias privadas de un ticket
+ */
+export const listSupportTicketAttachments = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketAttachment[]> => {
+
+  return customFetch<SupportTicketAttachment[]>(getListSupportTicketAttachmentsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSupportTicketAttachmentsQueryKey = (id: number,) => {
+    return [
+    `/api/tickets/${id}/attachments`
+    ] as const;
+    }
+
+
+export const getListSupportTicketAttachmentsQueryOptions = <TData = Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError = ErrorType<unknown>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupportTicketAttachmentsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupportTicketAttachments>>> = ({ signal }) => listSupportTicketAttachments(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSupportTicketAttachmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listSupportTicketAttachments>>>
+export type ListSupportTicketAttachmentsQueryError = ErrorType<unknown>
+
+
+export function useListSupportTicketAttachments<TData = Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportTicketAttachments>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportTicketAttachments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportTicketAttachments<TData = Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportTicketAttachments>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportTicketAttachments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportTicketAttachments<TData = Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar evidencias privadas de un ticket
+ */
+
+export function useListSupportTicketAttachments<TData = Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketAttachments>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSupportTicketAttachmentsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadSupportTicketAttachmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/tickets/${id}/attachments`
+}
+
+/**
+ * @summary Cargar evidencia privada en un ticket
+ */
+export const uploadSupportTicketAttachment = async (id: number,
+    supportTicketAttachmentCreate: SupportTicketAttachmentCreate, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketAttachment> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SupportTicketAttachment>(getUploadSupportTicketAttachmentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(supportTicketAttachmentCreate)
+  }
+);}
+
+
+
+
+
+export const getUploadSupportTicketAttachmentMutationKey = () => ['uploadSupportTicketAttachment'] as const;
+
+export const getUploadSupportTicketAttachmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>, TError,UploadSupportTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>, TError,UploadSupportTicketAttachmentMutationVariables, TContext> => {
+
+const mutationKey = getUploadSupportTicketAttachmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>, UploadSupportTicketAttachmentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadSupportTicketAttachment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadSupportTicketAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>>
+    export type UploadSupportTicketAttachmentMutationBody = BodyType<SupportTicketAttachmentCreate>
+    export type UploadSupportTicketAttachmentMutationError = ErrorType<unknown>
+    export type UploadSupportTicketAttachmentMutationVariables = {id: number;data: BodyType<SupportTicketAttachmentCreate>}
+
+    /**
+ * @summary Cargar evidencia privada en un ticket
+ */
+export const useUploadSupportTicketAttachment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSupportTicketAttachment>>, TError,UploadSupportTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadSupportTicketAttachment>>,
+        TError,
+        UploadSupportTicketAttachmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUploadSupportTicketAttachmentMutationOptions(options), queryClient);
+    }
+
+export const getDownloadSupportTicketAttachmentUrl = (id: number,
+    attachmentId: number,) => {
+
+
+
+
+  return `/api/tickets/${id}/attachments/${attachmentId}/download`
+}
+
+/**
+ * @summary Descargar una evidencia privada
+ */
+export const downloadSupportTicketAttachment = async (id: number,
+    attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadSupportTicketAttachmentUrl(id,attachmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadSupportTicketAttachmentQueryKey = (id: number,
+    attachmentId: number,) => {
+    return [
+    `/api/tickets/${id}/attachments/${attachmentId}/download`
+    ] as const;
+    }
+
+
+export const getDownloadSupportTicketAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadSupportTicketAttachmentQueryKey(id,attachmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>> = ({ signal }) => downloadSupportTicketAttachment(id,attachmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && attachmentId !== null && attachmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadSupportTicketAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>>
+export type DownloadSupportTicketAttachmentQueryError = ErrorType<unknown>
+
+
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadSupportTicketAttachment>>,
+          TError,
+          Awaited<ReturnType<typeof downloadSupportTicketAttachment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadSupportTicketAttachment>>,
+          TError,
+          Awaited<ReturnType<typeof downloadSupportTicketAttachment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Descargar una evidencia privada
+ */
+
+export function useDownloadSupportTicketAttachment<TData = Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadSupportTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadSupportTicketAttachmentQueryOptions(id,attachmentId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTicketSlaPoliciesUrl = () => {
+
+
+
+
+  return `/api/tickets/sla-policies`
+}
+
+/**
+ * @summary Consultar objetivos de SLA por prioridad
+ */
+export const listTicketSlaPolicies = async ( options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketSlaPolicy[]> => {
+
+  return customFetch<SupportTicketSlaPolicy[]>(getListTicketSlaPoliciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTicketSlaPoliciesQueryKey = () => {
+    return [
+    `/api/tickets/sla-policies`
+    ] as const;
+    }
+
+
+export const getListTicketSlaPoliciesQueryOptions = <TData = Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTicketSlaPoliciesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTicketSlaPolicies>>> = ({ signal }) => listTicketSlaPolicies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListTicketSlaPoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof listTicketSlaPolicies>>>
+export type ListTicketSlaPoliciesQueryError = ErrorType<unknown>
+
+
+export function useListTicketSlaPolicies<TData = Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTicketSlaPolicies>>,
+          TError,
+          Awaited<ReturnType<typeof listTicketSlaPolicies>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTicketSlaPolicies<TData = Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTicketSlaPolicies>>,
+          TError,
+          Awaited<ReturnType<typeof listTicketSlaPolicies>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTicketSlaPolicies<TData = Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Consultar objetivos de SLA por prioridad
+ */
+
+export function useListTicketSlaPolicies<TData = Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTicketSlaPolicies>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListTicketSlaPoliciesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateTicketSlaPolicyUrl = (priority: 'low' | 'normal' | 'high' | 'critical',) => {
+
+
+
+
+  return `/api/tickets/sla-policies/${priority}`
+}
+
+/**
+ * @summary Actualizar tiempos objetivo por prioridad
+ */
+export const updateTicketSlaPolicy = async (priority: 'low' | 'normal' | 'high' | 'critical',
+    supportTicketSlaPolicyUpdate: SupportTicketSlaPolicyUpdate, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketSlaPolicy> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SupportTicketSlaPolicy>(getUpdateTicketSlaPolicyUrl(priority),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(supportTicketSlaPolicyUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateTicketSlaPolicyMutationKey = () => ['updateTicketSlaPolicy'] as const;
+
+export const getUpdateTicketSlaPolicyMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicketSlaPolicy>>, TError,UpdateTicketSlaPolicyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTicketSlaPolicy>>, TError,UpdateTicketSlaPolicyMutationVariables, TContext> => {
+
+const mutationKey = getUpdateTicketSlaPolicyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTicketSlaPolicy>>, UpdateTicketSlaPolicyMutationVariables> = (props) => {
+          const {priority,data} = props ?? {};
+
+          return  updateTicketSlaPolicy(priority,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTicketSlaPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof updateTicketSlaPolicy>>>
+    export type UpdateTicketSlaPolicyMutationBody = BodyType<SupportTicketSlaPolicyUpdate>
+    export type UpdateTicketSlaPolicyMutationError = ErrorType<unknown>
+    export type UpdateTicketSlaPolicyMutationVariables = {priority: 'low' | 'normal' | 'high' | 'critical';data: BodyType<SupportTicketSlaPolicyUpdate>}
+
+    /**
+ * @summary Actualizar tiempos objetivo por prioridad
+ */
+export const useUpdateTicketSlaPolicy = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicketSlaPolicy>>, TError,UpdateTicketSlaPolicyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateTicketSlaPolicy>>,
+        TError,
+        UpdateTicketSlaPolicyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateTicketSlaPolicyMutationOptions(options), queryClient);
+    }
+
+export const getListUserNotificationsUrl = () => {
+
+
+
+
+  return `/api/notifications`
+}
+
+/**
+ * @summary Listar notificaciones internas del usuario
+ */
+export const listUserNotifications = async ( options?: Parameters<typeof customFetch>[1]): Promise<SupportNotification[]> => {
+
+  return customFetch<SupportNotification[]>(getListUserNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUserNotificationsQueryKey = () => {
+    return [
+    `/api/notifications`
+    ] as const;
+    }
+
+
+export const getListUserNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listUserNotifications>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUserNotifications>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUserNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUserNotifications>>> = ({ signal }) => listUserNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUserNotifications>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUserNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listUserNotifications>>>
+export type ListUserNotificationsQueryError = ErrorType<unknown>
+
+
+export function useListUserNotifications<TData = Awaited<ReturnType<typeof listUserNotifications>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUserNotifications>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUserNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof listUserNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUserNotifications<TData = Awaited<ReturnType<typeof listUserNotifications>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUserNotifications>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUserNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof listUserNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUserNotifications<TData = Awaited<ReturnType<typeof listUserNotifications>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUserNotifications>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar notificaciones internas del usuario
+ */
+
+export function useListUserNotifications<TData = Awaited<ReturnType<typeof listUserNotifications>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUserNotifications>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUserNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkUserNotificationReadUrl = (id: number,) => {
+
+
+
+
+  return `/api/notifications/${id}/read`
+}
+
+/**
+ * @summary Marcar una notificación como leída
+ */
+export const markUserNotificationRead = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getMarkUserNotificationReadUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkUserNotificationReadMutationKey = () => ['markUserNotificationRead'] as const;
+
+export const getMarkUserNotificationReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markUserNotificationRead>>, TError,MarkUserNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markUserNotificationRead>>, TError,MarkUserNotificationReadMutationVariables, TContext> => {
+
+const mutationKey = getMarkUserNotificationReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markUserNotificationRead>>, MarkUserNotificationReadMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  markUserNotificationRead(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkUserNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markUserNotificationRead>>>
+
+    export type MarkUserNotificationReadMutationError = ErrorType<unknown>
+    export type MarkUserNotificationReadMutationVariables = {id: number}
+
+    /**
+ * @summary Marcar una notificación como leída
+ */
+export const useMarkUserNotificationRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markUserNotificationRead>>, TError,MarkUserNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markUserNotificationRead>>,
+        TError,
+        MarkUserNotificationReadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkUserNotificationReadMutationOptions(options), queryClient);
+    }
+
+export const getListPortalNotificationsUrl = () => {
+
+
+
+
+  return `/api/portal/notifications`
+}
+
+/**
+ * @summary Listar notificaciones del cliente
+ */
+export const listPortalNotifications = async ( options?: Parameters<typeof customFetch>[1]): Promise<SupportNotification[]> => {
+
+  return customFetch<SupportNotification[]>(getListPortalNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPortalNotificationsQueryKey = () => {
+    return [
+    `/api/portal/notifications`
+    ] as const;
+    }
+
+
+export const getListPortalNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listPortalNotifications>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalNotifications>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPortalNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPortalNotifications>>> = ({ signal }) => listPortalNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPortalNotifications>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPortalNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listPortalNotifications>>>
+export type ListPortalNotificationsQueryError = ErrorType<unknown>
+
+
+export function useListPortalNotifications<TData = Awaited<ReturnType<typeof listPortalNotifications>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalNotifications>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPortalNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof listPortalNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPortalNotifications<TData = Awaited<ReturnType<typeof listPortalNotifications>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalNotifications>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPortalNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof listPortalNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPortalNotifications<TData = Awaited<ReturnType<typeof listPortalNotifications>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalNotifications>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar notificaciones del cliente
+ */
+
+export function useListPortalNotifications<TData = Awaited<ReturnType<typeof listPortalNotifications>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalNotifications>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPortalNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkPortalNotificationReadUrl = (id: number,) => {
+
+
+
+
+  return `/api/portal/notifications/${id}/read`
+}
+
+/**
+ * @summary Marcar una notificación del portal como leída
+ */
+export const markPortalNotificationRead = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getMarkPortalNotificationReadUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkPortalNotificationReadMutationKey = () => ['markPortalNotificationRead'] as const;
+
+export const getMarkPortalNotificationReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPortalNotificationRead>>, TError,MarkPortalNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markPortalNotificationRead>>, TError,MarkPortalNotificationReadMutationVariables, TContext> => {
+
+const mutationKey = getMarkPortalNotificationReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markPortalNotificationRead>>, MarkPortalNotificationReadMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  markPortalNotificationRead(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkPortalNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markPortalNotificationRead>>>
+
+    export type MarkPortalNotificationReadMutationError = ErrorType<unknown>
+    export type MarkPortalNotificationReadMutationVariables = {id: number}
+
+    /**
+ * @summary Marcar una notificación del portal como leída
+ */
+export const useMarkPortalNotificationRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPortalNotificationRead>>, TError,MarkPortalNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markPortalNotificationRead>>,
+        TError,
+        MarkPortalNotificationReadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkPortalNotificationReadMutationOptions(options), queryClient);
+    }
+
+export const getListPortalTicketAttachmentsUrl = (id: number,) => {
+
+
+
+
+  return `/api/portal/tickets/${id}/attachments`
+}
+
+/**
+ * @summary Listar evidencias visibles al cliente
+ */
+export const listPortalTicketAttachments = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketAttachment[]> => {
+
+  return customFetch<SupportTicketAttachment[]>(getListPortalTicketAttachmentsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPortalTicketAttachmentsQueryKey = (id: number,) => {
+    return [
+    `/api/portal/tickets/${id}/attachments`
+    ] as const;
+    }
+
+
+export const getListPortalTicketAttachmentsQueryOptions = <TData = Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError = ErrorType<unknown>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPortalTicketAttachmentsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPortalTicketAttachments>>> = ({ signal }) => listPortalTicketAttachments(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPortalTicketAttachmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listPortalTicketAttachments>>>
+export type ListPortalTicketAttachmentsQueryError = ErrorType<unknown>
+
+
+export function useListPortalTicketAttachments<TData = Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPortalTicketAttachments>>,
+          TError,
+          Awaited<ReturnType<typeof listPortalTicketAttachments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPortalTicketAttachments<TData = Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPortalTicketAttachments>>,
+          TError,
+          Awaited<ReturnType<typeof listPortalTicketAttachments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPortalTicketAttachments<TData = Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar evidencias visibles al cliente
+ */
+
+export function useListPortalTicketAttachments<TData = Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalTicketAttachments>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPortalTicketAttachmentsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadPortalTicketAttachmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/portal/tickets/${id}/attachments`
+}
+
+/**
+ * @summary Cargar una fotografía o evidencia al ticket
+ */
+export const uploadPortalTicketAttachment = async (id: number,
+    supportTicketAttachmentCreate: SupportTicketAttachmentCreate, options?: Parameters<typeof customFetch>[1]): Promise<SupportTicketAttachment> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SupportTicketAttachment>(getUploadPortalTicketAttachmentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(supportTicketAttachmentCreate)
+  }
+);}
+
+
+
+
+
+export const getUploadPortalTicketAttachmentMutationKey = () => ['uploadPortalTicketAttachment'] as const;
+
+export const getUploadPortalTicketAttachmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>, TError,UploadPortalTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>, TError,UploadPortalTicketAttachmentMutationVariables, TContext> => {
+
+const mutationKey = getUploadPortalTicketAttachmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>, UploadPortalTicketAttachmentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadPortalTicketAttachment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadPortalTicketAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>>
+    export type UploadPortalTicketAttachmentMutationBody = BodyType<SupportTicketAttachmentCreate>
+    export type UploadPortalTicketAttachmentMutationError = ErrorType<unknown>
+    export type UploadPortalTicketAttachmentMutationVariables = {id: number;data: BodyType<SupportTicketAttachmentCreate>}
+
+    /**
+ * @summary Cargar una fotografía o evidencia al ticket
+ */
+export const useUploadPortalTicketAttachment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadPortalTicketAttachment>>, TError,UploadPortalTicketAttachmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadPortalTicketAttachment>>,
+        TError,
+        UploadPortalTicketAttachmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUploadPortalTicketAttachmentMutationOptions(options), queryClient);
+    }
+
+export const getDownloadPortalTicketAttachmentUrl = (id: number,
+    attachmentId: number,) => {
+
+
+
+
+  return `/api/portal/tickets/${id}/attachments/${attachmentId}/download`
+}
+
+/**
+ * @summary Descargar evidencia visible al cliente
+ */
+export const downloadPortalTicketAttachment = async (id: number,
+    attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadPortalTicketAttachmentUrl(id,attachmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadPortalTicketAttachmentQueryKey = (id: number,
+    attachmentId: number,) => {
+    return [
+    `/api/portal/tickets/${id}/attachments/${attachmentId}/download`
+    ] as const;
+    }
+
+
+export const getDownloadPortalTicketAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadPortalTicketAttachmentQueryKey(id,attachmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>> = ({ signal }) => downloadPortalTicketAttachment(id,attachmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && attachmentId !== null && attachmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadPortalTicketAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>>
+export type DownloadPortalTicketAttachmentQueryError = ErrorType<unknown>
+
+
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadPortalTicketAttachment>>,
+          TError,
+          Awaited<ReturnType<typeof downloadPortalTicketAttachment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadPortalTicketAttachment>>,
+          TError,
+          Awaited<ReturnType<typeof downloadPortalTicketAttachment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Descargar evidencia visible al cliente
+ */
+
+export function useDownloadPortalTicketAttachment<TData = Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError = ErrorType<unknown>>(
+ id: number,
+    attachmentId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalTicketAttachment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadPortalTicketAttachmentQueryOptions(id,attachmentId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateTicketClientReopenPermissionUrl = (id: number,) => {
+
+
+
+
+  return `/api/tickets/${id}/client-reopen`
+}
+
+/**
+ * @summary Permitir o revocar la reapertura de un ticket por su cliente
+ */
+export const updateTicketClientReopenPermission = async (id: number,
+    ticketClientReopenPermissionUpdate: TicketClientReopenPermissionUpdate, options?: Parameters<typeof customFetch>[1]): Promise<TicketClientReopenPermission> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TicketClientReopenPermission>(getUpdateTicketClientReopenPermissionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(ticketClientReopenPermissionUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateTicketClientReopenPermissionMutationKey = () => ['updateTicketClientReopenPermission'] as const;
+
+export const getUpdateTicketClientReopenPermissionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicketClientReopenPermission>>, TError,UpdateTicketClientReopenPermissionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTicketClientReopenPermission>>, TError,UpdateTicketClientReopenPermissionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateTicketClientReopenPermissionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTicketClientReopenPermission>>, UpdateTicketClientReopenPermissionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTicketClientReopenPermission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTicketClientReopenPermissionMutationResult = NonNullable<Awaited<ReturnType<typeof updateTicketClientReopenPermission>>>
+    export type UpdateTicketClientReopenPermissionMutationBody = BodyType<TicketClientReopenPermissionUpdate>
+    export type UpdateTicketClientReopenPermissionMutationError = ErrorType<ApiError>
+    export type UpdateTicketClientReopenPermissionMutationVariables = {id: number;data: BodyType<TicketClientReopenPermissionUpdate>}
+
+    /**
+ * @summary Permitir o revocar la reapertura de un ticket por su cliente
+ */
+export const useUpdateTicketClientReopenPermission = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicketClientReopenPermission>>, TError,UpdateTicketClientReopenPermissionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateTicketClientReopenPermission>>,
+        TError,
+        UpdateTicketClientReopenPermissionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateTicketClientReopenPermissionMutationOptions(options), queryClient);
+    }
+
+export const getListPortalReopenableTicketsUrl = () => {
+
+
+
+
+  return `/api/portal/tickets/reopenable`
+}
+
+/**
+ * @summary Listar tickets cerrados que soporte autorizó a reabrir
+ */
+export const listPortalReopenableTickets = async ( options?: Parameters<typeof customFetch>[1]): Promise<PortalReopenableTicket[]> => {
+
+  return customFetch<PortalReopenableTicket[]>(getListPortalReopenableTicketsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPortalReopenableTicketsQueryKey = () => {
+    return [
+    `/api/portal/tickets/reopenable`
+    ] as const;
+    }
+
+
+export const getListPortalReopenableTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError = ErrorType<ApiError>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPortalReopenableTicketsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPortalReopenableTickets>>> = ({ signal }) => listPortalReopenableTickets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPortalReopenableTicketsQueryResult = NonNullable<Awaited<ReturnType<typeof listPortalReopenableTickets>>>
+export type ListPortalReopenableTicketsQueryError = ErrorType<ApiError>
+
+
+export function useListPortalReopenableTickets<TData = Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError = ErrorType<ApiError>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPortalReopenableTickets>>,
+          TError,
+          Awaited<ReturnType<typeof listPortalReopenableTickets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPortalReopenableTickets<TData = Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError = ErrorType<ApiError>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPortalReopenableTickets>>,
+          TError,
+          Awaited<ReturnType<typeof listPortalReopenableTickets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPortalReopenableTickets<TData = Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError = ErrorType<ApiError>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Listar tickets cerrados que soporte autorizó a reabrir
+ */
+
+export function useListPortalReopenableTickets<TData = Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError = ErrorType<ApiError>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPortalReopenableTickets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPortalReopenableTicketsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReopenPortalTicketUrl = (id: number,) => {
+
+
+
+
+  return `/api/portal/tickets/${id}/reopen`
+}
+
+/**
+ * @summary Reabrir un ticket cuando soporte haya habilitado el permiso
+ */
+export const reopenPortalTicket = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<PortalTicketReopenResult> => {
+
+  return customFetch<PortalTicketReopenResult>(getReopenPortalTicketUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReopenPortalTicketMutationKey = () => ['reopenPortalTicket'] as const;
+
+export const getReopenPortalTicketMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenPortalTicket>>, TError,ReopenPortalTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenPortalTicket>>, TError,ReopenPortalTicketMutationVariables, TContext> => {
+
+const mutationKey = getReopenPortalTicketMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenPortalTicket>>, ReopenPortalTicketMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  reopenPortalTicket(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenPortalTicketMutationResult = NonNullable<Awaited<ReturnType<typeof reopenPortalTicket>>>
+
+    export type ReopenPortalTicketMutationError = ErrorType<ApiError>
+    export type ReopenPortalTicketMutationVariables = {id: number}
+
+    /**
+ * @summary Reabrir un ticket cuando soporte haya habilitado el permiso
+ */
+export const useReopenPortalTicket = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenPortalTicket>>, TError,ReopenPortalTicketMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reopenPortalTicket>>,
+        TError,
+        ReopenPortalTicketMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReopenPortalTicketMutationOptions(options), queryClient);
+    }
 
 export const getListUsersUrl = () => {
 

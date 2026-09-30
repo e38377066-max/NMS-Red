@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BriefcaseBusiness, ClipboardList, Package, Plus, RefreshCw, ShieldAlert, Ticket, WalletCards } from "lucide-react";
+import { Bell, Clock3, Download, FileText, History, MessageSquare, Paperclip, Search, Send, Shield, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { getAuthToken } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  downloadSupportTicketAttachment,
+  getGetSupportTicketQueryKey,
+  getListSupportTicketAttachmentsQueryKey,
+  getListSupportTicketHistoryQueryKey,
+  getListSupportTicketsQueryKey,
+  getListTicketSlaPoliciesQueryKey,
+  getListUserNotificationsQueryKey,
+  useAddSupportTicketComment,
+  useCreateSupportTicket,
+  useGetSupportTicket,
+  useListSupportTicketAttachments,
+  useListSupportTicketHistory,
+  useListSupportTickets,
+  useListTicketSlaPolicies,
+  useListUserNotifications,
+  useMarkUserNotificationRead,
+  useUpdateSupportTicket,
+  useUpdateTicketClientReopenPermission,
+  useUpdateTicketSlaPolicy,
+  useUploadSupportTicketAttachment,
+  type SupportNotification,
+  type SupportTicket,
+  type SupportTicketAttachment,
+  type SupportTicketSlaPolicy,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -21,7 +49,7 @@ type Report = {
   incidents: { total: number; bySeverity: Record<string, number> };
 };
 
-type TicketRow = { id: number; subject: string; description: string; status: string; priority: string; category: string; createdAt: string; updatedAt: string };
+type TicketRow = { id: number; clientId: number | null; clientReopenEnabled: boolean; subject: string; description: string; status: string; priority: string; category: string; createdAt: string; updatedAt: string };
 type InventoryRow = { id: number; name: string; category: string; status: string; serialNumber: string | null; macAddress: string | null; supplier: string | null };
 type WorkOrder = { id: number; type: string; status: string; address: string | null; scheduledAt: string | null; notes: string | null };
 type Incident = { id: number; type: string; severity: string; message: string; status: string; createdAt: string };
@@ -47,6 +75,26 @@ function StatusBadge({ status }: { status: string }) {
     ? "border-emerald-500/30 text-emerald-400" : ["critical", "overdue", "failed"].includes(status)
       ? "border-red-500/30 text-red-400" : "border-amber-500/30 text-amber-400";
   return <Badge variant="outline" className={tone}>{status.replaceAll("_", " ")}</Badge>;
+}
+
+const supportDate = (value?: string | null) => value
+  ? new Date(value).toLocaleString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+  : "Sin fecha";
+
+const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const result = String(reader.result ?? "");
+    const split = result.indexOf(",");
+    split < 0 ? reject(new Error("No se pudo leer el archivo")) : resolve(result.slice(split + 1));
+  };
+  reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+  reader.readAsDataURL(file);
+});
+
+function SlaPill({ value, dueAt }: { value: string; dueAt?: string | null }) {
+  const overdue = value === "breached" || Boolean(dueAt && new Date(dueAt) < new Date());
+  return <Badge variant="outline" className={overdue ? "border-red-500/40 bg-red-500/10 text-red-300" : value === "met" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}>{overdue ? "SLA vencido" : value === "met" ? "SLA cumplido" : "SLA en curso"}</Badge>;
 }
 
 export default function Operations() {
@@ -88,6 +136,26 @@ export default function Operations() {
     catch (error) { toast({ title: "No se pudo guardar", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" }); }
   };
 
+  const setTicketReopenPermission = async (ticket: TicketRow) => {
+    try {
+      const result = await api<{ ticketId: number; enabled: boolean }>(`/tickets/${ticket.id}/client-reopen`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: !ticket.clientReopenEnabled }),
+      });
+      setTickets(current => current.map(item => item.id === result.ticketId
+        ? { ...item, clientReopenEnabled: result.enabled }
+        : item));
+      toast({
+        title: result.enabled ? "Reapertura habilitada" : "Permiso revocado",
+        description: result.enabled
+          ? `El cliente puede reabrir el ticket #${ticket.id} una vez.`
+          : `El cliente ya no puede reabrir el ticket #${ticket.id}.`,
+      });
+    } catch (error) {
+      toast({ title: "No se pudo cambiar el permiso", description: error instanceof Error ? error.message : "Error desconocido", variant: "destructive" });
+    }
+  };
+
   const openIncidents = useMemo(() => incidents.filter(item => item.status === "open"), [incidents]);
 
   return (
@@ -118,20 +186,7 @@ export default function Operations() {
           <TabsTrigger value="incidents"><ShieldAlert className="mr-2 h-4 w-4" />Alertas</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tickets" className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-          <Card><CardHeader><CardTitle className="text-base">Nuevo ticket</CardTitle></CardHeader><CardContent className="space-y-3">
-            <div><Label>Asunto</Label><Input value={ticketForm.subject} onChange={e => setTicketForm({ ...ticketForm, subject: e.target.value })} /></div>
-            <div><Label>Descripción</Label><Textarea value={ticketForm.description} onChange={e => setTicketForm({ ...ticketForm, description: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Prioridad</Label><Select value={ticketForm.priority} onValueChange={priority => setTicketForm({ ...ticketForm, priority })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Baja</SelectItem><SelectItem value="normal">Normal</SelectItem><SelectItem value="high">Alta</SelectItem><SelectItem value="critical">Crítica</SelectItem></SelectContent></Select></div>
-              <div><Label>Categoría</Label><Input value={ticketForm.category} onChange={e => setTicketForm({ ...ticketForm, category: e.target.value })} /></div>
-            </div>
-            <Button className="w-full" onClick={() => void create("/tickets", ticketForm, () => setTicketForm({ subject: "", description: "", priority: "normal", category: "support" }))}><Plus className="mr-2 h-4 w-4" />Crear ticket</Button>
-          </CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-base">Mesa de ayuda <Badge variant="outline" className="ml-2">{tickets.length}</Badge></CardTitle></CardHeader><CardContent className="space-y-2">
-            {tickets.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No hay tickets registrados.</p> : tickets.map(ticket => <div key={ticket.id} className="rounded-lg border border-border/50 p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">#{ticket.id} {ticket.subject}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{ticket.description}</p></div><StatusBadge status={ticket.status} /></div><div className="mt-3 flex gap-2"><Badge variant="outline">{ticket.priority}</Badge><Badge variant="outline">{ticket.category}</Badge><span className="ml-auto text-xs text-muted-foreground">{new Date(ticket.updatedAt).toLocaleString("es")}</span></div></div>)}
-          </CardContent></Card>
-        </TabsContent>
+        <TabsContent value="tickets"><SupportDesk /></TabsContent>
 
         <TabsContent value="field" className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
           <Card><CardHeader><CardTitle className="text-base">Orden de instalación o visita</CardTitle></CardHeader><CardContent className="space-y-3">
@@ -166,4 +221,214 @@ export default function Operations() {
       </Tabs>
     </div>
   );
+}
+
+function SupportDesk() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [assignmentId, setAssignmentId] = useState("");
+  const [filters, setFilters] = useState({ status: "all", priority: "all", assignee: "", sla: "all", q: "" });
+  const [comment, setComment] = useState("");
+  const [internal, setInternal] = useState(false);
+  const [newTicket, setNewTicket] = useState({ subject: "", description: "", category: "support", priority: "normal" });
+  const [showNew, setShowNew] = useState(false);
+  const [showPolicies, setShowPolicies] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [visibleToClient, setVisibleToClient] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const params = {
+    ...(filters.status !== "all" ? { status: filters.status } : {}),
+    ...(filters.priority !== "all" ? { priority: filters.priority as "low" | "normal" | "high" | "critical" } : {}),
+    ...(filters.assignee ? { assignedToUserId: filters.assignee } : {}),
+    ...(filters.sla !== "all" ? { sla: filters.sla as "overdue" | "first_response" | "resolution" } : {}),
+    ...(filters.q ? { q: filters.q } : {}),
+  };
+  const ticketsQuery = useListSupportTickets(params, { query: { queryKey: getListSupportTicketsQueryKey(params), staleTime: 15_000, refetchInterval: 30_000 } });
+  const notificationsQuery = useListUserNotifications({ query: { queryKey: getListUserNotificationsQueryKey(), staleTime: 10_000, refetchInterval: 30_000 } });
+  const policiesQuery = useListTicketSlaPolicies({ query: { queryKey: getListTicketSlaPoliciesQueryKey(), enabled: showPolicies } });
+  const detailQuery = useGetSupportTicket(selectedId ?? 0, { query: { queryKey: getGetSupportTicketQueryKey(selectedId ?? 0), enabled: selectedId !== null } });
+  const historyQuery = useListSupportTicketHistory(selectedId ?? 0, { query: { queryKey: getListSupportTicketHistoryQueryKey(selectedId ?? 0), enabled: selectedId !== null } });
+  const attachmentsQuery = useListSupportTicketAttachments(selectedId ?? 0, { query: { queryKey: getListSupportTicketAttachmentsQueryKey(selectedId ?? 0), enabled: selectedId !== null } });
+  const createMutation = useCreateSupportTicket();
+  const updateMutation = useUpdateSupportTicket();
+  const commentMutation = useAddSupportTicketComment();
+  const uploadMutation = useUploadSupportTicketAttachment();
+  const reopenMutation = useUpdateTicketClientReopenPermission();
+  const readMutation = useMarkUserNotificationRead();
+  const policyMutation = useUpdateTicketSlaPolicy();
+  const tickets = ticketsQuery.data ?? [];
+  const selected = detailQuery.data;
+  const notifications = notificationsQuery.data ?? [];
+
+  useEffect(() => {
+    setAssignmentId(selected?.assignedToUserId ? String(selected.assignedToUserId) : "");
+  }, [selected?.id, selected?.assignedToUserId]);
+
+  const invalidateTicket = () => {
+    void queryClient.invalidateQueries({ queryKey: getListSupportTicketsQueryKey(params) });
+    if (selectedId !== null) {
+      void queryClient.invalidateQueries({ queryKey: getGetSupportTicketQueryKey(selectedId) });
+      void queryClient.invalidateQueries({ queryKey: getListSupportTicketHistoryQueryKey(selectedId) });
+      void queryClient.invalidateQueries({ queryKey: getListSupportTicketAttachmentsQueryKey(selectedId) });
+    }
+  };
+  const fail = (title: string, error: unknown) => toast({ title, description: error instanceof Error ? error.message : "Intenta de nuevo.", variant: "destructive" });
+  const transition = (status: "open" | "in_progress" | "resolved" | "closed") => {
+    if (!selected || updateMutation.isPending) return;
+    updateMutation.mutate({ id: selected.id, data: { status, reason: `Transición operativa a ${status.replace("_", " ")}` } }, {
+      onSuccess: () => { invalidateTicket(); toast({ title: "Estado actualizado", description: `Ticket #${selected.id} ahora está ${status.replace("_", " ")}.` }); },
+      onError: error => fail("No se pudo cambiar el estado", error),
+    });
+  };
+  const saveAssignee = () => {
+    if (!selected || updateMutation.isPending) return;
+    const value = assignmentId.trim();
+    const assignedToUserId = value ? Number(value) : null;
+    if (value && (!Number.isInteger(assignedToUserId) || assignedToUserId! < 1)) {
+      toast({ title: "Responsable inválido", description: "Usa el ID numérico de una cuenta existente.", variant: "destructive" });
+      return;
+    }
+    updateMutation.mutate({ id: selected.id, data: { assignedToUserId } }, {
+      onSuccess: () => {
+        invalidateTicket();
+        toast({ title: assignedToUserId ? "Ticket asignado" : "Ticket sin responsable" });
+      },
+      onError: error => fail("No se pudo asignar el ticket", error),
+    });
+  };
+  const addComment = () => {
+    if (!selected || !comment.trim()) return;
+    commentMutation.mutate({ id: selected.id, data: { body: comment.trim(), internal } }, {
+      onSuccess: () => { setComment(""); invalidateTicket(); toast({ title: internal ? "Nota interna añadida" : "Respuesta publicada" }); },
+      onError: error => fail("No se pudo añadir el comentario", error),
+    });
+  };
+  const create = () => {
+    if (!newTicket.subject.trim() || !newTicket.description.trim()) return;
+    createMutation.mutate({ data: { ...newTicket, priority: newTicket.priority as "low" | "normal" | "high" | "critical" } }, {
+      onSuccess: ticket => { setShowNew(false); setNewTicket({ subject: "", description: "", category: "support", priority: "normal" }); setSelectedId(ticket.id); void queryClient.invalidateQueries({ queryKey: getListSupportTicketsQueryKey(params) }); toast({ title: "Ticket creado", description: `Ticket #${ticket.id} listo para seguimiento.` }); },
+      onError: error => fail("No se pudo crear el ticket", error),
+    });
+  };
+  const upload = async () => {
+    if (!selected || !file) return;
+    if (file.size > 2 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type)) {
+      toast({ title: "Archivo no admitido", description: "Usa JPEG, PNG, WebP o PDF de hasta 2 MB.", variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const dataBase64 = await fileToBase64(file);
+      uploadMutation.mutate({ id: selected.id, data: { fileName: file.name, mimeType: file.type as "image/jpeg" | "image/png" | "image/webp" | "application/pdf", dataBase64, visibleToClient } }, {
+        onSuccess: () => { setFile(null); setVisibleToClient(false); invalidateTicket(); toast({ title: "Evidencia guardada", description: visibleToClient ? "El cliente podrá verla en su portal." : "La evidencia queda privada para el equipo." }); },
+        onError: error => fail("No se pudo cargar la evidencia", error),
+      });
+    } catch (error) { fail("No se pudo leer el archivo", error); } finally { setBusy(false); }
+  };
+  const download = async (attachment: SupportTicketAttachment) => {
+    if (selectedId === null) return;
+    try {
+      const blob = await downloadSupportTicketAttachment(selectedId, attachment.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a"); link.href = url; link.download = attachment.fileName; link.click(); URL.revokeObjectURL(url);
+    } catch (error) { fail("No se pudo descargar la evidencia", error); }
+  };
+  const markRead = (notification: SupportNotification) => {
+    if (notification.readAt) return;
+    readMutation.mutate({ id: notification.id }, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: getListUserNotificationsQueryKey() }), onError: error => fail("No se pudo actualizar la notificación", error) });
+  };
+  return <div className="space-y-4">
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="rounded-xl border border-border/60 bg-card/50 p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Cola visible</p><p className="mt-2 text-2xl font-semibold">{tickets.length}</p><p className="mt-1 text-xs text-muted-foreground">con los filtros actuales</p></div>
+      <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-300">Atención SLA</p><p className="mt-2 text-2xl font-semibold text-red-200">{tickets.filter(ticket => ticket.firstResponseSla === "breached" || ticket.resolutionSla === "breached").length}</p><p className="mt-1 text-xs text-red-200/70">requieren seguimiento</p></div>
+      <div className="rounded-xl border border-border/60 bg-card/50 p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Notificaciones</p><p className="mt-2 text-2xl font-semibold">{notifications.filter(item => !item.readAt).length}</p><p className="mt-1 text-xs text-muted-foreground">sin leer</p></div>
+    </div>
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(460px,1.1fr)]">
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-muted/10 pb-4">
+          <div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">Cola de soporte</CardTitle><p className="mt-1 text-xs text-muted-foreground">Prioriza por vencimiento, impacto y responsable.</p></div><Button size="sm" onClick={() => setShowNew(value => !value)} data-testid="button-new-support-ticket"><Plus className="mr-2 h-4 w-4" />Nuevo</Button></div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div className="relative sm:col-span-2"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input data-testid="input-ticket-search" value={filters.q} onChange={event => setFilters({ ...filters, q: event.target.value })} placeholder="Buscar asunto o descripción..." className="pl-9" /></div>
+            <Select value={filters.status} onValueChange={status => setFilters({ ...filters, status })}><SelectTrigger data-testid="select-ticket-status"><SelectValue placeholder="Estado" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="open">Abierto</SelectItem><SelectItem value="in_progress">En atención</SelectItem><SelectItem value="resolved">Resuelto</SelectItem><SelectItem value="closed">Cerrado</SelectItem></SelectContent></Select>
+            <Select value={filters.priority} onValueChange={priority => setFilters({ ...filters, priority })}><SelectTrigger data-testid="select-ticket-priority"><SelectValue placeholder="Prioridad" /></SelectTrigger><SelectContent><SelectItem value="all">Todas las prioridades</SelectItem><SelectItem value="critical">Crítica</SelectItem><SelectItem value="high">Alta</SelectItem><SelectItem value="normal">Normal</SelectItem><SelectItem value="low">Baja</SelectItem></SelectContent></Select>
+             <div className="flex gap-2 sm:col-span-2">
+               <Input data-testid="input-ticket-assignee" value={filters.assignee === "unassigned" ? "" : filters.assignee} disabled={filters.assignee === "unassigned"} onChange={event => setFilters({ ...filters, assignee: event.target.value.replace(/\D/g, "") })} placeholder="ID de responsable" />
+               <Button type="button" size="sm" variant={filters.assignee === "unassigned" ? "default" : "outline"} onClick={() => setFilters({ ...filters, assignee: filters.assignee === "unassigned" ? "" : "unassigned" })}>{filters.assignee === "unassigned" ? "Sin asignar: activo" : "Sin asignar"}</Button>
+             </div>
+            <Select value={filters.sla} onValueChange={sla => setFilters({ ...filters, sla })}><SelectTrigger data-testid="select-ticket-sla"><SelectValue placeholder="SLA" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los SLA</SelectItem><SelectItem value="overdue">Vencidos</SelectItem><SelectItem value="first_response">Primera respuesta</SelectItem><SelectItem value="resolution">Resolución</SelectItem></SelectContent></Select>
+          </div>
+        </CardHeader>
+        <CardContent className="max-h-[720px] space-y-2 overflow-y-auto p-3">
+          {ticketsQuery.isLoading ? <div className="space-y-2">{[1, 2, 3, 4].map(item => <div key={item} className="h-24 animate-pulse rounded-lg bg-muted/30" />)}</div> : ticketsQuery.isError ? <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-5 text-sm text-red-200">No se pudo cargar la cola. <Button variant="outline" size="sm" className="ml-2" onClick={() => void ticketsQuery.refetch()}>Reintentar</Button></div> : tickets.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground"><Ticket className="mx-auto mb-3 h-8 w-8 opacity-40" />No hay tickets con estos filtros.</div> : tickets.map(ticket => <button key={ticket.id} data-testid={`button-ticket-${ticket.id}`} onClick={() => setSelectedId(ticket.id)} className={`w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/20 ${selectedId === ticket.id ? "border-primary/60 bg-primary/[0.06]" : "border-border/50"}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">#{ticket.id} {ticket.subject}</p><p className="mt-1 truncate text-xs text-muted-foreground">{ticket.category} · Cliente {ticket.clientId ?? "interno"}</p></div><StatusBadge status={ticket.status} /></div><div className="mt-3 flex flex-wrap items-center gap-2"><Badge variant="outline" className={ticket.priority === "critical" ? "border-red-500/40 text-red-300" : ""}>{ticket.priority}</Badge><SlaPill value={ticket.firstResponseSla} dueAt={ticket.firstResponseDueAt} /><span className="ml-auto text-[11px] text-muted-foreground">{supportDate(ticket.updatedAt)}</span></div></button>)}
+        </CardContent>
+      </Card>
+      <div className="space-y-4">
+        {showNew && <Card><CardHeader><CardTitle className="text-base">Abrir ticket operativo</CardTitle></CardHeader><CardContent className="space-y-3"><Input data-testid="input-new-ticket-subject" value={newTicket.subject} onChange={event => setNewTicket({ ...newTicket, subject: event.target.value })} placeholder="Asunto" /><Textarea data-testid="input-new-ticket-description" value={newTicket.description} onChange={event => setNewTicket({ ...newTicket, description: event.target.value })} placeholder="Describe el incidente o solicitud" /><div className="grid grid-cols-2 gap-2"><Input value={newTicket.category} onChange={event => setNewTicket({ ...newTicket, category: event.target.value })} placeholder="Categoría" /><Select value={newTicket.priority} onValueChange={priority => setNewTicket({ ...newTicket, priority })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Baja</SelectItem><SelectItem value="normal">Normal</SelectItem><SelectItem value="high">Alta</SelectItem><SelectItem value="critical">Crítica</SelectItem></SelectContent></Select></div><Button onClick={create} disabled={createMutation.isPending} data-testid="button-create-ticket">{createMutation.isPending ? "Creando..." : "Crear ticket"}</Button></CardContent></Card>}
+        {!selected && !showNew && <Card className="border-dashed"><CardContent className="flex min-h-[300px] flex-col items-center justify-center text-center"><Ticket className="mb-3 h-9 w-9 text-primary/60" /><p className="font-medium">Selecciona un ticket</p><p className="mt-1 max-w-xs text-sm text-muted-foreground">Aquí verás contexto, SLA, historial, evidencia y notas de soporte.</p></CardContent></Card>}
+        {selected && <Card><CardContent className="flex flex-wrap items-end gap-3 p-4">
+          <div className="min-w-48 flex-1"><Label htmlFor="ticket-assignment">Responsable actual: {selected.assignedToUserId ?? "Sin asignar"}</Label><Input id="ticket-assignment" data-testid="input-ticket-assignment" type="number" min="1" step="1" value={assignmentId} onChange={event => setAssignmentId(event.target.value)} placeholder="ID de usuario" className="mt-1" /></div>
+          <Button size="sm" onClick={saveAssignee} disabled={updateMutation.isPending}>{updateMutation.isPending ? "Guardando..." : assignmentId ? "Asignar" : "Quitar responsable"}</Button>
+        </CardContent></Card>}
+        {selected && <TicketDetail ticket={selected} history={historyQuery.data ?? []} attachments={attachmentsQuery.data ?? []} historyLoading={historyQuery.isLoading} attachmentsLoading={attachmentsQuery.isLoading} comment={comment} setComment={setComment} internal={internal} setInternal={setInternal} onComment={addComment} commentPending={commentMutation.isPending} onTransition={transition} onUpload={upload} file={file} setFile={setFile} visibleToClient={visibleToClient} setVisibleToClient={setVisibleToClient} busy={busy || uploadMutation.isPending} onDownload={download} onReopen={() => reopenMutation.mutate({ id: selected.id, data: { enabled: !selected.clientReopenEnabled } }, { onSuccess: () => { invalidateTicket(); toast({ title: "Permiso actualizado" }); }, onError: error => fail("No se pudo cambiar el permiso", error) })} />
+        }
+      </div>
+    </div>
+    <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+      <Card><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2 text-base"><Bell className="h-4 w-4 text-primary" />Actividad para operadores</CardTitle><p className="mt-1 text-xs text-muted-foreground">Actualizaciones de tickets asignados a tu usuario.</p></div><Button variant="ghost" size="sm" onClick={() => void notificationsQuery.refetch()}><RefreshCw className="h-4 w-4" /></Button></CardHeader><CardContent className="space-y-2">{notificationsQuery.isLoading ? <div className="h-20 animate-pulse rounded-lg bg-muted/30" /> : notifications.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No hay notificaciones.</p> : notifications.slice(0, 5).map(notification => <button key={notification.id} data-testid={`button-notification-${notification.id}`} onClick={() => markRead(notification)} className={`w-full rounded-lg border p-3 text-left ${notification.readAt ? "border-border/40 opacity-70" : "border-primary/30 bg-primary/[0.04]"}`}><div className="flex items-start gap-3"><div className={`mt-1 h-2 w-2 rounded-full ${notification.readAt ? "bg-muted-foreground/40" : "bg-primary"}`} /><div className="min-w-0"><p className="text-sm font-medium">{notification.title}</p><p className="mt-1 text-xs text-muted-foreground">{notification.message}</p><p className="mt-2 text-[11px] text-muted-foreground">{supportDate(notification.createdAt)}{notification.readAt ? " · Leída" : " · Marcar como leída"}</p></div></div></button>)}</CardContent></Card>
+      <SlaPolicies policies={policiesQuery.data ?? []} open={showPolicies} onToggle={() => setShowPolicies(value => !value)} onSave={(priority, data) => policyMutation.mutate({ priority, data }, { onSuccess: () => { void queryClient.invalidateQueries({ queryKey: getListTicketSlaPoliciesQueryKey() }); toast({ title: "Objetivos SLA guardados" }); }, onError: error => fail("No se pudo guardar el SLA", error) })} pending={policyMutation.isPending} />
+    </div>
+  </div>;
+}
+
+function TicketDetail({ ticket, history, attachments, historyLoading, attachmentsLoading, comment, setComment, internal, setInternal, onComment, commentPending, onTransition, onUpload, file, setFile, visibleToClient, setVisibleToClient, busy, onDownload, onReopen }: {
+  ticket: SupportTicket & { comments: Array<{ id: number; body: string; internal: boolean; createdAt: string }> };
+  history: Array<{ id: number; fromStatus?: string | null; toStatus: string; actorType: string; actorName?: string | null; reason?: string | null; createdAt: string }>;
+  attachments: SupportTicketAttachment[];
+  historyLoading: boolean;
+  attachmentsLoading: boolean;
+  comment: string;
+  setComment: (value: string) => void;
+  internal: boolean;
+  setInternal: (value: boolean) => void;
+  onComment: () => void;
+  commentPending: boolean;
+  onTransition: (status: "open" | "in_progress" | "resolved" | "closed") => void;
+  onUpload: () => void;
+  file: File | null;
+  setFile: (file: File | null) => void;
+  visibleToClient: boolean;
+  setVisibleToClient: (value: boolean) => void;
+  busy: boolean;
+  onDownload: (attachment: SupportTicketAttachment) => void;
+  onReopen: () => void;
+}) {
+  return <Card className="overflow-hidden"><CardHeader className="border-b border-border/50 bg-muted/10"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">Ticket #{ticket.id} · {ticket.category}</p><CardTitle className="mt-1 text-xl">{ticket.subject}</CardTitle><p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm text-muted-foreground">{ticket.description}</p></div><div className="flex flex-wrap gap-2"><StatusBadge status={ticket.status} /><Badge variant="outline">{ticket.priority}</Badge></div></div><div className="mt-4 grid gap-2 sm:grid-cols-2"><div className="rounded-lg border border-border/50 bg-background/20 p-3"><p className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />Primera respuesta</p><p className="mt-2 text-sm font-medium">{supportDate(ticket.firstResponseDueAt)}</p><SlaPill value={ticket.firstResponseSla} dueAt={ticket.firstResponseDueAt} /></div><div className="rounded-lg border border-border/50 bg-background/20 p-3"><p className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />Resolución</p><p className="mt-2 text-sm font-medium">{supportDate(ticket.resolutionDueAt)}</p><SlaPill value={ticket.resolutionSla} dueAt={ticket.resolutionDueAt} /></div></div></CardHeader><CardContent className="space-y-5 p-4">
+    <div className="flex flex-wrap gap-2">
+      {ticket.status === "open" && <Button size="sm" variant="outline" onClick={() => onTransition("in_progress")}>Tomar en atención</Button>}
+      {ticket.status === "in_progress" && <>
+        <Button size="sm" variant="outline" onClick={() => onTransition("open")}>Devolver a abierto</Button>
+        <Button size="sm" variant="outline" onClick={() => onTransition("resolved")}>Marcar resuelto</Button>
+      </>}
+      {ticket.status === "resolved" && <>
+        <Button size="sm" variant="outline" onClick={() => onTransition("in_progress")}>Reabrir atención</Button>
+        <Button size="sm" variant="outline" onClick={() => onTransition("closed")}>Cerrar</Button>
+      </>}
+      {ticket.status === "closed" && ticket.clientId !== null && <Button size="sm" variant="ghost" onClick={onReopen}><UserRound className="mr-2 h-4 w-4" />{ticket.clientReopenEnabled ? "Revocar reapertura" : "Permitir reapertura"}</Button>}
+    </div>
+    <div><div className="mb-3 flex items-center justify-between"><h3 className="flex items-center gap-2 text-sm font-semibold"><MessageSquare className="h-4 w-4 text-primary" />Conversación y notas</h3><span className="text-xs text-muted-foreground">{ticket.comments.length} entradas</span></div><div className="max-h-64 space-y-2 overflow-y-auto pr-1">{ticket.comments.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">Sin comentarios todavía.</p> : ticket.comments.map(item => <div key={item.id} className={`rounded-lg border p-3 ${item.internal ? "border-amber-500/25 bg-amber-500/[0.05]" : "border-border/50"}`}><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{item.internal ? "Nota interna" : "Visible para cliente"}</span><span className="text-[11px] text-muted-foreground">{supportDate(item.createdAt)}</span></div><p className="mt-2 whitespace-pre-wrap text-sm">{item.body}</p></div>)}</div><div className="mt-3 space-y-2"><Textarea data-testid="textarea-ticket-comment" value={comment} onChange={event => setComment(event.target.value)} placeholder={internal ? "Añade contexto para el equipo..." : "Escribe una respuesta para el cliente..."} /><div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs text-muted-foreground"><input data-testid="checkbox-internal-comment" type="checkbox" checked={internal} onChange={event => setInternal(event.target.checked)} />Nota interna</label><Button size="sm" onClick={onComment} disabled={!comment.trim() || commentPending}><Send className="mr-2 h-4 w-4" />{commentPending ? "Publicando..." : "Añadir comentario"}</Button></div></div></div>
+    <div><div className="mb-3 flex items-center justify-between"><h3 className="flex items-center gap-2 text-sm font-semibold"><Paperclip className="h-4 w-4 text-primary" />Evidencia privada</h3><span className="text-xs text-muted-foreground">Máximo 2 MB</span></div><div className="space-y-2">{attachmentsLoading ? <div className="h-12 animate-pulse rounded-lg bg-muted/30" /> : attachments.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">No hay archivos adjuntos.</p> : attachments.map(fileItem => <div key={fileItem.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 p-3"><div className="flex min-w-0 items-center gap-2"><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="truncate text-sm">{fileItem.fileName}</p><p className="text-[11px] text-muted-foreground">{Math.ceil(fileItem.sizeBytes / 1024)} KB · {fileItem.visibleToClient ? "Visible al cliente" : "Solo equipo"} · {supportDate(fileItem.createdAt)}</p></div></div><Button size="sm" variant="ghost" onClick={() => onDownload(fileItem)}><Download className="h-4 w-4" /></Button></div>)}</div><div className="mt-3 flex flex-wrap items-center gap-2"><Input key={file?.name ?? "empty"} data-testid="input-ticket-attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy} onChange={event => setFile(event.target.files?.[0] ?? null)} className="max-w-xs" /><label className="flex items-center gap-2 text-xs text-muted-foreground"><input data-testid="checkbox-attachment-visible" type="checkbox" checked={visibleToClient} onChange={event => setVisibleToClient(event.target.checked)} />Visible al cliente</label><Button size="sm" variant="outline" onClick={onUpload} disabled={!file || busy}>Cargar</Button></div></div>
+    <details className="group rounded-lg border border-border/50"><summary className="flex cursor-pointer list-none items-center gap-2 p-3 text-sm font-semibold"><History className="h-4 w-4 text-primary" />Historial de estados <span className="ml-auto text-xs font-normal text-muted-foreground">{historyLoading ? "Cargando..." : `${history.length} cambios`}</span></summary><div className="space-y-3 border-t border-border/50 p-3">{history.length === 0 ? <p className="text-xs text-muted-foreground">Sin cambios registrados.</p> : history.map(event => <div key={event.id} className="relative border-l border-primary/30 pl-4 text-xs"><div className="absolute -left-1 top-1 h-2 w-2 rounded-full bg-primary" /><p className="font-medium">{event.fromStatus ?? "Nuevo"} → {event.toStatus}</p><p className="mt-1 text-muted-foreground">{event.actorName ?? event.actorType} · {supportDate(event.createdAt)}</p>{event.reason && <p className="mt-1 text-muted-foreground">{event.reason}</p>}</div>)}</div></details>
+  </CardContent></Card>;
+}
+
+function SlaPolicies({ policies, open, onToggle, onSave, pending }: { policies: SupportTicketSlaPolicy[]; open: boolean; onToggle: () => void; onSave: (priority: "low" | "normal" | "high" | "critical", data: { firstResponseMinutes: number; resolutionMinutes: number }) => void; pending: boolean }) {
+  return <Card><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle className="text-base">Objetivos SLA</CardTitle><p className="mt-1 text-xs text-muted-foreground">Minutos corridos aplicados a tickets nuevos.</p></div><Button variant="outline" size="sm" onClick={onToggle}>{open ? "Ocultar" : "Editar objetivos"}</Button></CardHeader>{open && <CardContent className="space-y-2">{policies.length === 0 ? <p className="text-sm text-muted-foreground">No hay políticas disponibles.</p> : policies.map(policy => <PolicyRow key={policy.priority} policy={policy} onSave={onSave} pending={pending} />)}</CardContent>}</Card>;
+}
+
+function PolicyRow({ policy, onSave, pending }: { policy: SupportTicketSlaPolicy; onSave: (priority: "low" | "normal" | "high" | "critical", data: { firstResponseMinutes: number; resolutionMinutes: number }) => void; pending: boolean }) {
+  const [first, setFirst] = useState(String(policy.firstResponseMinutes));
+  const [resolution, setResolution] = useState(String(policy.resolutionMinutes));
+  return <div className="grid grid-cols-[0.8fr_1fr_1fr_auto] items-end gap-2 rounded-lg border border-border/50 p-3"><div><p className="text-sm font-medium capitalize">{policy.priority}</p><p className="text-[10px] text-muted-foreground">minutos</p></div><div><Label className="text-[10px]">Primera respuesta</Label><Input value={first} onChange={event => setFirst(event.target.value)} type="number" min="1" /></div><div><Label className="text-[10px]">Resolución</Label><Input value={resolution} onChange={event => setResolution(event.target.value)} type="number" min="1" /></div><Button size="sm" variant="outline" disabled={pending} onClick={() => onSave(policy.priority, { firstResponseMinutes: Number(first), resolutionMinutes: Number(resolution) })}>Guardar</Button></div>;
 }
