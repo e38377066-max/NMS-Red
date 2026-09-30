@@ -19,6 +19,7 @@ const CLIENT_SELECT = {
   id: clientsTable.id,
   equipmentId: clientsTable.equipmentId,
   equipmentModel: equipmentTable.model,
+  equipmentIp: equipmentTable.ip,
   equipmentRole: equipmentTable.equipmentRole,
   connectionType: equipmentTable.connectionType,
   mac: clientsTable.mac,
@@ -28,6 +29,8 @@ const CLIENT_SELECT = {
   status: clientsTable.status,
   lastSeenDbm: clientsTable.lastSeenDbm,
   paymentStatus: clientsTable.paymentStatus,
+  dhcpServer: clientsTable.dhcpServer,
+  dhcpPool: clientsTable.dhcpPool,
   monthlyFee: clientsTable.monthlyFee,
   dueDate: clientsTable.dueDate,
   lastPaymentDate: clientsTable.lastPaymentDate,
@@ -44,6 +47,7 @@ function serializeClient(row: {
   id: number;
   equipmentId: number;
   equipmentModel: string | null;
+  equipmentIp: string | null;
   equipmentRole: string | null;
   connectionType: string | null;
   mac: string;
@@ -53,6 +57,8 @@ function serializeClient(row: {
   status: string;
   lastSeenDbm: string | null;
   paymentStatus: string;
+  dhcpServer: string | null;
+  dhcpPool: string | null;
   monthlyFee: string | null;
   dueDate: Date | null;
   lastPaymentDate: Date | null;
@@ -85,6 +91,22 @@ async function getClientController(equipmentId: number) {
   return equip ?? null;
 }
 
+async function validateAccessEquipment(input: {
+  controllerId: number;
+  accessPointEquipmentId: number | null | undefined;
+}): Promise<string | null> {
+  const accessPointId = input.accessPointEquipmentId ?? null;
+  if (accessPointId === null) return null;
+  if (accessPointId === input.controllerId) {
+    return "El equipo de acceso debe ser distinto del MikroTik que controla al cliente";
+  }
+  const [accessPoint] = await db
+    .select({ id: equipmentTable.id })
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, accessPointId));
+  return accessPoint ? null : "El equipo de acceso seleccionado no existe";
+}
+
 router.get("/clients", async (_req, res): Promise<void> => {
   const rows = await db
     .select(CLIENT_SELECT)
@@ -104,6 +126,14 @@ router.post("/clients", async (req, res): Promise<void> => {
   const controller = await getClientController(rest.equipmentId);
   if (!controller || !isClientController(controller)) {
     res.status(400).json({ error: "El cliente debe estar asociado al Router central MikroTik (rol core_router)" });
+    return;
+  }
+  const accessEquipmentError = await validateAccessEquipment({
+    controllerId: rest.equipmentId,
+    accessPointEquipmentId: rest.accessPointEquipmentId,
+  });
+  if (accessEquipmentError) {
+    res.status(400).json({ error: accessEquipmentError });
     return;
   }
   const duplicate = await db
@@ -148,6 +178,7 @@ router.post("/clients", async (req, res): Promise<void> => {
   res.status(201).json(serializeClient({
     ...client,
     equipmentModel: controller.model,
+      equipmentIp: controller.ip,
     equipmentRole: controller.equipmentRole,
     connectionType: controller.connectionType,
   }));
@@ -185,6 +216,7 @@ router.post("/clients/provision", async (req, res): Promise<void> => {
       paymentStatus: optionalString("paymentStatus"),
       notes: optionalString("notes"),
       dhcpServer: optionalString("dhcpServer"),
+      dhcpPool: optionalString("dhcpPool"),
       contractReference: optionalString("contractReference"),
       contractNotes: optionalString("contractNotes"),
       installationDate: optionalString("installationDate"),
@@ -197,6 +229,7 @@ router.post("/clients/provision", async (req, res): Promise<void> => {
       client: serializeClient({
         ...result.client,
         equipmentModel: controller?.model ?? null,
+      equipmentIp: controller?.ip ?? null,
         equipmentRole: controller?.equipmentRole ?? null,
         connectionType: controller?.connectionType ?? null,
       }),
@@ -256,6 +289,25 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
     ...updateRest,
     ...(ud !== undefined ? { dueDate: ud ? new Date(ud) : null } : {}),
   };
+  const effectiveEquipmentId = updateRest.equipmentId ?? existingClient.equipmentId;
+  const [controller] = await db
+    .select()
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, effectiveEquipmentId));
+  if (!controller || !isClientController(controller)) {
+    res.status(400).json({ error: "El cliente debe estar asociado a un MikroTik con rol Router central" });
+    return;
+  }
+  const accessEquipmentError = await validateAccessEquipment({
+    controllerId: effectiveEquipmentId,
+    accessPointEquipmentId: updateRest.accessPointEquipmentId !== undefined
+      ? updateRest.accessPointEquipmentId
+      : existingClient.accessPointEquipmentId,
+  });
+  if (accessEquipmentError) {
+    res.status(400).json({ error: accessEquipmentError });
+    return;
+  }
   if (updateRest.mac || updateRest.ip) {
     const conflicts = await db
       .select({ id: clientsTable.id })
@@ -316,10 +368,10 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
       },
     });
   }
-  const controller = await getClientController(client.equipmentId);
   res.json(serializeClient({
     ...client,
     equipmentModel: controller?.model ?? null,
+    equipmentIp: controller?.ip ?? null,
     equipmentRole: controller?.equipmentRole ?? null,
     connectionType: controller?.connectionType ?? null,
   }));

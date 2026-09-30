@@ -28,4 +28,10 @@ export interface ClientUpdate {
   assignedTechnicianId?: number | null;
   /** @nullable */
   accessPointEquipmentId?: number | null;
+  equipmentId?: number;
+  /** @nullable */
+  dhcpServer?: string | null;
+  /** @nullable */
+  dhcpPool?: string | null;
+  changeReason?: string;
 }

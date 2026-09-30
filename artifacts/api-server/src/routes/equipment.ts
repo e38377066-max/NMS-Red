@@ -25,6 +25,8 @@ const EQUIP_SELECT = {
   model: equipmentTable.model,
   connectionType: equipmentTable.connectionType,
   equipmentRole: equipmentTable.equipmentRole,
+  parentEquipmentId: equipmentTable.parentEquipmentId,
+  parentCapacityLimit: equipmentTable.parentCapacityLimit,
   snmpCommunity: equipmentTable.snmpCommunity,
   apiPort: equipmentTable.apiPort,
   lastSeenStatus: equipmentTable.lastSeenStatus,
@@ -32,6 +34,54 @@ const EQUIP_SELECT = {
   createdAt: equipmentTable.createdAt,
   clientCount: sql<number>`count(${clientsTable.id})::int`,
 };
+
+async function validateParentAssignment(input: {
+  equipmentId?: number;
+  connectionType: string;
+  parentEquipmentId: number | null | undefined;
+  parentCapacityLimit: string | null | undefined;
+}): Promise<string | null> {
+  const parentId = input.parentEquipmentId ?? null;
+  const limit = input.parentCapacityLimit?.trim() || null;
+  if (!parentId) {
+    return limit ? "La capacidad asignada requiere seleccionar un MikroTik padre" : null;
+  }
+  if (input.connectionType !== "mikrotik_routeros") {
+    return "Solo se pueden encadenar equipos MikroTik RouterOS";
+  }
+  if (input.equipmentId === parentId) {
+    return "Un equipo no puede ser su propio padre";
+  }
+  if (!limit) {
+    return "Indica la capacidad asignada desde el MikroTik padre (por ejemplo 100M/100M)";
+  }
+
+  const visited = new Set<number>();
+  let currentId: number | null = parentId;
+  while (currentId !== null) {
+    if (currentId === input.equipmentId) {
+      return "La relación crearía un ciclo en la topología";
+    }
+    if (visited.has(currentId)) {
+      return "La topología existente contiene un ciclo y no se puede ampliar";
+    }
+    visited.add(currentId);
+    const [parent] = await db
+      .select({
+        id: equipmentTable.id,
+        connectionType: equipmentTable.connectionType,
+        parentEquipmentId: equipmentTable.parentEquipmentId,
+      })
+      .from(equipmentTable)
+      .where(eq(equipmentTable.id, currentId));
+    if (!parent) return "El MikroTik padre seleccionado no existe";
+    if (parent.connectionType !== "mikrotik_routeros") {
+      return "Solo se pueden encadenar equipos MikroTik RouterOS";
+    }
+    currentId = parent.parentEquipmentId;
+  }
+  return null;
+}
 
 router.get("/equipment", async (_req, res): Promise<void> => {
   const rows = await db
@@ -48,6 +98,15 @@ router.post("/equipment", async (req, res): Promise<void> => {
   const parsed = CreateEquipmentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const topologyError = await validateParentAssignment({
+    connectionType: parsed.data.connectionType,
+    parentEquipmentId: parsed.data.parentEquipmentId,
+    parentCapacityLimit: parsed.data.parentCapacityLimit,
+  });
+  if (topologyError) {
+    res.status(400).json({ error: topologyError });
     return;
   }
   const [equip] = await db.insert(equipmentTable).values({
@@ -88,8 +147,47 @@ router.patch("/equipment/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [existing] = await db
+    .select()
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+  const effectiveParentId = parsed.data.parentEquipmentId !== undefined
+    ? parsed.data.parentEquipmentId
+    : existing.parentEquipmentId;
+  const effectiveCapacityLimit = parsed.data.parentCapacityLimit !== undefined
+    ? parsed.data.parentCapacityLimit
+    : effectiveParentId === existing.parentEquipmentId ? existing.parentCapacityLimit : null;
+  const topologyError = await validateParentAssignment({
+    equipmentId: existing.id,
+    connectionType: parsed.data.connectionType ?? existing.connectionType,
+    parentEquipmentId: effectiveParentId,
+    parentCapacityLimit: effectiveCapacityLimit,
+  });
+  if (topologyError) {
+    res.status(400).json({ error: topologyError });
+    return;
+  }
+  const [children] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(equipmentTable)
+    .where(eq(equipmentTable.parentEquipmentId, existing.id));
+  if (
+    parsed.data.connectionType !== undefined &&
+    parsed.data.connectionType !== "mikrotik_routeros" &&
+    Number(children?.count ?? 0) > 0
+  ) {
+    res.status(409).json({ error: "No se puede cambiar a airOS un MikroTik que tiene equipos dependientes" });
+    return;
+  }
   const updateData = {
     ...parsed.data,
+    ...(parsed.data.parentEquipmentId === null && parsed.data.parentCapacityLimit === undefined
+      ? { parentCapacityLimit: null }
+      : {}),
     ...(parsed.data.password ? { password: encryptSecret(parsed.data.password) } : {}),
   };
   const [equip] = await db
@@ -111,10 +209,22 @@ router.delete("/equipment/:id", async (req, res): Promise<void> => {
     return;
   }
   const [equip] = await db
+    .select({ id: equipmentTable.id })
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, params.data.id));
+  if (!equip) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+  await db
+    .update(equipmentTable)
+    .set({ parentEquipmentId: null, parentCapacityLimit: null })
+    .where(eq(equipmentTable.parentEquipmentId, params.data.id));
+  const [deleted] = await db
     .delete(equipmentTable)
     .where(eq(equipmentTable.id, params.data.id))
     .returning();
-  if (!equip) {
+  if (!deleted) {
     res.status(404).json({ error: "Equipment not found" });
     return;
   }

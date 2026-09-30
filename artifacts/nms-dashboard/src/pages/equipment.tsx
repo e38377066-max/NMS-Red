@@ -45,6 +45,8 @@ const INITIAL_FORM = {
   model: "",
   connectionType: "mikrotik_routeros",
   equipmentRole: "ap_distributor",
+  parentEquipmentId: "",
+  parentCapacityLimit: "",
   snmpCommunity: "",
   apiPort: "",
 };
@@ -80,6 +82,8 @@ export default function Equipment() {
         model: form.model,
         connectionType: form.connectionType,
         equipmentRole: form.equipmentRole,
+        parentEquipmentId: form.parentEquipmentId ? Number(form.parentEquipmentId) : null,
+        parentCapacityLimit: form.parentEquipmentId ? form.parentCapacityLimit.trim() : null,
         ...(form.snmpCommunity ? { snmpCommunity: form.snmpCommunity } : {}),
         ...(form.apiPort ? { apiPort: Number(form.apiPort) } : {}),
       },
@@ -138,7 +142,12 @@ export default function Equipment() {
                 </div>
                 <div className="space-y-2">
                   <Label>Protocolo de conexión</Label>
-                  <Select value={form.connectionType} onValueChange={(v) => set("connectionType", v)}>
+                  <Select value={form.connectionType} onValueChange={(v) => {
+                    set("connectionType", v);
+                    if (v !== "mikrotik_routeros") {
+                      setForm((current) => ({ ...current, parentEquipmentId: "", parentCapacityLimit: "" }));
+                    }
+                  }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                        <SelectItem value="mikrotik_routeros">MikroTik RouterOS (API / REST)</SelectItem>
@@ -158,6 +167,43 @@ export default function Equipment() {
                     </SelectContent>
                   </Select>
                 </div>
+                {form.connectionType === "mikrotik_routeros" && (
+                  <>
+                    <div className="col-span-2 space-y-2">
+                      <Label>MikroTik padre <span className="text-muted-foreground">(opcional)</span></Label>
+                      <Select
+                        value={form.parentEquipmentId || "none"}
+                        onValueChange={(value) => {
+                          set("parentEquipmentId", value === "none" ? "" : value);
+                          if (value === "none") set("parentCapacityLimit", "");
+                        }}
+                      >
+                        <SelectTrigger data-testid="select-equipment-parent"><SelectValue placeholder="Sin router padre" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sin router padre</SelectItem>
+                          {(equipment ?? [])
+                            .filter((item) => item.connectionType === "mikrotik_routeros")
+                            .map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.parentEquipmentId && (
+                      <div className="col-span-2 space-y-2">
+                        <Label>Capacidad asignada por el padre</Label>
+                        <Input
+                          data-testid="input-equipment-parent-capacity"
+                          value={form.parentCapacityLimit}
+                          onChange={(event) => set("parentCapacityLimit", event.target.value)}
+                          placeholder="100M/100M"
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-muted-foreground">Formato de referencia RouterOS (descarga/subida). Se registra en NMS; no se aplica al router.</p>
+                      </div>
+                    )}
+                  </>
+                )}
                 {form.connectionType === "ubiquiti_airos" && (
                   <div className="space-y-2">
                     <Label>SNMP Community <span className="text-muted-foreground">(opcional)</span></Label>
@@ -191,6 +237,7 @@ export default function Equipment() {
               <TableHead>Modelo</TableHead>
               <TableHead>Rol</TableHead>
               <TableHead>Marca</TableHead>
+              <TableHead>Router padre / capacidad</TableHead>
               <TableHead>Nodo</TableHead>
               <TableHead>Clientes</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -198,10 +245,10 @@ export default function Equipment() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={9}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
             ) : equipment?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                   No hay equipos registrados.
                 </TableCell>
               </TableRow>
@@ -227,6 +274,14 @@ export default function Equipment() {
                     }>
                       {BRAND_LABEL[eq.connectionType] ?? eq.connectionType}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {eq.parentEquipmentId
+                      ? <>
+                          <div>{equipment?.find((parent) => parent.id === eq.parentEquipmentId)?.model ?? `Equipo #${eq.parentEquipmentId}`}</div>
+                          <div className="font-mono">{eq.parentCapacityLimit ?? "Capacidad sin registrar"}</div>
+                        </>
+                      : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{eq.nodeName}</TableCell>
                   <TableCell>

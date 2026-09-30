@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
 import {
   useGetEquipment, useGetEquipmentStatus, useGetEquipmentWireless, useGetEquipmentMetrics,
+  useListEquipment, getListEquipmentQueryKey, useUpdateEquipment,
   getGetEquipmentQueryKey, getGetEquipmentStatusQueryKey, getGetEquipmentWirelessQueryKey, getGetEquipmentMetricsQueryKey,
   getEquipmentConfiguration, previewEquipmentConfigurationFile, previewEquipmentConfigurationSettings, applyEquipmentConfiguration,
   type EquipmentConfiguration, type EquipmentConfigurationParameter, type EquipmentConfigurationPreview,
@@ -22,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type ConfigPreview = EquipmentConfigurationPreview;
 type ConfigParameter = EquipmentConfigurationParameter;
@@ -73,9 +75,13 @@ export default function EquipmentDetail() {
   const [configPreview, setConfigPreview] = useState<ConfigPreview | null>(null);
   const [configBusy, setConfigBusy] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
+  const [parentEquipmentId, setParentEquipmentId] = useState("");
+  const [parentCapacityLimit, setParentCapacityLimit] = useState("");
   const canApplyDeviceConfig = configSnapshot?.controlPolicy?.canApply === true;
 
   const { data: equip, isLoading: loadingEquip } = useGetEquipment(id);
+  const { data: allEquipment } = useListEquipment({ query: { queryKey: getListEquipmentQueryKey() } });
+  const updateEquipment = useUpdateEquipment();
   const { data: liveStatus, isLoading: loadingStatus } = useGetEquipmentStatus(id, {
     query: { queryKey: getGetEquipmentStatusQueryKey(id) },
   });
@@ -85,6 +91,59 @@ export default function EquipmentDetail() {
   const { data: wireless, isLoading: loadingWireless } = useGetEquipmentWireless(id, {
     query: { queryKey: getGetEquipmentWirelessQueryKey(id) },
   });
+
+  useEffect(() => {
+    setParentEquipmentId(equip?.parentEquipmentId ? String(equip.parentEquipmentId) : "");
+    setParentCapacityLimit(equip?.parentCapacityLimit ?? "");
+  }, [equip?.id, equip?.parentEquipmentId, equip?.parentCapacityLimit]);
+
+  const hasDescendant = (candidateId: number) => {
+    const seen = new Set<number>();
+    let current = allEquipment?.find((item) => item.id === candidateId);
+    while (current?.parentEquipmentId != null && !seen.has(current.id)) {
+      if (current.parentEquipmentId === id) return true;
+      seen.add(current.id);
+      current = allEquipment?.find((item) => item.id === current?.parentEquipmentId);
+    }
+    return false;
+  };
+  const parentCandidates = (allEquipment ?? []).filter((item) =>
+    item.connectionType === "mikrotik_routeros" &&
+    item.id !== id &&
+    !hasDescendant(item.id),
+  );
+  const parentEquipment = allEquipment?.find((item) => item.id === equip?.parentEquipmentId);
+  const childEquipment = (allEquipment ?? []).filter((item) => item.parentEquipmentId === id);
+
+  const saveTopology = () => {
+    const selectedParentId = parentEquipmentId ? Number(parentEquipmentId) : null;
+    if (selectedParentId !== null && !parentCapacityLimit.trim()) {
+      toast({
+        title: "Falta la capacidad asignada",
+        description: "Indica un valor como 100M/100M para guardar la relación.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateEquipment.mutate({
+      id,
+      data: {
+        parentEquipmentId: selectedParentId,
+        parentCapacityLimit: selectedParentId === null ? null : parentCapacityLimit.trim(),
+      },
+    }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetEquipmentQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey() });
+        toast({ title: "Topología actualizada", description: "La relación y capacidad quedaron registradas en NMS." });
+      },
+      onError: (error) => toast({
+        title: "No se pudo guardar la topología",
+        description: error.message,
+        variant: "destructive",
+      }),
+    });
+  };
 
   const roleMeta = ROLE_META[equip?.equipmentRole ?? ""] ?? null;
   const brandMeta = BRAND_META[equip?.connectionType ?? ""] ?? null;
@@ -255,6 +314,82 @@ export default function EquipmentDetail() {
           <RefreshCw className="w-4 h-4 mr-2" /> Actualizar
         </Button>
       </div>
+
+      {equip.connectionType === "mikrotik_routeros" && (
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-3 border-b border-border/40">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Server className="w-4 h-4 text-primary" /> Topología MikroTik y capacidad asignada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+              <div className="space-y-1.5">
+                <Label>MikroTik padre</Label>
+                <Select value={parentEquipmentId || "none"} onValueChange={(value) => {
+                  setParentEquipmentId(value === "none" ? "" : value);
+                  if (value === "none") setParentCapacityLimit("");
+                }}>
+                  <SelectTrigger data-testid="select-topology-parent"><SelectValue placeholder="Sin padre" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin router padre</SelectItem>
+                    {parentCandidates.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {parentEquipment && (
+                  <p className="text-xs text-muted-foreground">
+                    Actualmente conectado a {parentEquipment.model} · {parentEquipment.ip}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Capacidad asignada desde el padre</Label>
+                <Input
+                  data-testid="input-topology-capacity"
+                  value={parentCapacityLimit}
+                  onChange={(event) => setParentCapacityLimit(event.target.value)}
+                  disabled={!parentEquipmentId}
+                  placeholder="100M/100M"
+                  className="font-mono"
+                />
+              </div>
+              <Button
+                data-testid="button-save-topology"
+                onClick={saveTopology}
+                disabled={updateEquipment.isPending}
+              >
+                {updateEquipment.isPending ? "Guardando..." : "Guardar topología"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              La capacidad se registra como referencia en NMS. Este guardado no modifica RouterOS.
+            </p>
+            <div className="border-t border-border/40 pt-3">
+              <h3 className="text-sm font-medium mb-2">MikroTiks dependientes ({childEquipment.length})</h3>
+              {childEquipment.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay equipos hijos asociados.</p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {childEquipment.map((child) => (
+                    <Link key={child.id} href={`/equipment/${child.id}`}>
+                      <div
+                        data-testid={`equipment-child-${child.id}`}
+                        className="rounded-md border border-border/50 p-3 hover:bg-muted/20"
+                      >
+                        <div className="font-medium text-sm">{child.model}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{child.ip}</div>
+                        <div className="text-xs mt-2">Capacidad asignada: <span className="font-mono">{child.parentCapacityLimit ?? "Sin registrar"}</span></div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Live status cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

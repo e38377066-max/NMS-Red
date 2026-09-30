@@ -13,6 +13,8 @@ export interface Client {
   equipmentId: number;
   /** @nullable */
   equipmentModel?: string | null;
+  /** @nullable */
+  equipmentIp?: string | null;
   mac: string;
   /** @nullable */
   ip?: string | null;
@@ -22,6 +24,10 @@ export interface Client {
   /** @nullable */
   lastSeenDbm?: string | null;
   paymentStatus: ClientPaymentStatus;
+  /** @nullable */
+  dhcpServer: string | null;
+  /** @nullable */
+  dhcpPool: string | null;
   /** @nullable */
   monthlyFee?: string | null;
   /** @nullable */

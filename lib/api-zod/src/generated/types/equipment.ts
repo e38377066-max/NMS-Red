@@ -20,6 +20,10 @@ export interface Equipment {
   connectionType: EquipmentConnectionType;
   equipmentRole: EquipmentEquipmentRole;
   /** @nullable */
+  parentEquipmentId: number | null;
+  /** @nullable */
+  parentCapacityLimit: string | null;
+  /** @nullable */
   snmpCommunity?: string | null;
   /** @nullable */
   apiPort?: number | null;

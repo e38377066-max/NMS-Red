@@ -34,6 +34,7 @@ export interface ProvisionClientInput {
   paymentStatus?: string;
   notes?: string;
   dhcpServer?: string;
+  dhcpPool?: string;
   contractReference?: string;
   contractNotes?: string;
   installationDate?: string;
@@ -58,6 +59,16 @@ export async function provisionClient(input: ProvisionClientInput, requestedByUs
   if (!equipment) throw new Error("Router central no encontrado");
   if (equipment.connectionType !== "mikrotik_routeros" || equipment.equipmentRole !== "core_router") {
     throw new Error("El aprovisionamiento solo puede ejecutarse en un Router central MikroTik");
+  }
+  if (input.accessPointEquipmentId !== undefined) {
+    if (input.accessPointEquipmentId === equipment.id) {
+      throw new Error("El equipo de acceso debe ser distinto del MikroTik central");
+    }
+    const [accessPoint] = await db
+      .select({ id: equipmentTable.id })
+      .from(equipmentTable)
+      .where(eq(equipmentTable.id, input.accessPointEquipmentId));
+    if (!accessPoint) throw new Error("El equipo de acceso seleccionado no existe");
   }
 
   const duplicate = await db
@@ -179,6 +190,8 @@ export async function provisionClient(input: ProvisionClientInput, requestedByUs
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
         status: input.status ?? "ACTIVE",
         paymentStatus: input.paymentStatus ?? "PAID",
+        dhcpServer: input.dhcpServer,
+        dhcpPool: input.dhcpPool,
         contractReference: input.contractReference,
         contractNotes: input.contractNotes,
         installationDate: input.installationDate ? new Date(input.installationDate) : undefined,

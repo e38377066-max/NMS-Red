@@ -2434,7 +2434,7 @@ components:
 
     Equipment:
       type: object
-      required: [id, nodeId, ip, username, model, lastSeenStatus, connectionType, equipmentRole]
+      required: [id, nodeId, ip, username, model, lastSeenStatus, connectionType, equipmentRole, parentEquipmentId, parentCapacityLimit]
       properties:
         id:
           type: integer
@@ -2454,6 +2454,10 @@ components:
         equipmentRole:
           type: string
           enum: [gateway, ptp_link, ap_distributor, core_router]
+        parentEquipmentId:
+          type: ["integer", "null"]
+        parentCapacityLimit:
+          type: ["string", "null"]
         snmpCommunity:
           type: ["string", "null"]
         apiPort:
@@ -2486,6 +2490,10 @@ components:
           type: string
         equipmentRole:
           type: string
+        parentEquipmentId:
+          type: ["integer", "null"]
+        parentCapacityLimit:
+          type: ["string", "null"]
         snmpCommunity:
           type: string
         apiPort:
@@ -2508,6 +2516,10 @@ components:
           type: string
         equipmentRole:
           type: string
+        parentEquipmentId:
+          type: ["integer", "null"]
+        parentCapacityLimit:
+          type: ["string", "null"]
         snmpCommunity:
           type: string
         apiPort:
@@ -2756,13 +2768,15 @@ components:
 
     Client:
       type: object
-      required: [id, equipmentId, mac, name, planLimit, status, paymentStatus]
+      required: [id, equipmentId, mac, name, planLimit, status, paymentStatus, dhcpServer, dhcpPool]
       properties:
         id:
           type: integer
         equipmentId:
           type: integer
         equipmentModel:
+          type: ["string", "null"]
+        equipmentIp:
           type: ["string", "null"]
         mac:
           type: string
@@ -2780,6 +2794,10 @@ components:
         paymentStatus:
           type: string
           enum: [PAID, PENDING, SUSPENDED]
+        dhcpServer:
+          type: ["string", "null"]
+        dhcpPool:
+          type: ["string", "null"]
         monthlyFee:
           type: ["string", "null"]
         dueDate:
@@ -2837,6 +2855,10 @@ components:
           type: ["integer", "null"]
         accessPointEquipmentId:
           type: ["integer", "null"]
+        dhcpServer:
+          type: ["string", "null"]
+        dhcpPool:
+          type: ["string", "null"]
 
     ProvisionClientInput:
       type: object
@@ -2876,6 +2898,8 @@ components:
         notes:
           type: string
         dhcpServer:
+          type: string
+        dhcpPool:
           type: string
 
     ProvisionClientResponse:
@@ -2941,6 +2965,14 @@ components:
           type: ["integer", "null"]
         accessPointEquipmentId:
           type: ["integer", "null"]
+        equipmentId:
+          type: integer
+        dhcpServer:
+          type: ["string", "null"]
+        dhcpPool:
+          type: ["string", "null"]
+        changeReason:
+          type: string
 
     ClientContract:
       type: object

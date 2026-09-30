@@ -30,4 +30,5 @@ export interface ProvisionClientInput {
   paymentStatus?: string;
   notes?: string;
   dhcpServer?: string;
+  dhcpPool?: string;
 }

@@ -28,4 +28,8 @@ export interface ClientInput {
   assignedTechnicianId?: number | null;
   /** @nullable */
   accessPointEquipmentId?: number | null;
+  /** @nullable */
+  dhcpServer?: string | null;
+  /** @nullable */
+  dhcpPool?: string | null;
 }

@@ -14,6 +14,10 @@ export interface EquipmentInput {
   model: string;
   connectionType: string;
   equipmentRole: string;
+  /** @nullable */
+  parentEquipmentId?: number | null;
+  /** @nullable */
+  parentCapacityLimit?: string | null;
   snmpCommunity?: string;
   apiPort?: number;
 }

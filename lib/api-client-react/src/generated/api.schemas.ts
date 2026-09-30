@@ -69,6 +69,10 @@ export interface Equipment {
   connectionType: EquipmentConnectionType;
   equipmentRole: EquipmentEquipmentRole;
   /** @nullable */
+  parentEquipmentId: number | null;
+  /** @nullable */
+  parentCapacityLimit: string | null;
+  /** @nullable */
   snmpCommunity?: string | null;
   /** @nullable */
   apiPort?: number | null;
@@ -88,6 +92,10 @@ export interface EquipmentInput {
   model: string;
   connectionType: string;
   equipmentRole: string;
+  /** @nullable */
+  parentEquipmentId?: number | null;
+  /** @nullable */
+  parentCapacityLimit?: string | null;
   snmpCommunity?: string;
   apiPort?: number;
 }
@@ -100,6 +108,10 @@ export interface EquipmentUpdate {
   model?: string;
   connectionType?: string;
   equipmentRole?: string;
+  /** @nullable */
+  parentEquipmentId?: number | null;
+  /** @nullable */
+  parentCapacityLimit?: string | null;
   snmpCommunity?: string;
   apiPort?: number;
 }
@@ -326,6 +338,8 @@ export interface Client {
   equipmentId: number;
   /** @nullable */
   equipmentModel?: string | null;
+  /** @nullable */
+  equipmentIp?: string | null;
   mac: string;
   /** @nullable */
   ip?: string | null;
@@ -335,6 +349,10 @@ export interface Client {
   /** @nullable */
   lastSeenDbm?: string | null;
   paymentStatus: ClientPaymentStatus;
+  /** @nullable */
+  dhcpServer: string | null;
+  /** @nullable */
+  dhcpPool: string | null;
   /** @nullable */
   monthlyFee?: string | null;
   /** @nullable */
@@ -378,6 +396,10 @@ export interface ClientInput {
   assignedTechnicianId?: number | null;
   /** @nullable */
   accessPointEquipmentId?: number | null;
+  /** @nullable */
+  dhcpServer?: string | null;
+  /** @nullable */
+  dhcpPool?: string | null;
 }
 
 export interface ProvisionClientInput {
@@ -404,6 +426,7 @@ export interface ProvisionClientInput {
   paymentStatus?: string;
   notes?: string;
   dhcpServer?: string;
+  dhcpPool?: string;
 }
 
 export type ProvisionClientResponseEquipment = {
@@ -447,6 +470,12 @@ export interface ClientUpdate {
   assignedTechnicianId?: number | null;
   /** @nullable */
   accessPointEquipmentId?: number | null;
+  equipmentId?: number;
+  /** @nullable */
+  dhcpServer?: string | null;
+  /** @nullable */
+  dhcpPool?: string | null;
+  changeReason?: string;
 }
 
 export type ClientContractStatus = typeof ClientContractStatus[keyof typeof ClientContractStatus];

@@ -15,6 +15,9 @@ export const clientsTable = pgTable("clients", {
   status: text("status").notNull().default("ACTIVE"),
   lastSeenDbm: text("last_seen_dbm"),
   paymentStatus: text("payment_status").notNull().default("PAID"),
+  // DHCP assignment metadata; historical values remain null until confirmed.
+  dhcpServer: text("dhcp_server"),
+  dhcpPool: text("dhcp_pool"),
   monthlyFee: numeric("monthly_fee", { precision: 10, scale: 2 }).default("0"),
   dueDate: timestamp("due_date"),
   lastPaymentDate: timestamp("last_payment_date"),

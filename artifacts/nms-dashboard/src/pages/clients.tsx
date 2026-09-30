@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment, useListEquipment } from "@workspace/api-client-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment,
+  useListEquipment, useProvisionClient, type Client,
+} from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,27 +16,6 @@ import { Link } from "wouter";
 import { SignalStrength } from "@/components/signal-strength";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-type Client = {
-  id: number;
-  name: string;
-  mac: string;
-  ip: string | null;
-  equipmentId: number;
-  equipmentModel?: string | null;
-  planLimit: string;
-  status: string;
-  paymentStatus: string;
-  monthlyFee?: string | null;
-  dueDate?: string | null;
-  lastSeenDbm?: string | null;
-  contractReference?: string | null;
-  contractNotes?: string | null;
-  installationDate?: string | null;
-  installationAddress?: string | null;
-  assignedTechnicianId?: number | null;
-  accessPointEquipmentId?: number | null;
-};
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -75,31 +57,7 @@ export default function Clients() {
   });
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const provisionClient = useMutation({
-    mutationFn: async (data: typeof newClient) => {
-      const res = await fetch(`${BASE}/api/clients/provision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equipmentId: Number(data.equipmentId),
-          name: data.name,
-          mac: data.mac,
-          fixedIp: data.ip,
-          planLimit: data.planLimit,
-          ...(data.monthlyFee ? { monthlyFee: data.monthlyFee } : {}),
-          ...(data.contractReference ? { contractReference: data.contractReference } : {}),
-          ...(data.contractNotes ? { contractNotes: data.contractNotes } : {}),
-          ...(data.installationDate ? { installationDate: `${data.installationDate}T00:00:00.000Z` } : {}),
-          ...(data.installationAddress ? { installationAddress: data.installationAddress } : {}),
-          ...(data.assignedTechnicianId ? { assignedTechnicianId: Number(data.assignedTechnicianId) } : {}),
-          ...(data.accessPointEquipmentId ? { accessPointEquipmentId: Number(data.accessPointEquipmentId) } : {}),
-        }),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(payload.error ?? "No se pudo aprovisionar el cliente");
-      return payload as { router?: { verified?: boolean } };
-    },
-  });
+  const provisionClient = useProvisionClient();
 
   const [paymentModal, setPaymentModal] = useState<Client | null>(null);
   const [fee, setFee] = useState("");
@@ -118,6 +76,8 @@ export default function Clients() {
     installationAddress: "",
     assignedTechnicianId: "",
     accessPointEquipmentId: "",
+    dhcpServer: "",
+    dhcpPool: "",
   });
 
   const handleDelete = (id: number, name: string) => {
@@ -165,7 +125,24 @@ export default function Clients() {
       toast({ title: "Completa los campos requeridos", description: "Selecciona el router central y registra nombre, MAC, IP fija y plan.", variant: "destructive" });
       return;
     }
-    provisionClient.mutate(newClient, {
+    provisionClient.mutate({
+      data: {
+        equipmentId: Number(newClient.equipmentId),
+        name: newClient.name,
+        mac: newClient.mac,
+        fixedIp: newClient.ip,
+        planLimit: newClient.planLimit,
+        ...(newClient.monthlyFee ? { monthlyFee: newClient.monthlyFee } : {}),
+        ...(newClient.contractReference ? { contractReference: newClient.contractReference } : {}),
+        ...(newClient.contractNotes ? { contractNotes: newClient.contractNotes } : {}),
+        ...(newClient.installationDate ? { installationDate: `${newClient.installationDate}T00:00:00.000Z` } : {}),
+        ...(newClient.installationAddress ? { installationAddress: newClient.installationAddress } : {}),
+        ...(newClient.assignedTechnicianId ? { assignedTechnicianId: Number(newClient.assignedTechnicianId) } : {}),
+        ...(newClient.accessPointEquipmentId ? { accessPointEquipmentId: Number(newClient.accessPointEquipmentId) } : {}),
+        ...(newClient.dhcpServer.trim() ? { dhcpServer: newClient.dhcpServer.trim() } : {}),
+        ...(newClient.dhcpPool.trim() ? { dhcpPool: newClient.dhcpPool.trim() } : {}),
+      },
+    }, {
       onSuccess: (result) => {
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
         toast({ title: "Cliente aprovisionado", description: result.router?.verified ? `${newClient.name} quedó verificado en DHCP, Simple Queue y address-list.` : `${newClient.name} quedó registrado.` });
@@ -174,6 +151,7 @@ export default function Clients() {
            equipmentId: "", name: "", mac: "", ip: "", planLimit: "10M/10M", monthlyFee: "",
            contractReference: "", contractNotes: "", installationDate: "", installationAddress: "",
            assignedTechnicianId: "", accessPointEquipmentId: "",
+           dhcpServer: "", dhcpPool: "",
          });
       },
       onError: (error: Error) => toast({ title: "No se pudo aprovisionar el cliente", description: `${error.message}. No se guardó un alta parcial.`, variant: "destructive" }),
@@ -202,6 +180,8 @@ export default function Clients() {
               <TableHead>Nombre</TableHead>
               <TableHead>MAC / IP</TableHead>
               <TableHead>Router controlador</TableHead>
+              <TableHead>Equipo de acceso</TableHead>
+              <TableHead>DHCP servidor / pool</TableHead>
               <TableHead>Señal</TableHead>
               <TableHead>Plan</TableHead>
               <TableHead>Vence</TableHead>
@@ -210,10 +190,10 @@ export default function Clients() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={11}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
             ) : clients?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-12">
+                <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
                   <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
                   No hay clientes registrados.
                 </TableCell>
@@ -234,6 +214,18 @@ export default function Clients() {
                     <div className="font-mono text-xs text-muted-foreground">{client.ip ?? "—"}</div>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{client.equipmentModel ?? "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {(() => {
+                      const accessPoint = equipment?.find((item) => item.id === client.accessPointEquipmentId);
+                      return accessPoint
+                        ? <><div>{accessPoint.model}</div><div className="text-xs text-muted-foreground font-mono">{accessPoint.ip}</div></>
+                        : <span className="text-muted-foreground">Sin asociar</span>;
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    <div className="font-mono">{client.dhcpServer ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">{client.dhcpPool ? `Pool: ${client.dhcpPool}` : "Pool sin registrar"}</div>
+                  </TableCell>
                   <TableCell><SignalStrength dbm={client.lastSeenDbm} /></TableCell>
                   <TableCell className="font-mono text-sm">{client.planLimit}</TableCell>
                   <TableCell className={`text-xs ${client.dueDate && new Date(client.dueDate) < new Date() ? "text-red-400 font-medium" : "text-muted-foreground"}`}>
@@ -378,6 +370,26 @@ export default function Clients() {
                       {accessPoints.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Servidor DHCP <span className="text-xs text-muted-foreground">(nombre RouterOS)</span></Label>
+                  <Input
+                    data-testid="input-client-dhcp-server"
+                    value={newClient.dhcpServer}
+                    onChange={(event) => updateNewClient("dhcpServer", event.target.value)}
+                    placeholder="dhcp1"
+                    className="font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Pool DHCP <span className="text-xs text-muted-foreground">(referencia)</span></Label>
+                  <Input
+                    data-testid="input-client-dhcp-pool"
+                    value={newClient.dhcpPool}
+                    onChange={(event) => updateNewClient("dhcpPool", event.target.value)}
+                    placeholder="pool-clientes"
+                    className="font-mono"
+                  />
                 </div>
               </div>
               <div className="space-y-1.5">

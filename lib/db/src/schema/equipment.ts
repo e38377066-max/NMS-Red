@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, numeric, check } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric, check, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { sql } from "drizzle-orm";
@@ -15,6 +15,13 @@ export const equipmentTable = pgTable("equipment", {
   connectionType: text("connection_type").notNull().default("mikrotik_routeros"),
   // Functional role in the network topology
   equipmentRole: text("equipment_role").notNull().default("ap_distributor"),
+  // Optional MikroTik parent in the routed hierarchy
+  parentEquipmentId: integer("parent_equipment_id").references(
+    (): AnyPgColumn => equipmentTable.id,
+    { onDelete: "set null" },
+  ),
+  // Capacity reserved for this child on its parent, in RouterOS max-limit format (e.g. 100M/100M)
+  parentCapacityLimit: text("parent_capacity_limit"),
   // Optional: SNMP community string for Ubiquiti/SNMP polling
   snmpCommunity: text("snmp_community"),
   // Optional: API port override (MikroTik REST default 80, RouterOS API 8728)

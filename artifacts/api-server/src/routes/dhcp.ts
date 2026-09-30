@@ -111,7 +111,10 @@ router.patch("/equipment/:id/dhcp-leases/:leaseId/make-static", async (req, res)
   if (ok) {
     if (linkedClient && lease?.address) {
       await db.update(clientsTable)
-        .set({ ip: lease.address })
+       .set({
+         ip: lease.address,
+         ...(lease.dhcpServer ? { dhcpServer: lease.dhcpServer } : {}),
+       })
         .where(eq(clientsTable.id, linkedClient.id));
       const limit = await setClientSpeedLimit(
         equip.ip,
@@ -168,7 +171,10 @@ router.post("/clients/:id/dhcp-lease", async (req, res): Promise<void> => {
   );
 
   if (result.success) {
-    await db.update(clientsTable).set({ ip: fixedIp }).where(eq(clientsTable.id, id));
+    await db.update(clientsTable).set({
+      ip: fixedIp,
+      ...(dhcpServer ? { dhcpServer } : {}),
+    }).where(eq(clientsTable.id, id));
     const queue = await setClientSpeedLimit(
       equip.ip,
       equip.username,

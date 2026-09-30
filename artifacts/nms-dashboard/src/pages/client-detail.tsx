@@ -6,6 +6,7 @@ import {
   useRegisterClientPayment, getListClientsQueryKey,
   useChangeClientSpeed,
   useListClientContracts, useReviewClientContract,
+  useListEquipment, getListEquipmentQueryKey, useUpdateClient,
   type ClientContract,
 } from "@workspace/api-client-react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
@@ -109,13 +110,8 @@ export default function ClientDetail() {
     },
     enabled: Number.isInteger(id) && id > 0,
   });
-  const { data: equipment } = useQuery<Array<{ id: number; model: string; ip: string }>>({
-    queryKey: ["equipment-for-client-detail"],
-    queryFn: async () => {
-      const response = await fetch(`${BASE}/api/equipment`);
-      if (!response.ok) throw new Error("No se pudo cargar el inventario de red");
-      return response.json();
-    },
+  const { data: equipment } = useListEquipment({
+    query: { queryKey: getListEquipmentQueryKey() },
   });
   const { data: users } = useQuery<Array<{ id: number; username: string }>>({
     queryKey: ["users-for-client-detail"],
@@ -135,6 +131,7 @@ export default function ClientDetail() {
   const registerPayment = useRegisterClientPayment();
   const changeSpeed = useChangeClientSpeed();
   const reviewContract = useReviewClientContract();
+  const updateClient = useUpdateClient();
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -152,7 +149,10 @@ export default function ClientDetail() {
     installationDate: "",
     installationAddress: "",
     assignedTechnicianId: "",
+    equipmentId: "",
     accessPointEquipmentId: "",
+    dhcpServer: "",
+    dhcpPool: "",
     changeReason: "",
   });
 
@@ -224,33 +224,39 @@ export default function ClientDetail() {
     },
   });
 
-  const updateAdministrativeRecord = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`${BASE}/api/clients/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contractReference: adminForm.contractReference || null,
-          contractNotes: adminForm.contractNotes || null,
-          installationDate: adminForm.installationDate ? `${adminForm.installationDate}T00:00:00.000Z` : null,
-          installationAddress: adminForm.installationAddress || null,
-          assignedTechnicianId: adminForm.assignedTechnicianId ? Number(adminForm.assignedTechnicianId) : null,
-          accessPointEquipmentId: adminForm.accessPointEquipmentId ? Number(adminForm.accessPointEquipmentId) : null,
-          changeReason: adminForm.changeReason || undefined,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error ?? "No se pudo actualizar el expediente");
-      return payload;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
-      queryClient.invalidateQueries({ queryKey: ["client-history", id] });
-      toast({ title: "Expediente actualizado", description: "El cambio quedó registrado en el historial." });
-      setAdminEditOpen(false);
-    },
-    onError: (error: Error) => toast({ title: "No se pudo actualizar", description: error.message, variant: "destructive" }),
-  });
+  const submitAdministrativeUpdate = () => {
+    const nextEquipmentId = Number(adminForm.equipmentId);
+    if (nextEquipmentId !== client?.equipmentId && !confirm(
+      "Esto solo cambia la asociación en NMS; no migra ni modifica leases, colas o configuración en los MikroTik. ¿Continuar?",
+    )) return;
+    updateClient.mutate({
+      id,
+      data: {
+        equipmentId: nextEquipmentId,
+        contractReference: adminForm.contractReference || null,
+        contractNotes: adminForm.contractNotes || null,
+        installationDate: adminForm.installationDate ? `${adminForm.installationDate}T00:00:00.000Z` : null,
+        installationAddress: adminForm.installationAddress || null,
+        assignedTechnicianId: adminForm.assignedTechnicianId ? Number(adminForm.assignedTechnicianId) : null,
+        accessPointEquipmentId: adminForm.accessPointEquipmentId && adminForm.accessPointEquipmentId !== "none"
+          ? Number(adminForm.accessPointEquipmentId)
+          : null,
+        dhcpServer: adminForm.dhcpServer.trim() || null,
+        dhcpPool: adminForm.dhcpPool.trim() || null,
+        changeReason: adminForm.changeReason || undefined,
+      },
+    }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["client-history", id] });
+        queryClient.invalidateQueries({ queryKey: ["dhcp-leases"] });
+        toast({ title: "Ficha actualizada", description: "La asociación, los datos DHCP y el expediente quedaron registrados en NMS." });
+        setAdminEditOpen(false);
+      },
+      onError: (error) => toast({ title: "No se pudo actualizar", description: error.message, variant: "destructive" }),
+    });
+  };
 
   const uploadContract = useMutation({
     mutationFn: async (file: File) => {
@@ -377,7 +383,7 @@ export default function ClientDetail() {
           <Button variant="outline" size="sm" onClick={() => { setNewPlan(client.planLimit); setSpeedOpen(true); }}>
             <Zap className="w-4 h-4 mr-2 text-yellow-400" /> Cambiar Velocidad
           </Button>
-          <Button variant="outline" size="sm" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpServer(""); setDhcpOpen(true); }}>
+          <Button variant="outline" size="sm" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpServer(client.dhcpServer ?? ""); setDhcpOpen(true); }}>
             <Network className="w-4 h-4 mr-2 text-sky-400" /> Lease DHCP Estático
           </Button>
         </div>
@@ -450,7 +456,7 @@ export default function ClientDetail() {
               <div className="text-sm text-muted-foreground">
                 No se encontró lease DHCP para <span className="font-mono text-foreground">{client.mac}</span> en este equipo.
               </div>
-              <Button size="sm" variant="outline" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpOpen(true); }}>
+              <Button size="sm" variant="outline" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpServer(client.dhcpServer ?? ""); setDhcpOpen(true); }}>
                 <Network className="w-3 h-3 mr-2" /> Crear Lease Estático
               </Button>
             </div>
@@ -604,13 +610,16 @@ export default function ClientDetail() {
                   installationDate: client.installationDate ? new Date(client.installationDate).toISOString().slice(0, 10) : "",
                   installationAddress: client.installationAddress ?? "",
                   assignedTechnicianId: client.assignedTechnicianId ? String(client.assignedTechnicianId) : "",
-                  accessPointEquipmentId: client.accessPointEquipmentId ? String(client.accessPointEquipmentId) : "",
+                  equipmentId: String(client.equipmentId),
+                  accessPointEquipmentId: client.accessPointEquipmentId ? String(client.accessPointEquipmentId) : "none",
+                  dhcpServer: client.dhcpServer ?? "",
+                  dhcpPool: client.dhcpPool ?? "",
                   changeReason: "",
                 });
                 setAdminEditOpen(true);
               }}
             >
-              <Pencil className="w-3 h-3 mr-2" /> Editar expediente
+              <Pencil className="w-3 h-3 mr-2" /> Editar ficha y red
             </Button>
           </div>
         </CardHeader>
@@ -619,7 +628,20 @@ export default function ClientDetail() {
             <div><p className="text-xs text-muted-foreground">Contrato</p><p>{client.contractReference ?? "Sin referencia"}</p></div>
             <div><p className="text-xs text-muted-foreground">Instalación</p><p>{fmt(client.installationDate)}</p></div>
             <div><p className="text-xs text-muted-foreground">Técnico responsable</p><p>{users?.find((user) => user.id === client.assignedTechnicianId)?.username ?? (client.assignedTechnicianId ? `Usuario #${client.assignedTechnicianId}` : "Sin asignar")}</p></div>
+            <div><p className="text-xs text-muted-foreground">MikroTik controlador / DHCP</p><p>{client.equipmentModel ?? `Equipo #${client.equipmentId}`}</p><p className="text-xs text-muted-foreground font-mono">{client.equipmentIp ?? ""}</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Router MikroTik padre</p>
+              {(() => {
+                const controller = equipment?.find((item) => item.id === client.equipmentId);
+                const parent = equipment?.find((item) => item.id === controller?.parentEquipmentId);
+                return parent
+                  ? <><p>{parent.model} · {parent.ip}</p><p className="text-xs text-muted-foreground">Capacidad asignada: <span className="font-mono">{controller?.parentCapacityLimit ?? "—"}</span></p></>
+                  : <p>Sin padre registrado</p>;
+              })()}
+            </div>
             <div><p className="text-xs text-muted-foreground">AP / LiteAP / SXT / enlace</p><p>{equipment?.find((item) => item.id === client.accessPointEquipmentId)?.model ?? (client.accessPointEquipmentId ? `Equipo #${client.accessPointEquipmentId}` : "Sin asociar")}</p></div>
+            <div><p className="text-xs text-muted-foreground">Servidor DHCP</p><p className="font-mono">{client.dhcpServer ?? "Sin verificar"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Pool DHCP</p><p className="font-mono">{client.dhcpPool ?? "Sin verificar"}</p></div>
             <div className="md:col-span-2"><p className="text-xs text-muted-foreground">Dirección de instalación</p><p>{client.installationAddress ?? "Sin registrar"}</p></div>
           </div>
           {client.contractNotes && <p className="mt-4 pt-3 border-t border-border/40 text-sm text-muted-foreground">{client.contractNotes}</p>}
@@ -758,6 +780,21 @@ export default function ClientDetail() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label>MikroTik controlador / DHCP</Label>
+                <Select value={adminForm.equipmentId} onValueChange={(value) => setAdminForm((form) => ({
+                  ...form,
+                  equipmentId: value,
+                  accessPointEquipmentId: form.accessPointEquipmentId === value ? "none" : form.accessPointEquipmentId,
+                }))}>
+                  <SelectTrigger data-testid="select-client-controller"><SelectValue placeholder="Selecciona el MikroTik central" /></SelectTrigger>
+                  <SelectContent>
+                    {(equipment ?? [])
+                      .filter((item) => item.connectionType === "mikrotik_routeros" && item.equipmentRole === "core_router")
+                      .map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5">
                 <Label>Referencia de contrato</Label>
                 <Input value={adminForm.contractReference} onChange={(event) => setAdminForm((form) => ({ ...form, contractReference: event.target.value }))} />
@@ -777,12 +814,33 @@ export default function ClientDetail() {
               </div>
               <div className="space-y-1.5">
                 <Label>AP / LiteAP / SXT / enlace</Label>
-                <Select value={adminForm.accessPointEquipmentId} onValueChange={(value) => setAdminForm((form) => ({ ...form, accessPointEquipmentId: value }))}>
-                  <SelectTrigger><SelectValue placeholder="Sin asociar" /></SelectTrigger>
+                <Select value={adminForm.accessPointEquipmentId || "none"} onValueChange={(value) => setAdminForm((form) => ({ ...form, accessPointEquipmentId: value }))}>
+                  <SelectTrigger data-testid="select-client-access-point"><SelectValue placeholder="Sin asociar" /></SelectTrigger>
                   <SelectContent>
-                    {(equipment ?? []).filter((item) => item.id !== client.equipmentId).map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
+                    <SelectItem value="none">Sin asociar</SelectItem>
+                    {(equipment ?? []).filter((item) => item.id !== Number(adminForm.equipmentId)).map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Servidor DHCP</Label>
+                <Input
+                  data-testid="input-edit-dhcp-server"
+                  value={adminForm.dhcpServer}
+                  onChange={(event) => setAdminForm((form) => ({ ...form, dhcpServer: event.target.value }))}
+                  placeholder="dhcp1"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Pool DHCP</Label>
+                <Input
+                  data-testid="input-edit-dhcp-pool"
+                  value={adminForm.dhcpPool}
+                  onChange={(event) => setAdminForm((form) => ({ ...form, dhcpPool: event.target.value }))}
+                  placeholder="pool-clientes"
+                  className="font-mono"
+                />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -800,8 +858,11 @@ export default function ClientDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdminEditOpen(false)}>Cancelar</Button>
-            <Button onClick={() => updateAdministrativeRecord.mutate()} disabled={updateAdministrativeRecord.isPending}>
-              {updateAdministrativeRecord.isPending ? "Guardando..." : "Guardar cambios"}
+            <p className="col-span-2 text-xs text-muted-foreground">
+              Cambiar el MikroTik actualiza la asociación en NMS, pero no migra la configuración del router anterior al nuevo.
+            </p>
+            <Button onClick={submitAdministrativeUpdate} disabled={updateClient.isPending || !adminForm.equipmentId}>
+              {updateClient.isPending ? "Guardando..." : "Guardar cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>
