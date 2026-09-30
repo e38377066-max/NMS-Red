@@ -45,6 +45,14 @@ import type {
   CreateProrationInvoice201,
   DebtHistory,
   Equipment,
+  EquipmentConfiguration,
+  EquipmentConfigurationApplyError,
+  EquipmentConfigurationApplyInput,
+  EquipmentConfigurationApplyResult,
+  EquipmentConfigurationError,
+  EquipmentConfigurationFileInput,
+  EquipmentConfigurationPreview,
+  EquipmentConfigurationSettingsInput,
   EquipmentInput,
   EquipmentLiveStatus,
   EquipmentUpdate,
@@ -1144,6 +1152,374 @@ export const useDeleteEquipment = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteEquipmentMutationOptions(options), queryClient);
+    }
+
+export const getGetEquipmentConfigurationUrl = (id: number,) => {
+
+
+
+
+  return `/api/equipment/${id}/configuration`
+}
+
+/**
+ * @summary Detect equipment identity and read a redacted configuration snapshot
+ */
+export const getEquipmentConfiguration = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<EquipmentConfiguration> => {
+
+  return customFetch<EquipmentConfiguration>(getGetEquipmentConfigurationUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEquipmentConfigurationQueryKey = (id: number,) => {
+    return [
+    `/api/equipment/${id}/configuration`
+    ] as const;
+    }
+
+
+export const getGetEquipmentConfigurationQueryOptions = <TData = Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError = ErrorType<void>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEquipmentConfigurationQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEquipmentConfiguration>>> = ({ signal }) => getEquipmentConfiguration(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetEquipmentConfigurationQueryResult = NonNullable<Awaited<ReturnType<typeof getEquipmentConfiguration>>>
+export type GetEquipmentConfigurationQueryError = ErrorType<void>
+
+
+export function useGetEquipmentConfiguration<TData = Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError = ErrorType<void>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEquipmentConfiguration>>,
+          TError,
+          Awaited<ReturnType<typeof getEquipmentConfiguration>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEquipmentConfiguration<TData = Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEquipmentConfiguration>>,
+          TError,
+          Awaited<ReturnType<typeof getEquipmentConfiguration>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEquipmentConfiguration<TData = Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Detect equipment identity and read a redacted configuration snapshot
+ */
+
+export function useGetEquipmentConfiguration<TData = Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentConfiguration>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetEquipmentConfigurationQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPreviewEquipmentConfigurationFileUrl = (id: number,) => {
+
+
+
+
+  return `/api/equipment/${id}/configuration/preview`
+}
+
+/**
+ * @summary Preview a native configuration file or script before applying it (admin only)
+ */
+export const previewEquipmentConfigurationFile = async (id: number,
+    equipmentConfigurationFileInput: EquipmentConfigurationFileInput, options?: Parameters<typeof customFetch>[1]): Promise<EquipmentConfigurationPreview> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EquipmentConfigurationPreview>(getPreviewEquipmentConfigurationFileUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(equipmentConfigurationFileInput)
+  }
+);}
+
+
+
+
+
+export const getPreviewEquipmentConfigurationFileMutationKey = () => ['previewEquipmentConfigurationFile'] as const;
+
+export const getPreviewEquipmentConfigurationFileMutationOptions = <TError = ErrorType<void | EquipmentConfigurationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewEquipmentConfigurationFile>>, TError,PreviewEquipmentConfigurationFileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewEquipmentConfigurationFile>>, TError,PreviewEquipmentConfigurationFileMutationVariables, TContext> => {
+
+const mutationKey = getPreviewEquipmentConfigurationFileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewEquipmentConfigurationFile>>, PreviewEquipmentConfigurationFileMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  previewEquipmentConfigurationFile(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewEquipmentConfigurationFileMutationResult = NonNullable<Awaited<ReturnType<typeof previewEquipmentConfigurationFile>>>
+    export type PreviewEquipmentConfigurationFileMutationBody = BodyType<EquipmentConfigurationFileInput>
+    export type PreviewEquipmentConfigurationFileMutationError = ErrorType<void | EquipmentConfigurationError>
+    export type PreviewEquipmentConfigurationFileMutationVariables = {id: number;data: BodyType<EquipmentConfigurationFileInput>}
+
+    /**
+ * @summary Preview a native configuration file or script before applying it (admin only)
+ */
+export const usePreviewEquipmentConfigurationFile = <TError = ErrorType<void | EquipmentConfigurationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewEquipmentConfigurationFile>>, TError,PreviewEquipmentConfigurationFileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewEquipmentConfigurationFile>>,
+        TError,
+        PreviewEquipmentConfigurationFileMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPreviewEquipmentConfigurationFileMutationOptions(options), queryClient);
+    }
+
+export const getPreviewEquipmentConfigurationSettingsUrl = (id: number,) => {
+
+
+
+
+  return `/api/equipment/${id}/configuration/settings/preview`
+}
+
+/**
+ * @summary Preview edits to settings present in the detected airOS configuration (admin only)
+ */
+export const previewEquipmentConfigurationSettings = async (id: number,
+    equipmentConfigurationSettingsInput: EquipmentConfigurationSettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<EquipmentConfigurationPreview> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EquipmentConfigurationPreview>(getPreviewEquipmentConfigurationSettingsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(equipmentConfigurationSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getPreviewEquipmentConfigurationSettingsMutationKey = () => ['previewEquipmentConfigurationSettings'] as const;
+
+export const getPreviewEquipmentConfigurationSettingsMutationOptions = <TError = ErrorType<void | EquipmentConfigurationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewEquipmentConfigurationSettings>>, TError,PreviewEquipmentConfigurationSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewEquipmentConfigurationSettings>>, TError,PreviewEquipmentConfigurationSettingsMutationVariables, TContext> => {
+
+const mutationKey = getPreviewEquipmentConfigurationSettingsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewEquipmentConfigurationSettings>>, PreviewEquipmentConfigurationSettingsMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  previewEquipmentConfigurationSettings(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewEquipmentConfigurationSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof previewEquipmentConfigurationSettings>>>
+    export type PreviewEquipmentConfigurationSettingsMutationBody = BodyType<EquipmentConfigurationSettingsInput>
+    export type PreviewEquipmentConfigurationSettingsMutationError = ErrorType<void | EquipmentConfigurationError>
+    export type PreviewEquipmentConfigurationSettingsMutationVariables = {id: number;data: BodyType<EquipmentConfigurationSettingsInput>}
+
+    /**
+ * @summary Preview edits to settings present in the detected airOS configuration (admin only)
+ */
+export const usePreviewEquipmentConfigurationSettings = <TError = ErrorType<void | EquipmentConfigurationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewEquipmentConfigurationSettings>>, TError,PreviewEquipmentConfigurationSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewEquipmentConfigurationSettings>>,
+        TError,
+        PreviewEquipmentConfigurationSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPreviewEquipmentConfigurationSettingsMutationOptions(options), queryClient);
+    }
+
+export const getApplyEquipmentConfigurationUrl = (id: number,) => {
+
+
+
+
+  return `/api/equipment/${id}/configuration/apply`
+}
+
+/**
+ * @summary Apply a reviewed configuration after creating a private pre-change backup (admin only)
+ */
+export const applyEquipmentConfiguration = async (id: number,
+    equipmentConfigurationApplyInput: EquipmentConfigurationApplyInput, options?: Parameters<typeof customFetch>[1]): Promise<EquipmentConfigurationApplyResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EquipmentConfigurationApplyResult>(getApplyEquipmentConfigurationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(equipmentConfigurationApplyInput)
+  }
+);}
+
+
+
+
+
+export const getApplyEquipmentConfigurationMutationKey = () => ['applyEquipmentConfiguration'] as const;
+
+export const getApplyEquipmentConfigurationMutationOptions = <TError = ErrorType<EquipmentConfigurationApplyError | void | EquipmentConfigurationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyEquipmentConfiguration>>, TError,ApplyEquipmentConfigurationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyEquipmentConfiguration>>, TError,ApplyEquipmentConfigurationMutationVariables, TContext> => {
+
+const mutationKey = getApplyEquipmentConfigurationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyEquipmentConfiguration>>, ApplyEquipmentConfigurationMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  applyEquipmentConfiguration(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyEquipmentConfigurationMutationResult = NonNullable<Awaited<ReturnType<typeof applyEquipmentConfiguration>>>
+    export type ApplyEquipmentConfigurationMutationBody = BodyType<EquipmentConfigurationApplyInput>
+    export type ApplyEquipmentConfigurationMutationError = ErrorType<EquipmentConfigurationApplyError | void | EquipmentConfigurationError>
+    export type ApplyEquipmentConfigurationMutationVariables = {id: number;data: BodyType<EquipmentConfigurationApplyInput>}
+
+    /**
+ * @summary Apply a reviewed configuration after creating a private pre-change backup (admin only)
+ */
+export const useApplyEquipmentConfiguration = <TError = ErrorType<EquipmentConfigurationApplyError | void | EquipmentConfigurationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyEquipmentConfiguration>>, TError,ApplyEquipmentConfigurationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof applyEquipmentConfiguration>>,
+        TError,
+        ApplyEquipmentConfigurationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApplyEquipmentConfigurationMutationOptions(options), queryClient);
     }
 
 export const getGetEquipmentStatusUrl = (id: number,) => {

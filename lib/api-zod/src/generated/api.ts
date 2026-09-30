@@ -233,6 +233,135 @@ export const DeleteEquipmentResponse = zod.void()
 
 
 /**
+ * @summary Detect equipment identity and read a redacted configuration snapshot
+ */
+export const GetEquipmentConfigurationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetEquipmentConfigurationResponse = zod.object({
+  "reachable": zod.boolean(),
+  "connectionType": zod.string(),
+  "model": zod.string(),
+  "exportedAt": zod.coerce.date(),
+  "content": zod.string(),
+  "identity": zod.object({
+  "manufacturer": zod.enum(['MikroTik', 'Ubiquiti', 'unknown']),
+  "model": zod.string().nullable(),
+  "firmware": zod.string().nullable(),
+  "source": zod.enum(['device', 'inventory', 'unknown']),
+  "profileId": zod.string()
+}),
+  "controlPolicy": zod.object({
+  "canApply": zod.boolean(),
+  "mode": zod.enum(['managed', 'read_only']),
+  "reason": zod.string()
+}),
+  "capabilities": zod.record(zod.string(), zod.union([zod.string(),zod.boolean()])),
+  "parameters": zod.array(zod.object({
+  "key": zod.string(),
+  "value": zod.string().nullable(),
+  "sensitive": zod.boolean(),
+  "valueType": zod.enum(['text', 'number', 'boolean', 'password'])
+})),
+  "note": zod.string()
+})
+
+
+/**
+ * @summary Preview a native configuration file or script before applying it (admin only)
+ */
+export const PreviewEquipmentConfigurationFileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const previewEquipmentConfigurationFileBodyFileNameMax = 240;
+
+export const previewEquipmentConfigurationFileBodyContentBase64Max = 16777216;
+
+
+export const previewEquipmentConfigurationFileBodyContentBase64RegExp = new RegExp('^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$');
+
+
+export const PreviewEquipmentConfigurationFileBody = zod.object({
+  "fileName": zod.string().min(1).max(previewEquipmentConfigurationFileBodyFileNameMax),
+  "contentBase64": zod.string().min(1).max(previewEquipmentConfigurationFileBodyContentBase64Max).regex(previewEquipmentConfigurationFileBodyContentBase64RegExp)
+})
+
+export const PreviewEquipmentConfigurationFileResponse = zod.object({
+  "previewId": zod.string(),
+  "fileName": zod.string(),
+  "format": zod.string(),
+  "sizeBytes": zod.int(),
+  "lineCount": zod.int(),
+  "commands": zod.array(zod.string()),
+  "warning": zod.string().nullable(),
+  "dangerousLines": zod.array(zod.string()),
+  "requiresConfirmation": zod.boolean()
+})
+
+
+/**
+ * @summary Preview edits to settings present in the detected airOS configuration (admin only)
+ */
+export const PreviewEquipmentConfigurationSettingsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const previewEquipmentConfigurationSettingsBodyChangesItemKeyMax = 160;
+
+export const previewEquipmentConfigurationSettingsBodyChangesItemValueMax = 1024;
+
+export const previewEquipmentConfigurationSettingsBodyChangesMax = 100;
+
+
+
+export const PreviewEquipmentConfigurationSettingsBody = zod.object({
+  "changes": zod.array(zod.object({
+  "key": zod.string().min(1).max(previewEquipmentConfigurationSettingsBodyChangesItemKeyMax),
+  "value": zod.string().max(previewEquipmentConfigurationSettingsBodyChangesItemValueMax)
+})).min(1).max(previewEquipmentConfigurationSettingsBodyChangesMax)
+})
+
+export const PreviewEquipmentConfigurationSettingsResponse = zod.object({
+  "previewId": zod.string(),
+  "fileName": zod.string(),
+  "format": zod.string(),
+  "sizeBytes": zod.int(),
+  "lineCount": zod.int(),
+  "commands": zod.array(zod.string()),
+  "warning": zod.string().nullable(),
+  "dangerousLines": zod.array(zod.string()),
+  "requiresConfirmation": zod.boolean()
+})
+
+
+/**
+ * @summary Apply a reviewed configuration after creating a private pre-change backup (admin only)
+ */
+export const ApplyEquipmentConfigurationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const ApplyEquipmentConfigurationBody = zod.object({
+  "previewId": zod.string().min(1),
+  "confirmed": zod.literal(true)
+})
+
+export const ApplyEquipmentConfigurationResponse = zod.object({
+  "success": zod.literal(true),
+  "message": zod.string(),
+  "needsReboot": zod.boolean(),
+  "backupPath": zod.string(),
+  "backupName": zod.string(),
+  "backupSizeBytes": zod.int()
+})
+
+
+/**
  * @summary Get live equipment status (MikroTik or Ubiquiti)
  */
 export const GetEquipmentStatusParams = zod.object({

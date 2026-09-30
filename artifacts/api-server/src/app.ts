@@ -46,6 +46,7 @@ app.use((_req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   next();
 });
+app.use("/api/equipment/:id/configuration/preview", express.json({ limit: "18mb" }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "4mb" }));
 app.use(express.urlencoded({ extended: true }));
 

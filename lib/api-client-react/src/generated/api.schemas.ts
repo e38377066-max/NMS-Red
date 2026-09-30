@@ -104,6 +104,151 @@ export interface EquipmentUpdate {
   apiPort?: number;
 }
 
+export type EquipmentConfigurationIdentityManufacturer = typeof EquipmentConfigurationIdentityManufacturer[keyof typeof EquipmentConfigurationIdentityManufacturer];
+
+
+export const EquipmentConfigurationIdentityManufacturer = {
+  MikroTik: 'MikroTik',
+  Ubiquiti: 'Ubiquiti',
+  unknown: 'unknown',
+} as const;
+
+export type EquipmentConfigurationIdentitySource = typeof EquipmentConfigurationIdentitySource[keyof typeof EquipmentConfigurationIdentitySource];
+
+
+export const EquipmentConfigurationIdentitySource = {
+  device: 'device',
+  inventory: 'inventory',
+  unknown: 'unknown',
+} as const;
+
+export interface EquipmentConfigurationIdentity {
+  manufacturer: EquipmentConfigurationIdentityManufacturer;
+  /** @nullable */
+  model: string | null;
+  /** @nullable */
+  firmware: string | null;
+  source: EquipmentConfigurationIdentitySource;
+  profileId: string;
+}
+
+export type EquipmentConfigurationControlPolicyMode = typeof EquipmentConfigurationControlPolicyMode[keyof typeof EquipmentConfigurationControlPolicyMode];
+
+
+export const EquipmentConfigurationControlPolicyMode = {
+  managed: 'managed',
+  read_only: 'read_only',
+} as const;
+
+export interface EquipmentConfigurationControlPolicy {
+  canApply: boolean;
+  mode: EquipmentConfigurationControlPolicyMode;
+  reason: string;
+}
+
+export type EquipmentConfigurationParameterValueType = typeof EquipmentConfigurationParameterValueType[keyof typeof EquipmentConfigurationParameterValueType];
+
+
+export const EquipmentConfigurationParameterValueType = {
+  text: 'text',
+  number: 'number',
+  boolean: 'boolean',
+  password: 'password',
+} as const;
+
+export interface EquipmentConfigurationParameter {
+  key: string;
+  /** @nullable */
+  value: string | null;
+  sensitive: boolean;
+  valueType: EquipmentConfigurationParameterValueType;
+}
+
+export type EquipmentConfigurationCapabilities = {[key: string]: string | boolean};
+
+export interface EquipmentConfiguration {
+  reachable: boolean;
+  connectionType: string;
+  model: string;
+  exportedAt: string;
+  content: string;
+  identity: EquipmentConfigurationIdentity;
+  controlPolicy: EquipmentConfigurationControlPolicy;
+  capabilities: EquipmentConfigurationCapabilities;
+  parameters: EquipmentConfigurationParameter[];
+  note: string;
+}
+
+export interface EquipmentConfigurationFileInput {
+  /**
+     * @minLength 1
+     * @maxLength 240
+     */
+  fileName: string;
+  /**
+     * @minLength 1
+     * @maxLength 16777216
+     * @pattern ^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$
+     */
+  contentBase64: string;
+}
+
+export interface EquipmentConfigurationSettingChange {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  key: string;
+  /** @maxLength 1024 */
+  value: string;
+}
+
+export interface EquipmentConfigurationSettingsInput {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  changes: EquipmentConfigurationSettingChange[];
+}
+
+export interface EquipmentConfigurationApplyInput {
+  /** @minLength 1 */
+  previewId: string;
+  confirmed: true;
+}
+
+export interface EquipmentConfigurationPreview {
+  previewId: string;
+  fileName: string;
+  format: string;
+  sizeBytes: number;
+  lineCount: number;
+  commands: string[];
+  /** @nullable */
+  warning: string | null;
+  dangerousLines: string[];
+  requiresConfirmation: boolean;
+}
+
+export interface EquipmentConfigurationApplyResult {
+  success: true;
+  message: string;
+  needsReboot: boolean;
+  backupPath: string;
+  backupName: string;
+  backupSizeBytes: number;
+}
+
+export interface EquipmentConfigurationError {
+  error: string;
+  identity?: EquipmentConfigurationIdentity;
+}
+
+export interface EquipmentConfigurationApplyError {
+  success: false;
+  error: string;
+}
+
 export type EquipmentLiveStatusStatus = typeof EquipmentLiveStatusStatus[keyof typeof EquipmentLiveStatusStatus];
 
 

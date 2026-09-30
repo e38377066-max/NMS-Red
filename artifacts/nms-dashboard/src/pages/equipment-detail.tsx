@@ -3,6 +3,8 @@ import { useRoute } from "wouter";
 import {
   useGetEquipment, useGetEquipmentStatus, useGetEquipmentWireless, useGetEquipmentMetrics,
   getGetEquipmentQueryKey, getGetEquipmentStatusQueryKey, getGetEquipmentWirelessQueryKey, getGetEquipmentMetricsQueryKey,
+  getEquipmentConfiguration, previewEquipmentConfigurationFile, previewEquipmentConfigurationSettings, applyEquipmentConfiguration,
+  type EquipmentConfiguration, type EquipmentConfigurationParameter, type EquipmentConfigurationPreview,
 } from "@workspace/api-client-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -18,31 +20,12 @@ import { ArrowLeft, Wifi, Cpu, MemoryStick, Clock, Globe, ArrowUpDown, Radio, Se
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-type ConfigPreview = {
-  previewId: string;
-  fileName: string;
-  format: string;
-  sizeBytes: number;
-  lineCount: number;
-  commands: string[];
-  warning: string | null;
-  dangerousLines: string[];
-  requiresConfirmation: boolean;
-};
-
-type ConfigSnapshot = {
-  reachable: boolean;
-  connectionType: string;
-  model: string;
-  exportedAt: string;
-  content: string;
-  note: string;
-  capabilities?: Record<string, string | boolean>;
-};
+type ConfigPreview = EquipmentConfigurationPreview;
+type ConfigParameter = EquipmentConfigurationParameter;
+type ConfigSnapshot = EquipmentConfiguration;
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -85,10 +68,12 @@ export default function EquipmentDetail() {
   const { toast } = useToast();
   const [configSnapshot, setConfigSnapshot] = useState<ConfigSnapshot | null>(null);
   const [configText, setConfigText] = useState("");
+  const [parameterDrafts, setParameterDrafts] = useState<Record<string, string>>({});
   const [configFile, setConfigFile] = useState<File | null>(null);
   const [configPreview, setConfigPreview] = useState<ConfigPreview | null>(null);
   const [configBusy, setConfigBusy] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
+  const canApplyDeviceConfig = configSnapshot?.controlPolicy?.canApply === true;
 
   const { data: equip, isLoading: loadingEquip } = useGetEquipment(id);
   const { data: liveStatus, isLoading: loadingStatus } = useGetEquipmentStatus(id, {
@@ -112,11 +97,14 @@ export default function EquipmentDetail() {
   const loadConfiguration = async () => {
     setConfigLoading(true);
     try {
-      const response = await fetch(`${BASE}/api/equipment/${id}/configuration`);
-      const body = await response.json() as ConfigSnapshot & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "No se pudo leer la configuración");
+      const body = await getEquipmentConfiguration(id);
       setConfigSnapshot(body);
-      setConfigText(body.content);
+      setConfigText("");
+      setParameterDrafts(Object.fromEntries((body.parameters ?? []).map(parameter => [
+        parameter.key,
+        parameter.value ?? "",
+      ])));
+      setConfigPreview(null);
       toast({ title: "Configuración cargada", description: "Los secretos se muestran redactados por seguridad." });
     } catch (error) {
       toast({ title: "No se pudo leer la configuración", description: error instanceof Error ? error.message : "Revisa el acceso SSH.", variant: "destructive" });
@@ -126,15 +114,13 @@ export default function EquipmentDetail() {
   };
 
   const previewConfiguration = async (fileName: string, contentBase64: string) => {
+    if (!canApplyDeviceConfig) {
+      toast({ title: "Equipo en solo lectura", description: configSnapshot?.controlPolicy?.reason ?? "Lee y detecta primero el modelo y firmware.", variant: "destructive" });
+      return;
+    }
     setConfigBusy(true);
     try {
-      const response = await fetch(`${BASE}/api/equipment/${id}/configuration/preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName, contentBase64 }),
-      });
-      const body = await response.json() as ConfigPreview & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "No se pudo previsualizar");
+      const body = await previewEquipmentConfigurationFile(id, { fileName, contentBase64 });
       setConfigPreview(body);
       toast({ title: "Cambios listos para revisión", description: `${body.fileName} será aplicado solo después de confirmar.` });
     } catch (error) {
@@ -144,7 +130,39 @@ export default function EquipmentDetail() {
     }
   };
 
+  const previewStructuredSettings = async () => {
+    if (!configSnapshot || !canApplyDeviceConfig) {
+      toast({ title: "Equipo en solo lectura", description: configSnapshot?.controlPolicy?.reason ?? "Lee y detecta primero el modelo y firmware.", variant: "destructive" });
+      return;
+    }
+    const changes = (configSnapshot.parameters ?? []).flatMap(parameter => {
+      const draft = parameterDrafts[parameter.key] ?? "";
+      const original = parameter.sensitive ? "" : parameter.value ?? "";
+      return (parameter.sensitive ? Boolean(draft.trim()) : draft !== original)
+        ? [{ key: parameter.key, value: draft }]
+        : [];
+    });
+    if (changes.length === 0) {
+      toast({ title: "No hay cambios", description: "Modifica una o más opciones detectadas antes de continuar.", variant: "destructive" });
+      return;
+    }
+    setConfigBusy(true);
+    try {
+      const body = await previewEquipmentConfigurationSettings(id, { changes });
+      setConfigPreview(body);
+      toast({ title: "Opciones listas para revisión", description: `${body.lineCount} cambios quedarán pendientes de confirmación.` });
+    } catch (error) {
+      toast({ title: "No se pudieron revisar las opciones", description: error instanceof Error ? error.message : "Comprueba los valores.", variant: "destructive" });
+    } finally {
+      setConfigBusy(false);
+    }
+  };
+
   const previewTextConfiguration = () => {
+    if (!canApplyDeviceConfig) {
+      toast({ title: "Equipo en solo lectura", description: configSnapshot?.controlPolicy?.reason ?? "Lee y detecta primero el modelo y firmware.", variant: "destructive" });
+      return;
+    }
     if (!configText.trim()) {
       toast({ title: "No hay comandos para revisar", description: "Carga la configuración o escribe un script.", variant: "destructive" });
       return;
@@ -155,7 +173,7 @@ export default function EquipmentDetail() {
   };
 
   const handleConfigFile = (file: File | undefined) => {
-    if (!file) return;
+    if (!file || !canApplyDeviceConfig) return;
     setConfigFile(file);
     const reader = new FileReader();
     reader.onload = () => {
@@ -168,16 +186,15 @@ export default function EquipmentDetail() {
 
   const applyConfiguration = async () => {
     if (!configPreview) return;
-    if (!confirm(`¿Aplicar ${configPreview.fileName} al equipo ${equip?.model ?? "seleccionado"}? Se creó un respaldo previo y el equipo podría reiniciarse.`)) return;
+    const detectedModel = configSnapshot?.identity?.model ?? equip?.model ?? "seleccionado";
+    const firmware = configSnapshot?.identity?.firmware ? ` (${configSnapshot.identity.firmware})` : "";
+    if (!confirm(`¿Aplicar ${configPreview.fileName} al equipo ${detectedModel}${firmware}? Se creará un respaldo previo y el equipo podría reiniciarse.`)) return;
     setConfigBusy(true);
     try {
-      const response = await fetch(`${BASE}/api/equipment/${id}/configuration/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ previewId: configPreview.previewId }),
+      const body = await applyEquipmentConfiguration(id, {
+        previewId: configPreview.previewId,
+        confirmed: true,
       });
-      const body = await response.json() as { success?: boolean; message?: string; error?: string; backupPath?: string };
-      if (!response.ok || !body.success) throw new Error(body.error ?? "No se pudo aplicar");
       setConfigPreview(null);
       setConfigFile(null);
       toast({
@@ -249,7 +266,7 @@ export default function EquipmentDetail() {
               { icon: Cpu, label: "CPU", value: liveStatus.cpuLoad ?? "—" },
               { icon: MemoryStick, label: "Memoria libre", value: liveStatus.freeMemory ?? "—" },
               { icon: Clock, label: "Uptime", value: liveStatus.uptime ?? "—" },
-              { icon: Server, label: "Placa", value: liveStatus.boardName ?? liveStatus.firmware ?? "—" },
+              { icon: Server, label: "Identificación", value: liveStatus.boardName ?? liveStatus.firmware ?? "—" },
             ].map(({ icon: Icon, label, value }) => (
               <Card key={label} className="bg-card/50 border-border/50">
                 <CardContent className="pt-4 pb-3">
@@ -268,7 +285,7 @@ export default function EquipmentDetail() {
                 <CardContent className="pt-4 pb-3">
                   <div className="flex items-center gap-2 mb-3">
                     <Signal className="w-4 h-4 text-orange-400" />
-                    <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider">Radio AirMAX</span>
+                    <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider">Radio</span>
                   </div>
                   <div className="flex flex-wrap gap-4">
                     {liveStatus.frequency && (
@@ -310,19 +327,20 @@ export default function EquipmentDetail() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Button variant="outline" onClick={loadConfiguration} disabled={configLoading}>
               <Download className="w-4 h-4 mr-2" />
-              {configLoading ? "Leyendo..." : "Leer configuración actual"}
+              {configLoading ? "Detectando..." : "Detectar modelo y leer configuración"}
             </Button>
-            <label className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground">
+            <label className={`inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ${canApplyDeviceConfig ? "cursor-pointer hover:bg-accent hover:text-accent-foreground" : "cursor-not-allowed opacity-50"}`}>
               <Upload className="w-4 h-4 mr-2" />
-              {configFile ? configFile.name : "Cargar .cfg / .bin / .rsc / .backup"}
+              {configFile ? configFile.name : canApplyDeviceConfig ? "Cargar .cfg / .bin / .rsc / .backup" : "Carga bloqueada hasta detectar perfil"}
               <input
                 type="file"
                 className="sr-only"
                 accept=".cfg,.bin,.rsc,.backup,.txt"
+                disabled={!canApplyDeviceConfig || configBusy}
                 onChange={(event) => handleConfigFile(event.target.files?.[0])}
               />
             </label>
-            <Button onClick={previewTextConfiguration} disabled={configBusy || !configText.trim()}>
+            <Button onClick={previewTextConfiguration} disabled={configBusy || !canApplyDeviceConfig || !configText.trim()}>
               <FileCode2 className="w-4 h-4 mr-2" />
               Revisar script escrito
             </Button>
@@ -339,30 +357,95 @@ export default function EquipmentDetail() {
             </p>
           </div>
           <div className="space-y-2">
-            <Label>Editor de configuración / comandos</Label>
+            <Label>Editor de comandos para el perfil detectado</Label>
             <Textarea
               value={configText}
               onChange={(event) => setConfigText(event.target.value)}
+              readOnly={!canApplyDeviceConfig}
               placeholder={equip.connectionType === "mikrotik_routeros"
                 ? "/interface/wifi set [find] configuration.ssid=\"NUEVA_RED\"\n/ip/address add address=192.168.88.2/24 interface=ether1"
                 : "mca-cli-op set wireless.1.ssid=NUEVA_RED\n# Usa los comandos soportados por la versión de airOS instalada"}
               className="min-h-44 font-mono text-xs"
             />
           </div>
+          {!configSnapshot && (
+            <p className="text-xs text-muted-foreground">
+              Lee la configuración para detectar el modelo, el firmware y las capacidades antes de habilitar cambios.
+            </p>
+          )}
           {configSnapshot && (
             <div className="rounded-md border border-border/50 p-3 text-xs">
               <div className="flex items-center gap-2 mb-2 font-medium">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Configuración leída: {new Date(configSnapshot.exportedAt).toLocaleString("es")}
               </div>
               <p className="text-muted-foreground">{configSnapshot.note}</p>
+              {configSnapshot.identity && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <div><span className="text-muted-foreground">Fabricante</span><div className="font-medium">{configSnapshot.identity.manufacturer}</div></div>
+                  <div><span className="text-muted-foreground">Modelo detectado</span><div className="font-medium">{configSnapshot.identity.model ?? "No detectado"}{configSnapshot.identity.source === "inventory" ? " · inventario" : configSnapshot.identity.source === "unknown" ? " · sin verificar" : ""}</div></div>
+                  <div><span className="text-muted-foreground">Firmware</span><div className="font-medium">{configSnapshot.identity.firmware ?? "No detectado"}</div></div>
+                  <div><span className="text-muted-foreground">Perfil</span><div className="font-medium">{configSnapshot.identity.profileId}</div></div>
+                </div>
+              )}
+              {configSnapshot.content && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Ver export protegido</summary>
+                  <pre className="mt-2 max-h-56 overflow-auto rounded bg-black/20 p-3 font-mono text-[10px] whitespace-pre-wrap">
+                    {configSnapshot.content.split(/\r?\n/).slice(0, 200).join("\n")}
+                  </pre>
+                  {configSnapshot.content.split(/\r?\n/).length > 200 && (
+                    <p className="mt-1 text-[10px] text-muted-foreground">Vista limitada a las primeras 200 líneas.</p>
+                  )}
+                </details>
+              )}
+              {configSnapshot.controlPolicy && !configSnapshot.controlPolicy.canApply && (
+                <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/5 p-2 text-amber-200">
+                  Solo lectura: {configSnapshot.controlPolicy.reason}
+                </p>
+              )}
               {configSnapshot.capabilities && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {Object.entries(configSnapshot.capabilities).map(([name, value]) => (
-                    <Badge key={name} variant="outline" className="text-[10px] border-border/70">
+                    <Badge key={name} variant="outline" className={`text-[10px] border-border/70 ${name === "airMax" && value === "disabled" ? "border-muted-foreground/40 text-muted-foreground" : ""}`}>
                       {name}: {String(value)}
                     </Badge>
                   ))}
                 </div>
+              )}
+              {canApplyDeviceConfig && (configSnapshot.parameters?.length ?? 0) > 0 && (
+                <section className="mt-4 space-y-3 border-t border-border/50 pt-4">
+                  <div>
+                    <h3 className="font-semibold text-foreground">Opciones detectadas en este firmware</h3>
+                    <p className="mt-1 text-muted-foreground">
+                      Se muestran las opciones presentes en el archivo nativo. Los secretos permanecen ocultos; para conservarlos, deja esos campos vacíos. Revisa hasta 100 cambios por envío.
+                    </p>
+                  </div>
+                  <div className="grid max-h-96 grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2">
+                    {(configSnapshot.parameters ?? []).map((parameter, index) => (
+                      <div key={`${parameter.key}-${index}`} className="space-y-1">
+                        <Label htmlFor={`device-setting-${index}`} className="font-mono text-[10px]">
+                          {parameter.key}
+                        </Label>
+                        <Input
+                          id={`device-setting-${index}`}
+                          type={parameter.sensitive ? "password" : parameter.valueType === "number" ? "number" : "text"}
+                          value={parameterDrafts[parameter.key] ?? ""}
+                          maxLength={1024}
+                          autoComplete="off"
+                          placeholder={parameter.sensitive ? "Vacío conserva el valor actual" : undefined}
+                          onChange={(event) => setParameterDrafts(previous => ({
+                            ...previous,
+                            [parameter.key]: event.target.value,
+                          }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <Button onClick={previewStructuredSettings} disabled={configBusy || !canApplyDeviceConfig}>
+                    <FileCode2 className="mr-2 h-4 w-4" />
+                    Revisar opciones modificadas
+                  </Button>
+                </section>
               )}
             </div>
           )}
