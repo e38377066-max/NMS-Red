@@ -10,3 +10,4 @@ export * from "./backups";
 export * from "./authSessions";
 export * from "./taskQueue";
 export * from "./operations";
+export * from "./technician-availability";

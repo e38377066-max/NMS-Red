@@ -266,6 +266,7 @@ export const fieldWorkOrdersTable = pgTable("field_work_orders", {
   type: text("type").notNull().default("installation"),
   status: text("status").notNull().default("pending"),
   scheduledAt: timestamp("scheduled_at"),
+  scheduledEndAt: timestamp("scheduled_end_at"),
   address: text("address"),
   latitude: numeric("latitude", { precision: 10, scale: 7 }),
   longitude: numeric("longitude", { precision: 10, scale: 7 }),
