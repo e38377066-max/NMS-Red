@@ -18,7 +18,7 @@ export function setSocketServer(socketServer: SocketServer): void {
 
 export function startMonitoring(): void {
   if (monitoringInterval) return;
-  logger.info("Starting multi-brand network monitoring service (60s interval)");
+  logger.info("Starting Imperio AP network monitoring service (60s interval)");
   void runHeartbeat();
   monitoringInterval = setInterval(() => { void runHeartbeat(); }, 60_000);
 

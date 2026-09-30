@@ -1272,7 +1272,7 @@ paths:
     get:
       operationId: getMyFieldWorkOrderAlignment
       tags: [field]
-      summary: Obtener radios, coordenadas NMS y métricas de una orden asignada
+      summary: Obtener radios, coordenadas de Imperio AP y métricas de una orden asignada
       security:
         - BearerAuth: []
       parameters:
@@ -1320,7 +1320,7 @@ paths:
               $ref: "#/components/schemas/SaveMyFieldWorkOrderAlignment"
       responses:
         "200":
-          description: Coordenadas guardadas en NMS
+          description: Coordenadas guardadas en Imperio AP
           content:
             application/json:
               schema:
