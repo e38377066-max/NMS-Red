@@ -4,12 +4,14 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 
 ## Run & Operate
 
+- `pnpm install --frozen-lockfile` — install the workspace dependencies.
+- Replit preview uses the managed workflows `artifacts/nms-dashboard: web` and `artifacts/api-server: API Server`; the dashboard is at `/` and the API at `/api`.
 - `pnpm --filter @workspace/api-server run dev` — API server (puerto 8080)
 - `pnpm --filter @workspace/nms-dashboard run dev` — Dashboard React (puerto variable)
 - `pnpm run typecheck` — typecheck completo en todos los paquetes
 - `pnpm run build` — typecheck + build todos los paquetes
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
-- `pnpm --filter @workspace/db run push` — push del schema DB (solo dev)
+- `pnpm --filter @workspace/db run push` — initialize the development schema only after confirming the database is empty; never use this against a database containing project data
 - Alta administrativa: usar `POST /api/clients/provision` con `equipmentId`, `name`, `mac`, `fixedIp` y `planLimit`; verifica lease DHCP estático, Simple Queue y `Clientes_Activos`, con rollback si falla el alta.
 - Facturación administrativa: `GET/POST /api/billing/invoices` crea y consulta facturas; `POST /api/billing/invoices/:id/payments` aplica pagos completos o parciales y actualiza el saldo; `GET /api/billing/reports/daily` resume ingresos por método; `GET/POST /api/billing/cash-closures` consulta y registra cierres diarios.
 - Contratos formales: `GET /api/clients/:id/contracts` lista versiones; `POST` recibe un PDF privado con `X-Original-File-Name`; `PATCH /api/clients/:id/contracts/:contractId/review` aprueba o rechaza; `GET .../download` descarga con autenticación.
@@ -24,7 +26,7 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
+- pnpm workspaces, Node.js 20, TypeScript 5.9
 - API: Express 5 + Socket.io (WebSocket real-time)
 - DB: PostgreSQL + Drizzle ORM
 - Validación: Zod (`zod/v4`), `drizzle-zod`
