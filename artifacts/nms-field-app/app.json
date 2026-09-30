@@ -22,7 +22,19 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir a NMS Field usar la cámara para orientar radios."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permitir a NMS Field usar la ubicación para calcular el rumbo hacia el AP."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -273,6 +273,14 @@ function WorkOrderDetails({ order }: { order: FieldWorkOrder }) {
             </View>
           </View>
           <AppButton label="Abrir indicaciones" icon="navigation" variant="secondary" onPress={() => void openDirections()} testID="open-directions" />
+          {order.clientId ? (
+            <AppButton
+              label="Alinear radios"
+              icon="compass"
+              onPress={() => router.push(`/orders/${order.id}/alignment`)}
+              testID="open-radio-alignment"
+            />
+          ) : null}
         </Surface>
 
         {order.notes?.trim() ? (

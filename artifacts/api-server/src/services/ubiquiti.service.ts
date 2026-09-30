@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import { decryptSecret } from "./credentials.service";
+import type { RadioGpsReading, RadioGpsPosition } from "./mikrotik.service";
 import { NodeSSH } from "node-ssh";
 
 const SSH_TIMEOUT_MS = 8000;
@@ -140,6 +141,133 @@ export async function getUbiquitiStatus(ip: string, username: string, password: 
     reachable: false,
     boardName: null, firmware: null, frequency: null, txPower: null,
     noiseFloor: null, airMaxCapacity: null, cpuLoad: null, freeMemory: null, uptime: null,
+  };
+}
+
+function numericCoordinate(value: unknown): number | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const parsed = Number.parseFloat(String(value).trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function findAirOsPosition(value: unknown, depth = 0): RadioGpsPosition | null {
+  if (!value || typeof value !== "object" || depth > 6) return null;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const result = findAirOsPosition(entry, depth + 1);
+      if (result) return result;
+    }
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const normalized = new Map(Object.entries(record).map(([key, item]) => [
+    key.toLowerCase().replace(/[^a-z]/g, ""),
+    item,
+  ]));
+  const latitude = numericCoordinate(normalized.get("latitude") ?? normalized.get("lat"));
+  const longitude = numericCoordinate(
+    normalized.get("longitude") ?? normalized.get("lon") ?? normalized.get("lng"),
+  );
+  if (
+    latitude !== null
+    && longitude !== null
+    && latitude >= -90
+    && latitude <= 90
+    && longitude >= -180
+    && longitude <= 180
+  ) {
+    const rawAltitude = numericCoordinate(
+      normalized.get("altitudemeters")
+      ?? normalized.get("altitude")
+      ?? normalized.get("elevation"),
+    );
+    const altitudeMeters = rawAltitude !== null && rawAltitude >= -500 && rawAltitude <= 10000
+      ? rawAltitude
+      : null;
+    return {
+      latitude,
+      longitude,
+      altitudeMeters,
+      source: "radio_gps",
+      accuracyMeters: null,
+    };
+  }
+
+  for (const entry of Object.values(record)) {
+    const result = findAirOsPosition(entry, depth + 1);
+    if (result) return result;
+  }
+  return null;
+}
+
+async function fetchAirOsStatusData(
+  ip: string,
+  username: string,
+  password: string,
+): Promise<AirOsStatusJson | null> {
+  const plainPassword = decryptSecret(password);
+  try {
+    const login = await fetch(`http://${ip}/api/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password: plainPassword }),
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+    });
+    if (login.ok) {
+      const status = await fetch(`http://${ip}/status.cgi`, {
+        headers: { Cookie: login.headers.get("set-cookie") ?? "" },
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+      });
+      if (status.ok) return await status.json() as AirOsStatusJson;
+    }
+  } catch {
+    // Legacy AirOS below may still expose status.cgi.
+  }
+
+  try {
+    const params = new URLSearchParams({
+      username,
+      password: plainPassword,
+      uri: "/status.cgi",
+    });
+    const login = await fetch(`http://${ip}/login.cgi`, {
+      method: "POST",
+      body: params.toString(),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+    });
+    const cookie = login.headers.get("set-cookie");
+    if (!cookie) return null;
+    const status = await fetch(`http://${ip}/status.cgi`, {
+      headers: { Cookie: cookie },
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+    });
+    return status.ok ? await status.json() as AirOsStatusJson : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getUbiquitiRadioGps(
+  ip: string,
+  username: string,
+  password: string,
+): Promise<RadioGpsReading> {
+  const status = await fetchAirOsStatusData(ip, username, password);
+  const position = status ? findAirOsPosition(status) : null;
+  if (!position) {
+    return {
+      supported: false,
+      position: null,
+      message: "No se encontraron coordenadas GPS en el estado de este radio.",
+    };
+  }
+  return {
+    supported: true,
+    position,
+    message: "Posición leída del estado del radio.",
   };
 }
 

@@ -7,3 +7,4 @@
 - [Ticket attachment storage](ticket-attachment-storage.md) — keep ticket files on a dedicated persistent Railway volume path, separate from backups
 - [Field technician scheduling](field-scheduling.md) — use explicit dated availability blocks; scheduled orders must fit a block and avoid active-order overlaps
 - [Expo web session storage](expo-web-session-storage.md) — SecureStore is native-only; use memory-only tokens in web previews, never localStorage
+- [Alignment coordinate provenance](alignment-coordinate-provenance.md) — preserve each saved position’s source and known accuracy, especially for phone GPS

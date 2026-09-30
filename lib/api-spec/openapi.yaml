@@ -1268,6 +1268,109 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /work-orders/mine/{id}/alignment:
+    get:
+      operationId: getMyFieldWorkOrderAlignment
+      tags: [field]
+      summary: Obtener radios, coordenadas NMS y métricas de una orden asignada
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Datos de alineación de la orden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyFieldWorkOrderAlignment"
+        "401":
+          description: Sesión requerida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Orden no asignada o sin cliente asociado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: saveMyFieldWorkOrderAlignment
+      tags: [field]
+      summary: Guardar coordenadas de los equipos asociados a una orden
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveMyFieldWorkOrderAlignment"
+      responses:
+        "200":
+          description: Coordenadas guardadas en NMS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyFieldWorkOrderAlignment"
+        "400":
+          description: Coordenadas inválidas o sin datos que guardar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Orden no asignada o equipo no asociado al cliente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /work-orders/mine/{id}/alignment/radio-gps:
+    post:
+      operationId: readMyFieldWorkOrderRadioGps
+      tags: [field]
+      summary: Consultar GPS integrado de radios compatibles, sin modificar configuración
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resultado de detección de GPS para cada radio asociado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyFieldWorkOrderRadioGps"
+        "401":
+          description: Sesión requerida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Orden no asignada o sin cliente asociado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /users/technicians:
     get:
       operationId: listTechnicians
@@ -3528,6 +3631,112 @@ components:
         installedSerialNumber:
           type: ["string", "null"]
           maxLength: 128
+
+    AlignmentPosition:
+      type: object
+      required: [latitude, longitude, altitudeMeters, source, accuracyMeters]
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        altitudeMeters:
+          type: ["number", "null"]
+          minimum: -500
+          maximum: 10000
+        source:
+          type: string
+          enum: [manual, external_gps, phone_gps, radio_gps, unknown]
+        accuracyMeters:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 10000
+
+    AlignmentRadio:
+      type: object
+      required: [equipmentId, model, position]
+      properties:
+        equipmentId:
+          type: ["integer", "null"]
+        model:
+          type: ["string", "null"]
+        position:
+          anyOf:
+            - $ref: "#/components/schemas/AlignmentPosition"
+            - type: "null"
+
+    AlignmentMetrics:
+      type: object
+      required: [available, signalDbm, noiseDbm, ccq, txRate, rxRate, distance, refreshedAt]
+      properties:
+        available:
+          type: boolean
+        signalDbm:
+          type: ["number", "null"]
+        noiseDbm:
+          type: ["number", "null"]
+        ccq:
+          type: ["number", "null"]
+        txRate:
+          type: ["string", "null"]
+        rxRate:
+          type: ["string", "null"]
+        distance:
+          type: ["string", "null"]
+        refreshedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    MyFieldWorkOrderAlignment:
+      type: object
+      required: [workOrderId, clientName, clientMac, clientRadio, accessPoint, metrics]
+      properties:
+        workOrderId:
+          type: integer
+        clientName:
+          type: string
+        clientMac:
+          type: string
+        clientRadio:
+          $ref: "#/components/schemas/AlignmentRadio"
+        accessPoint:
+          $ref: "#/components/schemas/AlignmentRadio"
+        metrics:
+          $ref: "#/components/schemas/AlignmentMetrics"
+
+    SaveMyFieldWorkOrderAlignment:
+      type: object
+      properties:
+        clientRadioLocation:
+          $ref: "#/components/schemas/AlignmentPosition"
+        accessPointLocation:
+          $ref: "#/components/schemas/AlignmentPosition"
+
+    RadioGpsReading:
+      type: object
+      required: [supported, position, message]
+      properties:
+        supported:
+          type: boolean
+        position:
+          anyOf:
+            - $ref: "#/components/schemas/AlignmentPosition"
+            - type: "null"
+        message:
+          type: string
+
+    MyFieldWorkOrderRadioGps:
+      type: object
+      required: [clientRadio, accessPoint]
+      properties:
+        clientRadio:
+          $ref: "#/components/schemas/RadioGpsReading"
+        accessPoint:
+          $ref: "#/components/schemas/RadioGpsReading"
 
     Technician:
       type: object

@@ -109,6 +109,90 @@ export async function getMikroTikResource(ip: string, username: string, password
   }
 }
 
+export interface RadioGpsPosition {
+  latitude: number;
+  longitude: number;
+  altitudeMeters: number | null;
+  source: "radio_gps";
+  accuracyMeters: null;
+}
+
+export interface RadioGpsReading {
+  supported: boolean;
+  position: RadioGpsPosition | null;
+  message: string;
+}
+
+function coordinateNumber(value: unknown): number | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const parsed = Number.parseFloat(String(value).trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export async function getMikroTikGps(
+  ip: string,
+  username: string,
+  password: string,
+): Promise<RadioGpsReading> {
+  try {
+    const response = await mkFetch(ip, username, password, "/system/gps/monitor");
+    if (!response.ok) {
+      return {
+        supported: false,
+        position: null,
+        message: "El radio no expone GPS por su API o no tiene GPS integrado.",
+      };
+    }
+
+    const payload = await response.json() as unknown;
+    const data = Array.isArray(payload) ? payload[0] : payload;
+    if (!data || typeof data !== "object") {
+      return {
+        supported: false,
+        position: null,
+        message: "El radio respondió, pero no devolvió una posición GPS válida.",
+      };
+    }
+
+    const values = data as Record<string, unknown>;
+    const latitude = coordinateNumber(values.latitude ?? values.lat);
+    const longitude = coordinateNumber(values.longitude ?? values.lon ?? values.lng);
+    const valid = values.valid;
+    const reportsInvalidFix = valid === false || valid === "false" || valid === "no";
+    if (
+      reportsInvalidFix
+      || latitude === null
+      || longitude === null
+      || latitude < -90
+      || latitude > 90
+      || longitude < -180
+      || longitude > 180
+    ) {
+      return {
+        supported: false,
+        position: null,
+        message: "El radio no tiene una posición GPS válida en este momento.",
+      };
+    }
+
+    const rawAltitude = coordinateNumber(values.altitude ?? values["altitude-meters"]);
+    const altitudeMeters = rawAltitude !== null && rawAltitude >= -500 && rawAltitude <= 10000
+      ? rawAltitude
+      : null;
+    return {
+      supported: true,
+      position: { latitude, longitude, altitudeMeters, source: "radio_gps", accuracyMeters: null },
+      message: "Posición leída del GPS del radio.",
+    };
+  } catch {
+    return {
+      supported: false,
+      position: null,
+      message: "No se pudo consultar el GPS del radio.",
+    };
+  }
+}
+
 function parseRateMbps(value: unknown): number | null {
   if (typeof value === "number") return value / 1_000_000;
   if (typeof value !== "string") return null;

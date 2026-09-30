@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import {
   auditLogsTable,
@@ -18,6 +18,7 @@ import {
   fieldWorkOrdersTable,
   technicianAvailabilityTable,
   incidentAlertsTable,
+  equipmentTable,
   organizationsTable,
   sitesTable,
   clientsTable,
@@ -48,6 +49,9 @@ import {
   UpdateFieldWorkOrderBody,
   UpdateFieldWorkOrderResponse,
   UpdateMyFieldWorkOrderBody,
+  GetMyFieldWorkOrderAlignmentResponse,
+  ReadMyFieldWorkOrderRadioGpsResponse,
+  SaveMyFieldWorkOrderAlignmentBody,
   UpdateTicketSlaPolicyBody,
   UpdateTicketSlaPolicyResponse,
   UploadSupportTicketAttachmentBody,
@@ -56,6 +60,8 @@ import {
   CreateTechnicianAvailabilityResponse,
   DeleteTechnicianAvailabilityParams,
 } from "@workspace/api-zod";
+import { getMikroTikGps } from "../services/mikrotik.service";
+import { getUbiquitiRadioGps, getWirelessTable } from "../services/ubiquiti.service";
 import { TicketAttachmentStorageNotConfiguredError } from "../services/ticket-attachment-storage.service";
 import { createTicketAttachment } from "../services/ticket-attachments.service";
 import { downloadSupportTicketAttachment } from "../services/ticket-attachments.service";
@@ -82,6 +88,167 @@ const asId = (value: unknown): number | null => {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 };
+
+type AlignmentEquipment = {
+  id: number;
+  model: string;
+  connectionType: string;
+  ip: string;
+  username: string;
+  password: string;
+  latitude: string | null;
+  longitude: string | null;
+  altitudeMeters: string | null;
+  locationSource: string | null;
+  locationAccuracyMeters: string | null;
+};
+
+const alignmentLocationSources = new Set([
+  "manual",
+  "external_gps",
+  "phone_gps",
+  "radio_gps",
+  "unknown",
+]);
+
+function equipmentAlignmentPosition(equipment: AlignmentEquipment | undefined) {
+  if (!equipment?.latitude || !equipment.longitude) return null;
+  const latitude = Number(equipment.latitude);
+  const longitude = Number(equipment.longitude);
+  const rawAltitude = equipment.altitudeMeters === null ? null : Number(equipment.altitudeMeters);
+  if (
+    !Number.isFinite(latitude)
+    || !Number.isFinite(longitude)
+    || latitude < -90
+    || latitude > 90
+    || longitude < -180
+    || longitude > 180
+  ) return null;
+  return {
+    latitude,
+    longitude,
+    altitudeMeters: rawAltitude !== null && Number.isFinite(rawAltitude) ? rawAltitude : null,
+    source: equipment.locationSource && alignmentLocationSources.has(equipment.locationSource)
+      ? equipment.locationSource
+      : "unknown",
+    accuracyMeters: equipment.locationAccuracyMeters === null
+      ? null
+      : Number.isFinite(Number(equipment.locationAccuracyMeters))
+        ? Number(equipment.locationAccuracyMeters)
+        : null,
+  };
+}
+
+async function loadMyAlignmentContext(id: number, userId: number) {
+  const [order] = await db.select({
+    id: fieldWorkOrdersTable.id,
+    clientId: fieldWorkOrdersTable.clientId,
+  }).from(fieldWorkOrdersTable)
+    .where(and(
+      eq(fieldWorkOrdersTable.id, id),
+      eq(fieldWorkOrdersTable.assignedToUserId, userId),
+    ));
+  if (!order?.clientId) return null;
+
+  const [client] = await db.select({
+    id: clientsTable.id,
+    name: clientsTable.name,
+    mac: clientsTable.mac,
+    equipmentId: clientsTable.equipmentId,
+    accessPointEquipmentId: clientsTable.accessPointEquipmentId,
+  }).from(clientsTable).where(eq(clientsTable.id, order.clientId));
+  if (!client) return null;
+
+  const equipmentIds = [...new Set([
+    client.equipmentId,
+    client.accessPointEquipmentId,
+  ].filter((equipmentId): equipmentId is number => equipmentId !== null))];
+  const devices: AlignmentEquipment[] = equipmentIds.length
+    ? await db.select({
+      id: equipmentTable.id,
+      model: equipmentTable.model,
+      connectionType: equipmentTable.connectionType,
+      ip: equipmentTable.ip,
+      username: equipmentTable.username,
+      password: equipmentTable.password,
+      latitude: equipmentTable.latitude,
+      longitude: equipmentTable.longitude,
+      altitudeMeters: equipmentTable.altitudeMeters,
+      locationSource: equipmentTable.locationSource,
+      locationAccuracyMeters: equipmentTable.locationAccuracyMeters,
+    }).from(equipmentTable).where(inArray(equipmentTable.id, equipmentIds))
+    : [];
+
+  return {
+    client,
+    clientRadio: devices.find(device => device.id === client.equipmentId),
+    accessPoint: client.accessPointEquipmentId === null
+      ? undefined
+      : devices.find(device => device.id === client.accessPointEquipmentId),
+  };
+}
+
+function normalizeMac(value: string): string {
+  return value.replace(/[^a-f0-9]/gi, "").toLowerCase();
+}
+
+function metricNumber(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number.parseFloat(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function buildMyFieldWorkOrderAlignment(id: number, userId: number) {
+  const context = await loadMyAlignmentContext(id, userId);
+  if (!context) return null;
+
+  const candidates = [context.accessPoint, context.clientRadio]
+    .filter((device, index, all): device is AlignmentEquipment =>
+      Boolean(device) && all.findIndex(candidate => candidate?.id === device?.id) === index,
+    );
+  const stationTables = await Promise.all(candidates.map(async device => {
+    try {
+      return await getWirelessTable(
+        device.ip,
+        device.username,
+        device.password,
+        device.connectionType,
+      );
+    } catch {
+      return [];
+    }
+  }));
+  const clientMac = normalizeMac(context.client.mac);
+  const station = stationTables
+    .flat()
+    .find(candidate => normalizeMac(candidate.mac) === clientMac);
+
+  return GetMyFieldWorkOrderAlignmentResponse.parse({
+    workOrderId: id,
+    clientName: context.client.name,
+    clientMac: context.client.mac,
+    clientRadio: {
+      equipmentId: context.clientRadio?.id ?? null,
+      model: context.clientRadio?.model ?? null,
+      position: equipmentAlignmentPosition(context.clientRadio),
+    },
+    accessPoint: {
+      equipmentId: context.accessPoint?.id ?? null,
+      model: context.accessPoint?.model ?? null,
+      position: equipmentAlignmentPosition(context.accessPoint),
+    },
+    metrics: {
+      available: Boolean(station),
+      signalDbm: metricNumber(station?.signalDbm),
+      noiseDbm: metricNumber(station?.noiseDbm),
+      ccq: metricNumber(station?.ccq),
+      txRate: station?.txRate ?? null,
+      rxRate: station?.rxRate ?? null,
+      distance: station?.distance ?? null,
+      refreshedAt: station ? new Date().toISOString() : null,
+    },
+  });
+}
 
 const text = (value: unknown, max = 4000): string | null => {
   if (typeof value !== "string") return null;
@@ -879,6 +1046,158 @@ router.get("/work-orders/mine", async (_req, res): Promise<void> => {
     clientInstallationAddress,
   }));
   res.json(ListFieldWorkOrdersResponse.parse(response));
+});
+
+router.get("/work-orders/mine/:id/alignment", async (req, res): Promise<void> => {
+  const id = asId(req.params.id);
+  if (!id) { res.status(400).json({ error: "Identificador de orden inválido" }); return; }
+  const userId = res.locals.user?.id;
+  if (!userId) { res.status(401).json({ error: "Sesión requerida" }); return; }
+
+  const alignment = await buildMyFieldWorkOrderAlignment(id, userId);
+  if (!alignment) {
+    res.status(404).json({ error: "Orden no asignada o sin cliente asociado" });
+    return;
+  }
+  res.json(alignment);
+});
+
+router.post("/work-orders/mine/:id/alignment/radio-gps", async (req, res): Promise<void> => {
+  const id = asId(req.params.id);
+  if (!id) { res.status(400).json({ error: "Identificador de orden inválido" }); return; }
+  const userId = res.locals.user?.id;
+  if (!userId) { res.status(401).json({ error: "Sesión requerida" }); return; }
+
+  const context = await loadMyAlignmentContext(id, userId);
+  if (!context) {
+    res.status(404).json({ error: "Orden no asignada o sin cliente asociado" });
+    return;
+  }
+
+  const readings = new Map<number, ReturnType<typeof getMikroTikGps>>();
+  const read = (device: AlignmentEquipment | undefined) => {
+    if (!device) {
+      return Promise.resolve({
+        supported: false,
+        position: null,
+        message: "No hay un radio asociado en NMS.",
+      });
+    }
+    const cached = readings.get(device.id);
+    if (cached) return cached;
+    const result = device.connectionType === "mikrotik_routeros"
+      ? getMikroTikGps(device.ip, device.username, device.password)
+      : device.connectionType === "ubiquiti_airos"
+        ? getUbiquitiRadioGps(device.ip, device.username, device.password)
+        : Promise.resolve({
+          supported: false,
+          position: null,
+          message: "Este protocolo no tiene lectura GPS compatible.",
+        });
+    readings.set(device.id, result);
+    return result;
+  };
+  const [clientRadio, accessPoint] = await Promise.all([
+    read(context.clientRadio),
+    read(context.accessPoint),
+  ]);
+  res.json(ReadMyFieldWorkOrderRadioGpsResponse.parse({ clientRadio, accessPoint }));
+});
+
+router.patch("/work-orders/mine/:id/alignment", async (req, res): Promise<void> => {
+  const id = asId(req.params.id);
+  if (!id) { res.status(400).json({ error: "Identificador de orden inválido" }); return; }
+  const userId = res.locals.user?.id;
+  if (!userId) { res.status(401).json({ error: "Sesión requerida" }); return; }
+
+  const input = SaveMyFieldWorkOrderAlignmentBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: input.error.message }); return; }
+  const { clientRadioLocation, accessPointLocation } = input.data;
+  if (!clientRadioLocation && !accessPointLocation) {
+    res.status(400).json({ error: "Incluye al menos una ubicación para guardar" });
+    return;
+  }
+
+  const result = await db.transaction(async tx => {
+    const [order] = await tx.select({
+      clientId: fieldWorkOrdersTable.clientId,
+    }).from(fieldWorkOrdersTable)
+      .where(and(
+        eq(fieldWorkOrdersTable.id, id),
+        eq(fieldWorkOrdersTable.assignedToUserId, userId),
+      ))
+      .for("update");
+    if (!order?.clientId) return { kind: "not_found" as const };
+
+    const [client] = await tx.select({
+      equipmentId: clientsTable.equipmentId,
+      accessPointEquipmentId: clientsTable.accessPointEquipmentId,
+    }).from(clientsTable)
+      .where(eq(clientsTable.id, order.clientId))
+      .for("update");
+    if (!client) return { kind: "not_found" as const };
+    if (
+      clientRadioLocation
+      && (!client.equipmentId || client.equipmentId <= 0)
+    ) return { kind: "radio_missing" as const };
+    if (
+      accessPointLocation
+      && (!client.accessPointEquipmentId || client.accessPointEquipmentId <= 0)
+    ) return { kind: "ap_missing" as const };
+
+    if (client.equipmentId === client.accessPointEquipmentId) {
+      return { kind: "duplicate_equipment" as const };
+    }
+
+    if (clientRadioLocation) {
+      await tx.update(equipmentTable).set({
+        latitude: String(clientRadioLocation.latitude),
+        longitude: String(clientRadioLocation.longitude),
+        altitudeMeters: clientRadioLocation.altitudeMeters === null
+          ? null
+          : String(clientRadioLocation.altitudeMeters),
+        locationSource: clientRadioLocation.source,
+        locationAccuracyMeters: clientRadioLocation.accuracyMeters === null
+          ? null
+          : String(clientRadioLocation.accuracyMeters),
+      }).where(eq(equipmentTable.id, client.equipmentId));
+    }
+    if (accessPointLocation && client.accessPointEquipmentId) {
+      await tx.update(equipmentTable).set({
+        latitude: String(accessPointLocation.latitude),
+        longitude: String(accessPointLocation.longitude),
+        altitudeMeters: accessPointLocation.altitudeMeters === null
+          ? null
+          : String(accessPointLocation.altitudeMeters),
+        locationSource: accessPointLocation.source,
+        locationAccuracyMeters: accessPointLocation.accuracyMeters === null
+          ? null
+          : String(accessPointLocation.accuracyMeters),
+      }).where(eq(equipmentTable.id, client.accessPointEquipmentId));
+    }
+    return { kind: "saved" as const };
+  });
+
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Orden no asignada o sin cliente asociado" });
+    return;
+  }
+  if (result.kind === "radio_missing" || result.kind === "ap_missing") {
+    res.status(400).json({ error: "El equipo que intentas actualizar no está asociado al cliente en NMS" });
+    return;
+  }
+  if (result.kind === "duplicate_equipment") {
+    res.status(400).json({ error: "La radio del cliente y el AP apuntan al mismo equipo; verifica la asociación en NMS" });
+    return;
+  }
+
+  await audit(res.locals.user, "Equipment", "UPDATE", `Coordenadas de alineación actualizadas desde orden #${id}`);
+  const alignment = await buildMyFieldWorkOrderAlignment(id, userId);
+  if (!alignment) {
+    res.status(404).json({ error: "Orden no asignada o sin cliente asociado" });
+    return;
+  }
+  res.json(alignment);
 });
 
 router.patch("/work-orders/mine/:id", async (req, res): Promise<void> => {

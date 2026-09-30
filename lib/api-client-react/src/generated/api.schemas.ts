@@ -1035,6 +1035,94 @@ export interface MyFieldWorkOrderUpdate {
   installedSerialNumber?: string | null;
 }
 
+export type AlignmentPositionSource = typeof AlignmentPositionSource[keyof typeof AlignmentPositionSource];
+
+
+export const AlignmentPositionSource = {
+  manual: 'manual',
+  external_gps: 'external_gps',
+  phone_gps: 'phone_gps',
+  radio_gps: 'radio_gps',
+  unknown: 'unknown',
+} as const;
+
+export interface AlignmentPosition {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+  /**
+     * @minimum -500
+     * @maximum 10000
+     * @nullable
+     */
+  altitudeMeters: number | null;
+  source: AlignmentPositionSource;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     * @nullable
+     */
+  accuracyMeters: number | null;
+}
+
+export interface AlignmentRadio {
+  /** @nullable */
+  equipmentId: number | null;
+  /** @nullable */
+  model: string | null;
+  position: AlignmentPosition | null;
+}
+
+export interface AlignmentMetrics {
+  available: boolean;
+  /** @nullable */
+  signalDbm: number | null;
+  /** @nullable */
+  noiseDbm: number | null;
+  /** @nullable */
+  ccq: number | null;
+  /** @nullable */
+  txRate: string | null;
+  /** @nullable */
+  rxRate: string | null;
+  /** @nullable */
+  distance: string | null;
+  /** @nullable */
+  refreshedAt: string | null;
+}
+
+export interface MyFieldWorkOrderAlignment {
+  workOrderId: number;
+  clientName: string;
+  clientMac: string;
+  clientRadio: AlignmentRadio;
+  accessPoint: AlignmentRadio;
+  metrics: AlignmentMetrics;
+}
+
+export interface SaveMyFieldWorkOrderAlignment {
+  clientRadioLocation?: AlignmentPosition;
+  accessPointLocation?: AlignmentPosition;
+}
+
+export interface RadioGpsReading {
+  supported: boolean;
+  position: AlignmentPosition | null;
+  message: string;
+}
+
+export interface MyFieldWorkOrderRadioGps {
+  clientRadio: RadioGpsReading;
+  accessPoint: RadioGpsReading;
+}
+
 export interface Technician {
   id: number;
   username: string;

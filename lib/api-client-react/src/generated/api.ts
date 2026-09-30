@@ -77,6 +77,8 @@ import type {
   LoginInput,
   LoginResult,
   MetricPoint,
+  MyFieldWorkOrderAlignment,
+  MyFieldWorkOrderRadioGps,
   MyFieldWorkOrderUpdate,
   NetworkSummary,
   NetworkTopology,
@@ -96,6 +98,7 @@ import type {
   ProxmoxServer,
   ProxmoxServerInput,
   ProxmoxVm,
+  SaveMyFieldWorkOrderAlignment,
   SnapshotInput,
   SpeedChangeInput,
   SupportNotification,
@@ -5559,6 +5562,270 @@ export const useUpdateMyFieldWorkOrder = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateMyFieldWorkOrderMutationOptions(options), queryClient);
+    }
+
+export const getGetMyFieldWorkOrderAlignmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/work-orders/mine/${id}/alignment`
+}
+
+/**
+ * @summary Obtener radios, coordenadas NMS y métricas de una orden asignada
+ */
+export const getMyFieldWorkOrderAlignment = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MyFieldWorkOrderAlignment> => {
+
+  return customFetch<MyFieldWorkOrderAlignment>(getGetMyFieldWorkOrderAlignmentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyFieldWorkOrderAlignmentQueryKey = (id: number,) => {
+    return [
+    `/api/work-orders/mine/${id}/alignment`
+    ] as const;
+    }
+
+
+export const getGetMyFieldWorkOrderAlignmentQueryOptions = <TData = Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyFieldWorkOrderAlignmentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>> = ({ signal }) => getMyFieldWorkOrderAlignment(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyFieldWorkOrderAlignmentQueryResult = NonNullable<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>>
+export type GetMyFieldWorkOrderAlignmentQueryError = ErrorType<ApiError>
+
+
+export function useGetMyFieldWorkOrderAlignment<TData = Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError = ErrorType<ApiError>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>,
+          TError,
+          Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyFieldWorkOrderAlignment<TData = Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>,
+          TError,
+          Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyFieldWorkOrderAlignment<TData = Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Obtener radios, coordenadas NMS y métricas de una orden asignada
+ */
+
+export function useGetMyFieldWorkOrderAlignment<TData = Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyFieldWorkOrderAlignment>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyFieldWorkOrderAlignmentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveMyFieldWorkOrderAlignmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/work-orders/mine/${id}/alignment`
+}
+
+/**
+ * @summary Guardar coordenadas de los equipos asociados a una orden
+ */
+export const saveMyFieldWorkOrderAlignment = async (id: number,
+    saveMyFieldWorkOrderAlignmentBody: SaveMyFieldWorkOrderAlignment, options?: Parameters<typeof customFetch>[1]): Promise<MyFieldWorkOrderAlignment> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MyFieldWorkOrderAlignment>(getSaveMyFieldWorkOrderAlignmentUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveMyFieldWorkOrderAlignmentBody)
+  }
+);}
+
+
+
+
+
+export const getSaveMyFieldWorkOrderAlignmentMutationKey = () => ['saveMyFieldWorkOrderAlignment'] as const;
+
+export const getSaveMyFieldWorkOrderAlignmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveMyFieldWorkOrderAlignment>>, TError,SaveMyFieldWorkOrderAlignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveMyFieldWorkOrderAlignment>>, TError,SaveMyFieldWorkOrderAlignmentMutationVariables, TContext> => {
+
+const mutationKey = getSaveMyFieldWorkOrderAlignmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveMyFieldWorkOrderAlignment>>, SaveMyFieldWorkOrderAlignmentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  saveMyFieldWorkOrderAlignment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveMyFieldWorkOrderAlignmentMutationResult = NonNullable<Awaited<ReturnType<typeof saveMyFieldWorkOrderAlignment>>>
+    export type SaveMyFieldWorkOrderAlignmentMutationBody = BodyType<SaveMyFieldWorkOrderAlignment>
+    export type SaveMyFieldWorkOrderAlignmentMutationError = ErrorType<ApiError>
+    export type SaveMyFieldWorkOrderAlignmentMutationVariables = {id: number;data: BodyType<SaveMyFieldWorkOrderAlignment>}
+
+    /**
+ * @summary Guardar coordenadas de los equipos asociados a una orden
+ */
+export const useSaveMyFieldWorkOrderAlignment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveMyFieldWorkOrderAlignment>>, TError,SaveMyFieldWorkOrderAlignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveMyFieldWorkOrderAlignment>>,
+        TError,
+        SaveMyFieldWorkOrderAlignmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveMyFieldWorkOrderAlignmentMutationOptions(options), queryClient);
+    }
+
+export const getReadMyFieldWorkOrderRadioGpsUrl = (id: number,) => {
+
+
+
+
+  return `/api/work-orders/mine/${id}/alignment/radio-gps`
+}
+
+/**
+ * @summary Consultar GPS integrado de radios compatibles, sin modificar configuración
+ */
+export const readMyFieldWorkOrderRadioGps = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MyFieldWorkOrderRadioGps> => {
+
+  return customFetch<MyFieldWorkOrderRadioGps>(getReadMyFieldWorkOrderRadioGpsUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReadMyFieldWorkOrderRadioGpsMutationKey = () => ['readMyFieldWorkOrderRadioGps'] as const;
+
+export const getReadMyFieldWorkOrderRadioGpsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readMyFieldWorkOrderRadioGps>>, TError,ReadMyFieldWorkOrderRadioGpsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof readMyFieldWorkOrderRadioGps>>, TError,ReadMyFieldWorkOrderRadioGpsMutationVariables, TContext> => {
+
+const mutationKey = getReadMyFieldWorkOrderRadioGpsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof readMyFieldWorkOrderRadioGps>>, ReadMyFieldWorkOrderRadioGpsMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  readMyFieldWorkOrderRadioGps(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReadMyFieldWorkOrderRadioGpsMutationResult = NonNullable<Awaited<ReturnType<typeof readMyFieldWorkOrderRadioGps>>>
+
+    export type ReadMyFieldWorkOrderRadioGpsMutationError = ErrorType<ApiError>
+    export type ReadMyFieldWorkOrderRadioGpsMutationVariables = {id: number}
+
+    /**
+ * @summary Consultar GPS integrado de radios compatibles, sin modificar configuración
+ */
+export const useReadMyFieldWorkOrderRadioGps = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readMyFieldWorkOrderRadioGps>>, TError,ReadMyFieldWorkOrderRadioGpsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof readMyFieldWorkOrderRadioGps>>,
+        TError,
+        ReadMyFieldWorkOrderRadioGpsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReadMyFieldWorkOrderRadioGpsMutationOptions(options), queryClient);
     }
 
 export const getListTechniciansUrl = () => {
