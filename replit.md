@@ -48,7 +48,7 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - `android/` y `ios/` — proyectos nativos Capacitor generados desde el cliente compartido
 - `mobile/nms-field-app/` — código Expo anterior conservado como referencia; fuera del workspace activo
 - `backups/imperio-artifacts-and-archive.zip` — respaldo de las carpetas `artifacts/` y `archive/` antes de retirarlas
-- Los registros de artefactos de Replit siguen asociados al proyecto, pero sus carpetas locales se retiraron; sus previews/workflows antiguos requieren restaurar el respaldo.
+- Los artefactos y workflows anteriores se retiraron de Replit; el ZIP es solo un respaldo y no mantiene previews activos.
 
 ## Architecture decisions
 
