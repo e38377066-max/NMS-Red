@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { SignalStrength } from "@/components/signal-strength";
 import { useToast } from "@/hooks/use-toast";
+import { useWebSocket } from "@/hooks/use-websocket";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { apiFetch } from "@/lib/api-fetch";
@@ -50,10 +51,18 @@ function normalizeMacAddress(value: string | null | undefined) {
 }
 
 export default function Clients() {
-  const { data: clients, isLoading } = useListClients({ query: { queryKey: getListClientsQueryKey() } });
+  const { data: clients, isLoading } = useListClients({
+    query: {
+      queryKey: getListClientsQueryKey(),
+      staleTime: 5_000,
+      refetchInterval: 10_000,
+    },
+  });
   const deleteClient = useDeleteClient();
   const registerPayment = useRegisterClientPayment();
-  const { data: equipment } = useListEquipment();
+  const { data: equipment } = useListEquipment({
+    query: { staleTime: 5_000, refetchInterval: 10_000 },
+  });
   const { data: users } = useQuery<Array<{ id: number; username: string; role: string }>>({
     queryKey: ["users-for-client-assignment"],
     queryFn: async () => {
@@ -64,6 +73,7 @@ export default function Clients() {
   });
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { telemetry } = useWebSocket();
   const provisionClient = useProvisionClient();
   const importDhcpLeases = useImportClientsFromDhcpLeases();
 
@@ -145,7 +155,8 @@ export default function Clients() {
   const dhcpConfigQuery = useGetEquipmentDhcpConfig(selectedRouterId, {
     query: {
       enabled: createOpen && selectedRouterId > 0,
-      staleTime: 30_000,
+      staleTime: 5_000,
+      refetchInterval: 10_000,
       refetchOnWindowFocus: true,
     },
   });
@@ -162,8 +173,8 @@ export default function Clients() {
         if (!response.ok) throw new Error("No se pudieron consultar los leases DHCP");
         return await response.json() as ClientDhcpLeaseCandidate[];
       },
-      staleTime: 20_000,
-      refetchInterval: 60_000,
+      staleTime: 5_000,
+      refetchInterval: 10_000,
       enabled: Boolean(clients?.length),
     })),
   });
@@ -175,8 +186,8 @@ export default function Clients() {
         if (!response.ok) throw new Error("No se pudo consultar la tabla inalámbrica");
         return await response.json() as WirelessClient[];
       },
-      staleTime: 20_000,
-      refetchInterval: 60_000,
+      staleTime: 5_000,
+      refetchInterval: 10_000,
       enabled: Boolean(clients?.length),
     })),
   });
@@ -198,6 +209,9 @@ export default function Clients() {
 
   const leaseQueryByRouter = new Map(
     centralRouters.map((router, index) => [router.id, clientLeaseQueries[index]] as const),
+  );
+  const liveClientById = new Map(
+    (telemetry?.clients ?? []).map((liveClient) => [liveClient.id, liveClient] as const),
   );
   const wirelessByMac = new Map<string, Array<{
     equipment: (typeof accessPoints)[number];
@@ -228,7 +242,8 @@ export default function Clients() {
     const liveWireless = wirelessLinks.find((link) => link.equipment.id === client.accessPointEquipmentId) ??
       (wirelessLinks.length === 1 ? wirelessLinks[0] : undefined);
     const configuredAccessPoint = equipment?.find((item) => item.id === client.accessPointEquipmentId);
-    return { client, lease, dhcpState, wirelessLinks, liveWireless, configuredAccessPoint };
+    const liveClient = liveClientById.get(client.id);
+    return { client, lease, dhcpState, wirelessLinks, liveWireless, configuredAccessPoint, liveClient };
   });
   const filteredClientRows = clientRows.filter(({ dhcpState }) =>
     assignmentFilter === "all" ||
@@ -421,8 +436,13 @@ export default function Clients() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredClientRows.map(({ client, lease, dhcpState, wirelessLinks, liveWireless, configuredAccessPoint }) => {
-                const signalDbm = liveWireless?.station.signalDbm ?? client.lastSeenDbm;
+              filteredClientRows.map(({ client, lease, dhcpState, wirelessLinks, liveWireless, configuredAccessPoint, liveClient }) => {
+                const liveTelemetrySignal = liveClient?.signalDbm != null ? String(liveClient.signalDbm) : null;
+                const signalDbm = liveWireless?.station.signalDbm ?? liveTelemetrySignal ?? client.lastSeenDbm;
+                const displayStatus = client.status === "SUSPENDED" ? "SUSPENDED"
+                  : liveClient?.status === "CONNECTED" ? "ACTIVE"
+                    : liveClient?.status === "DISCONNECTED" ? "OFFLINE"
+                      : liveClient?.status === "UNKNOWN" ? "UNKNOWN" : client.status;
                 const accessPoint = liveWireless?.equipment ?? configuredAccessPoint;
                 const dhcpAssignmentLabel = dhcpState === "assigned" ? "Asignado · IP fija"
                   : dhcpState === "unassigned" ? "Sin asignar · IP dinámica"
@@ -437,9 +457,10 @@ export default function Clients() {
                   <TableRow key={client.id} className={client.paymentStatus === "SUSPENDED" ? "bg-red-950/10" : ""}>
                     <TableCell>
                       <Badge variant="outline" className={
-                        client.status === "ACTIVE" ? "border-emerald-500/30 text-emerald-500" :
-                        client.status === "OFFLINE" ? "border-red-500/30 text-red-500" : "border-yellow-500/30 text-yellow-500"
-                      }>{client.status === "ACTIVE" ? "Activo" : client.status === "OFFLINE" ? "Offline" : "Suspendido"}</Badge>
+                        displayStatus === "ACTIVE" ? "border-emerald-500/30 text-emerald-500" :
+                        displayStatus === "OFFLINE" ? "border-red-500/30 text-red-500" :
+                        displayStatus === "SUSPENDED" ? "border-yellow-500/30 text-yellow-500" : "border-border text-muted-foreground"
+                      }>{displayStatus === "ACTIVE" ? "Activo" : displayStatus === "OFFLINE" ? "Offline" : displayStatus === "SUSPENDED" ? "Suspendido" : "Sin lectura"}</Badge>
                     </TableCell>
                     <TableCell><Badge variant="outline" className={dhcpAssignmentClass}>{dhcpAssignmentLabel}</Badge></TableCell>
                     <TableCell><PaymentBadge status={client.paymentStatus} /></TableCell>
@@ -494,7 +515,7 @@ export default function Clients() {
                       <div className="text-[10px] text-muted-foreground">
                         {liveWireless
                           ? `En vivo · ruido ${liveWireless.station.noiseDbm ?? "—"} · CCQ ${liveWireless.station.ccq}`
-                          : client.lastSeenDbm ? "Última lectura guardada" : "Sin lectura"}
+                          : liveTelemetrySignal ? "En vivo · monitoreo" : client.lastSeenDbm ? "Última lectura guardada" : "Sin lectura"}
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-sm">{client.planLimit}</TableCell>

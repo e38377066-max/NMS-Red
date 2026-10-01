@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { useToast } from "@/hooks/use-toast";
+import { useWebSocket } from "@/hooks/use-websocket";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -52,8 +53,15 @@ const INITIAL_FORM = {
 };
 
 export default function Equipment() {
-  const { data: equipment, isLoading } = useListEquipment({ query: { queryKey: getListEquipmentQueryKey() } });
+  const { data: equipment, isLoading } = useListEquipment({
+    query: {
+      queryKey: getListEquipmentQueryKey(),
+      staleTime: 5_000,
+      refetchInterval: 10_000,
+    },
+  });
   const { data: nodes } = useListNodes();
+  useWebSocket();
   const queryClient = useQueryClient();
   const deleteEq = useDeleteEquipment();
   const createEq = useCreateEquipment();

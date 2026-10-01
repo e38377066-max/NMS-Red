@@ -89,8 +89,8 @@ export default function Monitoring() {
       if (!response.ok) throw new Error("No se pudo cargar el monitoreo");
       return response.json() as Promise<NetworkMonitoringSnapshot>;
     },
-    staleTime: 10_000,
-    refetchInterval: isConnected ? false : 15_000,
+    staleTime: 5_000,
+    refetchInterval: isConnected ? false : 10_000,
   });
 
   const data = isConnected ? telemetry ?? initialData : initialData;

@@ -17,8 +17,9 @@ function synchronizeSocketAuthentication(): void {
     socket = io(API_BASE_URL ?? undefined, {
       path: "/ws/socket.io",
       transports: ["websocket", "polling"],
-      reconnectionDelay: 3000,
-      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
       autoConnect: false,
       auth: token ? { token } : {},
     });
@@ -47,7 +48,10 @@ export function useWebSocket() {
     if (!activeSocket) return;
     const unsubscribeAuthChanges = subscribeAuthChanges(synchronizeSocketAuthentication);
 
-    const onConnect = () => setIsConnected(true);
+    const onConnect = () => {
+      setIsConnected(true);
+      queryClient.invalidateQueries({ queryKey: ["network-monitoring-overview"] });
+    };
     const onDisconnect = () => setIsConnected(false);
 
     const onEquipmentStatus = () => {

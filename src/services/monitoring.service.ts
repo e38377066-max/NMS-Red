@@ -1,6 +1,6 @@
 import { Equipment, Node, Alert, AuditLog, ProxmoxServer, Client, MetricHistory } from "../db";
 import { getMikroTikResource } from "./mikrotik.service";
-import { getUbiquitiStatus, getWirelessTable } from "./ubiquiti.service";
+import { isUbiquitiReachable, getWirelessTable } from "./ubiquiti.service";
 import { getProxmoxTicket, getProxmoxNodeStatus } from "./proxmox.service";
 import { logger } from "../lib/logger";
 import type { Server as SocketServer } from "socket.io";
@@ -8,6 +8,7 @@ import type { Server as SocketServer } from "socket.io";
 let io: SocketServer | null = null;
 let monitoringInterval: ReturnType<typeof setInterval> | null = null;
 let metricsInterval: ReturnType<typeof setInterval> | null = null;
+let heartbeatInFlight: Promise<void> | null = null;
 
 const prevReadings = new Map<number, { signalDbm: number; ccq: number; ts: number }>();
 
@@ -17,9 +18,9 @@ export function setSocketServer(socketServer: SocketServer): void {
 
 export function startMonitoring(): void {
   if (monitoringInterval) return;
-  logger.info("Starting Imperio AP network monitoring service (60s interval)");
+  logger.info("Starting Imperio AP network monitoring service (10s interval)");
   void runHeartbeat();
-  monitoringInterval = setInterval(() => { void runHeartbeat(); }, 60_000);
+  monitoringInterval = setInterval(() => { void runHeartbeat(); }, 10_000);
 
   logger.info("Starting 5-min metrics collection");
   setTimeout(() => {
@@ -40,14 +41,18 @@ export function stopMonitoring(): void {
 }
 
 async function runHeartbeat(): Promise<void> {
-  try {
-    await Promise.all([
-      checkAllEquipment(),
-      checkAllProxmox(),
-    ]);
-  } catch (err) {
-    logger.error({ err }, "Heartbeat cycle failed");
-  }
+  if (heartbeatInFlight) return heartbeatInFlight;
+  heartbeatInFlight = (async () => {
+    try {
+      await Promise.all([
+        checkAllEquipment(),
+        checkAllProxmox(),
+      ]);
+    } catch (err) {
+      logger.error({ err }, "Heartbeat cycle failed");
+    }
+  })().finally(() => { heartbeatInFlight = null; });
+  return heartbeatInFlight;
 }
 
 async function checkAllEquipment(): Promise<void> {
@@ -57,8 +62,7 @@ async function checkAllEquipment(): Promise<void> {
     let reachable = false;
 
     if (equip.connectionType === "ubiquiti_airos") {
-      const result = await getUbiquitiStatus(equip.ip, equip.username, equip.password);
-      reachable = result.reachable;
+      reachable = await isUbiquitiReachable(equip.ip, equip.username, equip.password);
     } else {
       const result = await getMikroTikResource(equip.ip, equip.username, equip.password);
       reachable = result.reachable;

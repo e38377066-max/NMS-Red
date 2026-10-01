@@ -1,6 +1,6 @@
 import { sequelize, Client } from "../db";
 import { getMikroTikTrafficSnapshot, type MikroTikTrafficSnapshot } from "./mikrotik.service";
-import { getUbiquitiStatus, getWirelessTable, type WirelessStation } from "./ubiquiti.service";
+import { isUbiquitiReachable, getWirelessTable, type WirelessStation } from "./ubiquiti.service";
 import { logger } from "../lib/logger";
 import type { Server as SocketServer } from "socket.io";
 
@@ -86,13 +86,22 @@ let refreshInFlight: Promise<NetworkMonitoringSnapshot> | null = null;
 
 export function setNetworkMonitoringSocket(socketServer: SocketServer): void {
   socket = socketServer;
+  socketServer.on("connection", (client) => {
+    if (latestSnapshot) {
+      client.emit("monitoring:telemetry", latestSnapshot);
+      return;
+    }
+    void refreshNetworkMonitoring().catch((err) => {
+      logger.warn({ err }, "Could not send initial network telemetry to connected client");
+    });
+  });
 }
 
 export function startNetworkMonitoring(): void {
   if (refreshInterval) return;
-  logger.info("Starting live network telemetry collection (15s interval)");
+  logger.info("Starting live network telemetry collection (10s interval)");
   void refreshNetworkMonitoring();
-  refreshInterval = setInterval(() => { void refreshNetworkMonitoring(); }, 15_000);
+  refreshInterval = setInterval(() => { void refreshNetworkMonitoring(); }, 10_000);
 }
 
 export function stopNetworkMonitoring(): void {
@@ -127,13 +136,13 @@ async function buildSnapshot(): Promise<NetworkMonitoringSnapshot> {
 
   const equipmentResults = await Promise.all(equipmentRows.map(async (equipment) => {
     if (equipment.connectionType === "ubiquiti_airos") {
-      const [status, stations] = await Promise.all([
-        getUbiquitiStatus(equipment.ip, equipment.username, equipment.password),
+      const [reachable, stations] = await Promise.all([
+        isUbiquitiReachable(equipment.ip, equipment.username, equipment.password),
         getWirelessTable(equipment.ip, equipment.username, equipment.password, equipment.connectionType),
       ]);
       return {
         equipment,
-        reachable: status.reachable,
+        reachable,
         traffic: null as MikroTikTrafficSnapshot | null,
         stations,
       };

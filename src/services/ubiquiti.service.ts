@@ -143,6 +143,15 @@ async function probeHttpReachability(ip: string): Promise<boolean> {
   }
 }
 
+export async function isUbiquitiReachable(
+  ip: string,
+  username: string,
+  password: string,
+): Promise<boolean> {
+  if (await probeHttpReachability(ip)) return true;
+  return (await trySSHStatus(ip, username, password)) !== null;
+}
+
 function emptyUbiquitiStatus(reachable: boolean): UbiquitiStatus {
   return {
     reachable,
