@@ -1,0 +1,43 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+PS C:\WINDOWS\system32> cd C:\Trabajo\NMS-Red
+PS C:\Trabajo\NMS-Red> npm install --global pnpm@10.26.1
+>>
+
+changed 1 package in 13s
+
+1 package is looking for funding
+  run `npm fund` for details
+npm notice
+npm notice New major version of npm available! 11.13.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+PS C:\Trabajo\NMS-Red> npm run local:db:init
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:db:init
+> node scripts/local-db.mjs init
+
+node:internal/modules/package_json_reader:301
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'pg' imported from C:\Trabajo\NMS-Red\scripts\local-db.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+    at packageResolve (node:internal/modules/esm/resolve:768:81)
+    at moduleResolve (node:internal/modules/esm/resolve:859:18)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:691:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:708:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:740:52)
+    at #resolve (node:internal/modules/esm/loader:673:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:593:35)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v24.16.0
+PS C:\Trabajo\NMS-Red>
