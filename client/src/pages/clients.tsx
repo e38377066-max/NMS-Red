@@ -1,16 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment,
-  useListEquipment, useProvisionClient, type Client,
+  useListEquipment, useProvisionClient, useListClientDhcpLeases,
+  useImportClientsFromDhcpLeases, type Client,
 } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Plus, Trash2, Eye, DollarSign, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { Users, Plus, Trash2, Eye, DollarSign, AlertCircle, CheckCircle2, XCircle, Router, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { SignalStrength } from "@/components/signal-strength";
@@ -58,11 +60,25 @@ export default function Clients() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const provisionClient = useProvisionClient();
+  const importDhcpLeases = useImportClientsFromDhcpLeases();
 
   const [paymentModal, setPaymentModal] = useState<Client | null>(null);
   const [fee, setFee] = useState("");
   const [days, setDays] = useState("30");
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importEquipmentId, setImportEquipmentId] = useState("");
+  const [selectedMacs, setSelectedMacs] = useState<string[]>([]);
+  const [initializedImportEquipmentId, setInitializedImportEquipmentId] = useState("");
+  const {
+    data: dhcpLeases,
+    isLoading: dhcpLeasesLoading,
+    error: dhcpLeasesError,
+    refetch: refreshDhcpLeases,
+  } = useListClientDhcpLeases(
+    { equipmentId: Number(importEquipmentId) || 0 },
+    { query: { enabled: importOpen && Boolean(importEquipmentId) } },
+  );
   const [newClient, setNewClient] = useState({
     equipmentId: "",
     name: "",
@@ -115,6 +131,67 @@ export default function Clients() {
     item.connectionType === "mikrotik_routeros" &&
     item.equipmentRole === "core_router"
   );
+  const availableLeases = (dhcpLeases ?? []).filter((lease) => !lease.alreadyImported);
+  const allAvailableSelected = availableLeases.length > 0 &&
+    availableLeases.every((lease) => selectedMacs.includes(lease.macAddress));
+
+  useEffect(() => {
+    if (!importOpen || !importEquipmentId || !dhcpLeases || initializedImportEquipmentId === importEquipmentId) return;
+    setSelectedMacs(dhcpLeases.filter((lease) => !lease.alreadyImported).map((lease) => lease.macAddress));
+    setInitializedImportEquipmentId(importEquipmentId);
+  }, [importOpen, importEquipmentId, dhcpLeases, initializedImportEquipmentId]);
+
+  const openDhcpImport = () => {
+    setImportEquipmentId(centralRouters[0] ? String(centralRouters[0].id) : "");
+    setSelectedMacs([]);
+    setInitializedImportEquipmentId("");
+    setImportOpen(true);
+  };
+
+  const closeDhcpImport = (open: boolean) => {
+    setImportOpen(open);
+    if (!open) {
+      setSelectedMacs([]);
+      setInitializedImportEquipmentId("");
+    }
+  };
+
+  const toggleLeaseSelection = (macAddress: string, checked: boolean) => {
+    setSelectedMacs((current) => checked
+      ? current.includes(macAddress) ? current : [...current, macAddress]
+      : current.filter((mac) => mac !== macAddress));
+  };
+
+  const toggleAllAvailableLeases = (checked: boolean) => {
+    setSelectedMacs(checked ? availableLeases.map((lease) => lease.macAddress) : []);
+  };
+
+  const submitDhcpImport = () => {
+    if (!importEquipmentId || selectedMacs.length === 0) return;
+    importDhcpLeases.mutate({
+      data: {
+        equipmentId: Number(importEquipmentId),
+        macAddresses: selectedMacs,
+      },
+    }, {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        const details = [
+          `${result.importedCount} importados`,
+          result.alreadyImportedCount ? `${result.alreadyImportedCount} ya existían o coincidían con datos locales` : "",
+          result.missingLeaseCount ? `${result.missingLeaseCount} ya no estaban en el router` : "",
+        ].filter(Boolean).join(" · ");
+        toast({ title: "Importación local completada", description: details });
+        closeDhcpImport(false);
+      },
+      onError: (error: Error) => toast({
+        title: "No se pudieron importar los leases",
+        description: error.message,
+        variant: "destructive",
+      }),
+    });
+  };
+
   const accessPoints = (equipment ?? []).filter((item) =>
     item.id !== Number(newClient.equipmentId) &&
     (item.equipmentRole === "ap_distributor" || item.connectionType === "ubiquiti_airos")
@@ -168,7 +245,12 @@ export default function Clients() {
           <Users className="w-8 h-8 text-primary" />
           Clientes
         </h1>
-        <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-2" /> Agregar Cliente</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={openDhcpImport} disabled={centralRouters.length === 0}>
+            <Router className="w-4 h-4 mr-2" /> Importar leases DHCP
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-2" /> Agregar Cliente</Button>
+        </div>
       </div>
 
       <div className="border border-border/50 rounded-md bg-card/50">
@@ -250,6 +332,135 @@ export default function Clients() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={importOpen} onOpenChange={closeDhcpImport}>
+        <DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-5xl flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Router className="w-5 h-5 text-primary" /> Importar clientes desde leases DHCP
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 overflow-hidden py-1">
+            <div className="space-y-1.5">
+              <Label>Router central</Label>
+              <Select
+                value={importEquipmentId}
+                onValueChange={(value) => {
+                  setImportEquipmentId(value);
+                  setSelectedMacs([]);
+                  setInitializedImportEquipmentId("");
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecciona el MikroTik..." /></SelectTrigger>
+                <SelectContent>
+                  {centralRouters.map((router) => (
+                    <SelectItem key={router.id} value={String(router.id)}>
+                      {router.model} — {router.ip}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Elige las MAC que quieras registrar. Los clientes existentes aparecen deshabilitados.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void refreshDhcpLeases()}
+                disabled={!importEquipmentId || dhcpLeasesLoading}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${dhcpLeasesLoading ? "animate-spin" : ""}`} />
+                Actualizar
+              </Button>
+            </div>
+            {dhcpLeasesError && (
+              <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                {dhcpLeasesError.message}
+              </div>
+            )}
+            {!importEquipmentId ? (
+              <p className="rounded-md border border-border p-6 text-center text-sm text-muted-foreground">
+                Selecciona un Router central para consultar sus leases.
+              </p>
+            ) : dhcpLeasesLoading && !dhcpLeases ? (
+              <Skeleton className="h-64 w-full" />
+            ) : dhcpLeases?.length === 0 ? (
+              <p className="rounded-md border border-border p-6 text-center text-sm text-muted-foreground">
+                No hay leases DHCP importables en este MikroTik.
+              </p>
+            ) : (
+              <div className="max-h-[46vh] overflow-auto rounded-md border border-border">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-card">
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          aria-label="Seleccionar todos los leases nuevos"
+                          checked={allAvailableSelected}
+                          onCheckedChange={(checked) => toggleAllAvailableLeases(checked === true)}
+                          disabled={availableLeases.length === 0}
+                        />
+                      </TableHead>
+                      <TableHead>Nombre / comentario</TableHead>
+                      <TableHead>MAC / IP</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Velocidad</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(dhcpLeases ?? []).map((lease) => (
+                      <TableRow key={lease.macAddress} className={lease.alreadyImported ? "opacity-55" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            aria-label={`Seleccionar ${lease.displayName}`}
+                            checked={selectedMacs.includes(lease.macAddress)}
+                            onCheckedChange={(checked) => toggleLeaseSelection(lease.macAddress, checked === true)}
+                            disabled={lease.alreadyImported}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{lease.displayName}</div>
+                          {lease.alreadyImported && <span className="text-xs text-muted-foreground">Ya existe o coincide con un cliente local</span>}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-mono text-xs">{lease.macAddress}</div>
+                          <div className="font-mono text-xs text-muted-foreground">{lease.address}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={lease.status.toLowerCase() === "bound" ? "border-emerald-500/30 text-emerald-500" : "text-muted-foreground"}>
+                            {lease.blocked ? "Bloqueado" : lease.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {lease.dynamic ? "Dinámico" : "Estático"}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{lease.rateLimit ?? "No informada"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Solo se guardan datos locales de red. No se escribe en el MikroTik ni se crean contratos o pagos;
+              el cobro queda pendiente y la cuota mensual en 0 hasta que completes esos datos.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => closeDhcpImport(false)}>Cancelar</Button>
+            <Button
+              onClick={submitDhcpImport}
+              disabled={!importEquipmentId || selectedMacs.length === 0 || importDhcpLeases.isPending}
+            >
+              {importDhcpLeases.isPending ? "Importando..." : `Importar ${selectedMacs.length} seleccionados`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!paymentModal} onOpenChange={() => setPaymentModal(null)}>
         <DialogContent className="sm:max-w-md">

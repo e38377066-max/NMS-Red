@@ -402,6 +402,46 @@ export interface ClientInput {
   dhcpPool?: string | null;
 }
 
+export interface ClientDhcpLeaseCandidate {
+  address: string;
+  macAddress: string;
+  displayName: string;
+  /** @nullable */
+  hostName: string | null;
+  /** @nullable */
+  comment: string | null;
+  /** @nullable */
+  rateLimit: string | null;
+  status: string;
+  dynamic: boolean;
+  blocked: boolean;
+  dhcpServer: string;
+  /** @nullable */
+  expiresAfter: string | null;
+  alreadyImported: boolean;
+}
+
+export interface ImportClientDhcpLeasesInput {
+  /** @minimum 1 */
+  equipmentId: number;
+  /**
+     * @minItems 1
+     * @maxItems 500
+     * @items.minLength 11
+     * @items.maxLength 17
+     */
+  macAddresses: string[];
+}
+
+export interface ImportClientDhcpLeasesResult {
+  /** @minimum 0 */
+  importedCount: number;
+  /** @minimum 0 */
+  alreadyImportedCount: number;
+  /** @minimum 0 */
+  missingLeaseCount: number;
+}
+
 export interface ProvisionClientInput {
   equipmentId: number;
   name: string;
@@ -1737,6 +1777,13 @@ export interface SupportNotification {
   readAt?: string | null;
   createdAt: string;
 }
+
+export type ListClientDhcpLeasesParams = {
+/**
+ * @minimum 1
+ */
+equipmentId: number;
+};
 
 export type CreateProrationInvoice201 = {
   invoice: Invoice;

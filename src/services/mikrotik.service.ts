@@ -479,31 +479,45 @@ export async function removeFromAddressList(
 
 // ─── DHCP Leases ────────────────────────────────────────────────────────────
 
+export async function readMikroTikDhcpLeases(
+  ip: string,
+  username: string,
+  password: string
+): Promise<MikroTikDhcpLease[]> {
+  const res = await mkFetch(ip, username, password, "/ip/dhcp-server/lease");
+  if (!res.ok) {
+    throw new Error(`MikroTik respondió HTTP ${res.status} al consultar leases DHCP`);
+  }
+
+  const raw = await res.json() as unknown;
+  if (!Array.isArray(raw)) {
+    throw new Error("La respuesta de leases DHCP del MikroTik no tiene el formato esperado");
+  }
+
+  return raw.map((entry: Record<string, string>) => ({
+    id: entry[".id"] ?? "",
+    address: entry["address"] ?? "",
+    macAddress: entry["mac-address"] ?? "",
+    hostName: entry["host-name"] ?? null,
+    comment: entry["comment"] ?? null,
+    rateLimit: entry["rate-limit"] ?? null,
+    parentQueue: entry["parent-queue"] ?? null,
+    addressLists: entry["address-lists"] ?? null,
+    status: entry["status"] ?? "waiting",
+    dynamic: entry["dynamic"] === "true",
+    blocked: entry["blocked"] === "true",
+    dhcpServer: entry["dhcp-server"] ?? "",
+    expiresAfter: entry["expires-after"] ?? null,
+  }));
+}
+
 export async function getMikroTikDhcpLeases(
   ip: string,
   username: string,
   password: string
 ): Promise<MikroTikDhcpLease[]> {
   try {
-    const res = await mkFetch(ip, username, password, "/ip/dhcp-server/lease");
-    if (!res.ok) return [];
-
-    const raw = await res.json() as Array<Record<string, string>>;
-    return raw.map(entry => ({
-      id: entry[".id"],
-      address: entry["address"] ?? "",
-      macAddress: entry["mac-address"] ?? "",
-      hostName: entry["host-name"] ?? null,
-      comment: entry["comment"] ?? null,
-      rateLimit: entry["rate-limit"] ?? null,
-      parentQueue: entry["parent-queue"] ?? null,
-      addressLists: entry["address-lists"] ?? null,
-      status: entry["status"] ?? "waiting",
-      dynamic: entry["dynamic"] === "true",
-      blocked: entry["blocked"] === "true",
-      dhcpServer: entry["dhcp-server"] ?? "",
-      expiresAfter: entry["expires-after"] ?? null,
-    }));
+    return await readMikroTikDhcpLeases(ip, username, password);
   } catch (err) {
     logger.warn({ ip, err }, "Failed to fetch DHCP leases");
     return [];

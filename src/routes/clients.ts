@@ -1,8 +1,13 @@
 import { Router, type IRouter } from "express";
+import { isIP } from "node:net";
 import { Op } from "sequelize";
 import { Client, Equipment, ClientLifecycleEvent, ClientChangeHistory, sequelize } from "../db";
 import {
   CreateClientBody,
+  ImportClientsFromDhcpLeasesBody,
+  ImportClientsFromDhcpLeasesResponse,
+  ListClientDhcpLeasesQueryParams,
+  ListClientDhcpLeasesResponse,
   UpdateClientBody,
   GetClientParams,
   UpdateClientParams,
@@ -12,6 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { enqueueSpeedChange } from "../services/task-queue.service";
 import { provisionClient } from "../services/client-provisioning.service";
+import { readMikroTikDhcpLeases, type MikroTikDhcpLease } from "../services/mikrotik.service";
 
 const router: IRouter = Router();
 
@@ -81,6 +87,34 @@ async function validateAccessEquipment(input: {
   }
   const accessPoint = await Equipment.findByPk(accessPointId, { attributes: ["id"] });
   return accessPoint ? null : "El equipo de acceso seleccionado no existe";
+}
+
+function normalizeMacAddress(value: string): string | null {
+  const compact = value.trim().replace(/[:-]/g, "");
+  if (!/^[0-9a-f]{12}$/i.test(compact)) return null;
+  return compact.match(/.{2}/g)!.join(":").toUpperCase();
+}
+
+function normalizeClientName(value: string | null | undefined): string {
+  return (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function dhcpLeaseDisplayName(lease: MikroTikDhcpLease, mac: string): string {
+  return lease.comment?.trim() || lease.hostName?.trim() || `Cliente ${mac}`;
+}
+
+function usableDhcpLeases(leases: MikroTikDhcpLease[]) {
+  const byMac = new Map<string, { lease: MikroTikDhcpLease; mac: string; address: string }>();
+  for (const lease of leases) {
+    const mac = normalizeMacAddress(lease.macAddress);
+    const address = lease.address.trim();
+    if (!mac || !address || isIP(address) === 0) continue;
+    const existing = byMac.get(mac);
+    if (!existing || (lease.status.toLowerCase() === "bound" && existing.lease.status.toLowerCase() !== "bound")) {
+      byMac.set(mac, { lease, mac, address });
+    }
+  }
+  return [...byMac.values()];
 }
 
 router.get("/clients", async (_req, res): Promise<void> => {
@@ -208,6 +242,172 @@ router.post("/clients/provision", async (req, res): Promise<void> => {
       error: message,
       rolledBack: true,
     });
+  }
+});
+
+router.get("/clients/dhcp-leases", async (req, res): Promise<void> => {
+  const query = ListClientDhcpLeasesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+
+  const controller = await getClientController(query.data.equipmentId);
+  if (!controller || !isClientController(controller)) {
+    res.status(400).json({ error: "Selecciona un MikroTik con rol Router central" });
+    return;
+  }
+
+  let leases: MikroTikDhcpLease[];
+  try {
+    leases = await readMikroTikDhcpLeases(controller.ip, controller.username, controller.password);
+  } catch (error) {
+    req.log.error({ err: error, equipmentId: controller.id, ip: controller.ip }, "Failed to read DHCP leases for client import");
+    res.status(502).json({ error: "No se pudieron leer los leases DHCP. Verifica la conexión y las credenciales del MikroTik." });
+    return;
+  }
+
+  const usableLeases = usableDhcpLeases(leases);
+  const existingClients = await Client.findAll({ attributes: ["equipmentId", "mac", "ip", "name"] });
+  const existingMacs = new Set(existingClients.map((client) => normalizeMacAddress(client.mac)).filter((mac): mac is string => mac !== null));
+  const existingIps = new Set(existingClients.map((client) => client.ip?.trim()).filter((ip): ip is string => Boolean(ip)));
+  const existingNamesForController = new Set(
+    existingClients
+      .filter((client) => client.equipmentId === controller.id)
+      .map((client) => normalizeClientName(client.name))
+      .filter(Boolean),
+  );
+
+  const candidates = usableLeases.map(({ lease, mac, address }) => {
+    const stableComment = normalizeClientName(lease.comment);
+    return {
+      address,
+      macAddress: mac,
+      displayName: dhcpLeaseDisplayName(lease, mac),
+      hostName: lease.hostName,
+      comment: lease.comment,
+      rateLimit: lease.rateLimit,
+      status: lease.status,
+      dynamic: lease.dynamic,
+      blocked: lease.blocked,
+      dhcpServer: lease.dhcpServer,
+      expiresAfter: lease.expiresAfter,
+      alreadyImported: existingMacs.has(mac) || existingIps.has(address) ||
+        (stableComment !== "" && existingNamesForController.has(stableComment)),
+    };
+  });
+
+  res.json(ListClientDhcpLeasesResponse.parse(candidates));
+});
+
+router.post("/clients/import-dhcp-leases", async (req, res): Promise<void> => {
+  const parsed = ImportClientsFromDhcpLeasesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const normalizedMacs = parsed.data.macAddresses.map(normalizeMacAddress);
+  if (normalizedMacs.some((mac) => mac === null)) {
+    res.status(400).json({ error: "Cada MAC seleccionada debe tener un formato válido" });
+    return;
+  }
+  const requestedMacs = new Set(normalizedMacs as string[]);
+  const controller = await getClientController(parsed.data.equipmentId);
+  if (!controller || !isClientController(controller)) {
+    res.status(400).json({ error: "Selecciona un MikroTik con rol Router central" });
+    return;
+  }
+
+  let leases: MikroTikDhcpLease[];
+  try {
+    leases = await readMikroTikDhcpLeases(controller.ip, controller.username, controller.password);
+  } catch (error) {
+    req.log.error({ err: error, equipmentId: controller.id, ip: controller.ip }, "Failed to refresh DHCP leases for client import");
+    res.status(502).json({ error: "No se pudieron actualizar los leases DHCP. No se guardaron clientes." });
+    return;
+  }
+
+  const currentLeases = usableDhcpLeases(leases).filter(({ mac }) => requestedMacs.has(mac));
+  const presentMacs = new Set(currentLeases.map(({ mac }) => mac));
+  const missingLeaseCount = requestedMacs.size - presentMacs.size;
+
+  try {
+    const result = await sequelize.transaction(async (transaction) => {
+      const existingClients = await Client.findAll({
+        attributes: ["mac", "ip", "name", "equipmentId"],
+        transaction,
+      });
+      const existingMacs = new Set(existingClients.map((client) => normalizeMacAddress(client.mac)).filter((mac): mac is string => mac !== null));
+      const existingIps = new Set(existingClients.map((client) => client.ip?.trim()).filter((ip): ip is string => Boolean(ip)));
+      const existingNamesForController = new Set(
+        existingClients
+          .filter((client) => client.equipmentId === controller.id)
+          .map((client) => normalizeClientName(client.name))
+          .filter(Boolean),
+      );
+      let importedCount = 0;
+      let alreadyImportedCount = 0;
+
+      for (const { lease, mac, address } of currentLeases) {
+        const stableComment = normalizeClientName(lease.comment);
+        if (existingMacs.has(mac) || existingIps.has(address) ||
+            (stableComment !== "" && existingNamesForController.has(stableComment))) {
+          alreadyImportedCount += 1;
+          continue;
+        }
+
+        const name = dhcpLeaseDisplayName(lease, mac);
+        const status = lease.blocked
+          ? "SUSPENDED"
+          : lease.status.toLowerCase() === "bound" ? "ACTIVE" : "OFFLINE";
+        const client = await Client.create({
+          equipmentId: controller.id,
+          mac,
+          ip: address,
+          name,
+          planLimit: lease.rateLimit?.trim() || "No informado",
+          status,
+          paymentStatus: "PENDING",
+          monthlyFee: "0",
+          dhcpServer: lease.dhcpServer || null,
+          dhcpPool: null,
+        }, { transaction });
+
+        await ClientLifecycleEvent.create({
+          clientId: client.id,
+          status: client.status,
+          notes: "Importado desde un lease DHCP; no se modificó RouterOS.",
+          equipmentId: controller.id,
+        }, { transaction });
+        await ClientChangeHistory.create({
+          clientId: client.id,
+          changedByUserId: res.locals.user?.id ?? null,
+          changeType: "IMPORTED_FROM_DHCP",
+          reason: "Importación local de lease DHCP",
+          previousData: {},
+          newData: {
+            equipmentId: controller.id,
+            name,
+            mac,
+            ip: address,
+            planLimit: lease.rateLimit?.trim() || null,
+          },
+        }, { transaction });
+
+        existingMacs.add(mac);
+        existingIps.add(address);
+        if (stableComment) existingNamesForController.add(stableComment);
+        importedCount += 1;
+      }
+
+      return { importedCount, alreadyImportedCount, missingLeaseCount };
+    });
+
+    res.json(ImportClientsFromDhcpLeasesResponse.parse(result));
+  } catch (error) {
+    req.log.error({ err: error, equipmentId: controller.id }, "Failed to save DHCP-imported clients");
+    res.status(500).json({ error: "No se pudieron guardar los clientes importados. No se modificó el MikroTik." });
   }
 });
 

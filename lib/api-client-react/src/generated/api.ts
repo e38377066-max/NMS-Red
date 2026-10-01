@@ -39,6 +39,7 @@ import type {
   Client,
   ClientContract,
   ClientContractReviewInput,
+  ClientDhcpLeaseCandidate,
   ClientInput,
   ClientUpdate,
   CommandResult,
@@ -65,12 +66,15 @@ import type {
   GetDailyBillingReportParams,
   GetEquipmentMetricsParams,
   HealthStatus,
+  ImportClientDhcpLeasesInput,
+  ImportClientDhcpLeasesResult,
   Invoice,
   InvoiceInput,
   InvoicePaymentInput,
   ListAuditLogsParams,
   ListBackupsParams,
   ListBillingInvoicesParams,
+  ListClientDhcpLeasesParams,
   ListFieldWorkOrdersParams,
   ListPaymentProofsParams,
   ListSupportTicketsParams,
@@ -2004,6 +2008,202 @@ export const useProvisionClient = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getProvisionClientMutationOptions(options), queryClient);
+    }
+
+export const getListClientDhcpLeasesUrl = (params: ListClientDhcpLeasesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/clients/dhcp-leases?${stringifiedParams}` : `/api/clients/dhcp-leases`
+}
+
+/**
+ * @summary List DHCP leases from a MikroTik for local client import
+ */
+export const listClientDhcpLeases = async (params: ListClientDhcpLeasesParams, options?: Parameters<typeof customFetch>[1]): Promise<ClientDhcpLeaseCandidate[]> => {
+
+  return customFetch<ClientDhcpLeaseCandidate[]>(getListClientDhcpLeasesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClientDhcpLeasesQueryKey = (params?: ListClientDhcpLeasesParams,) => {
+    return [
+    `/api/clients/dhcp-leases`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListClientDhcpLeasesQueryOptions = <TData = Awaited<ReturnType<typeof listClientDhcpLeases>>, TError = ErrorType<void>>(params: ListClientDhcpLeasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listClientDhcpLeases>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClientDhcpLeasesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClientDhcpLeases>>> = ({ signal }) => listClientDhcpLeases(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClientDhcpLeases>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListClientDhcpLeasesQueryResult = NonNullable<Awaited<ReturnType<typeof listClientDhcpLeases>>>
+export type ListClientDhcpLeasesQueryError = ErrorType<void>
+
+
+export function useListClientDhcpLeases<TData = Awaited<ReturnType<typeof listClientDhcpLeases>>, TError = ErrorType<void>>(
+ params: ListClientDhcpLeasesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listClientDhcpLeases>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listClientDhcpLeases>>,
+          TError,
+          Awaited<ReturnType<typeof listClientDhcpLeases>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListClientDhcpLeases<TData = Awaited<ReturnType<typeof listClientDhcpLeases>>, TError = ErrorType<void>>(
+ params: ListClientDhcpLeasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listClientDhcpLeases>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listClientDhcpLeases>>,
+          TError,
+          Awaited<ReturnType<typeof listClientDhcpLeases>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListClientDhcpLeases<TData = Awaited<ReturnType<typeof listClientDhcpLeases>>, TError = ErrorType<void>>(
+ params: ListClientDhcpLeasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listClientDhcpLeases>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List DHCP leases from a MikroTik for local client import
+ */
+
+export function useListClientDhcpLeases<TData = Awaited<ReturnType<typeof listClientDhcpLeases>>, TError = ErrorType<void>>(
+ params: ListClientDhcpLeasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listClientDhcpLeases>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListClientDhcpLeasesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportClientsFromDhcpLeasesUrl = () => {
+
+
+
+
+  return `/api/clients/import-dhcp-leases`
+}
+
+/**
+ * @summary Import selected DHCP leases into local client records without writing to RouterOS
+ */
+export const importClientsFromDhcpLeases = async (importClientDhcpLeasesInput: ImportClientDhcpLeasesInput, options?: Parameters<typeof customFetch>[1]): Promise<ImportClientDhcpLeasesResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ImportClientDhcpLeasesResult>(getImportClientsFromDhcpLeasesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(importClientDhcpLeasesInput)
+  }
+);}
+
+
+
+
+
+export const getImportClientsFromDhcpLeasesMutationKey = () => ['importClientsFromDhcpLeases'] as const;
+
+export const getImportClientsFromDhcpLeasesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importClientsFromDhcpLeases>>, TError,ImportClientsFromDhcpLeasesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importClientsFromDhcpLeases>>, TError,ImportClientsFromDhcpLeasesMutationVariables, TContext> => {
+
+const mutationKey = getImportClientsFromDhcpLeasesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importClientsFromDhcpLeases>>, ImportClientsFromDhcpLeasesMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  importClientsFromDhcpLeases(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportClientsFromDhcpLeasesMutationResult = NonNullable<Awaited<ReturnType<typeof importClientsFromDhcpLeases>>>
+    export type ImportClientsFromDhcpLeasesMutationBody = BodyType<ImportClientDhcpLeasesInput>
+    export type ImportClientsFromDhcpLeasesMutationError = ErrorType<void>
+    export type ImportClientsFromDhcpLeasesMutationVariables = {data: BodyType<ImportClientDhcpLeasesInput>}
+
+    /**
+ * @summary Import selected DHCP leases into local client records without writing to RouterOS
+ */
+export const useImportClientsFromDhcpLeases = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importClientsFromDhcpLeases>>, TError,ImportClientsFromDhcpLeasesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof importClientsFromDhcpLeases>>,
+        TError,
+        ImportClientsFromDhcpLeasesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getImportClientsFromDhcpLeasesMutationOptions(options), queryClient);
     }
 
 export const getGetClientUrl = (id: number,) => {

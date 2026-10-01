@@ -563,6 +563,64 @@ export const ProvisionClientResponse = zod.object({
 
 
 /**
+ * @summary List DHCP leases from a MikroTik for local client import
+ */
+
+
+
+export const ListClientDhcpLeasesQueryParams = zod.object({
+  "equipmentId": zod.coerce.number().int().min(1)
+})
+
+export const ListClientDhcpLeasesResponseItem = zod.object({
+  "address": zod.string(),
+  "macAddress": zod.string(),
+  "displayName": zod.string(),
+  "hostName": zod.string().nullable(),
+  "comment": zod.string().nullable(),
+  "rateLimit": zod.string().nullable(),
+  "status": zod.string(),
+  "dynamic": zod.boolean(),
+  "blocked": zod.boolean(),
+  "dhcpServer": zod.string(),
+  "expiresAfter": zod.string().nullable(),
+  "alreadyImported": zod.boolean()
+})
+export const ListClientDhcpLeasesResponse = zod.array(ListClientDhcpLeasesResponseItem)
+
+
+/**
+ * @summary Import selected DHCP leases into local client records without writing to RouterOS
+ */
+
+export const importClientsFromDhcpLeasesBodyMacAddressesItemMin = 11;
+export const importClientsFromDhcpLeasesBodyMacAddressesItemMax = 17;
+
+export const importClientsFromDhcpLeasesBodyMacAddressesMax = 500;
+
+
+
+export const ImportClientsFromDhcpLeasesBody = zod.object({
+  "equipmentId": zod.int().min(1),
+  "macAddresses": zod.array(zod.string().min(importClientsFromDhcpLeasesBodyMacAddressesItemMin).max(importClientsFromDhcpLeasesBodyMacAddressesItemMax)).min(1).max(importClientsFromDhcpLeasesBodyMacAddressesMax)
+})
+
+export const importClientsFromDhcpLeasesResponseImportedCountMin = 0;
+
+export const importClientsFromDhcpLeasesResponseAlreadyImportedCountMin = 0;
+
+export const importClientsFromDhcpLeasesResponseMissingLeaseCountMin = 0;
+
+
+
+export const ImportClientsFromDhcpLeasesResponse = zod.object({
+  "importedCount": zod.int().min(importClientsFromDhcpLeasesResponseImportedCountMin),
+  "alreadyImportedCount": zod.int().min(importClientsFromDhcpLeasesResponseAlreadyImportedCountMin),
+  "missingLeaseCount": zod.int().min(importClientsFromDhcpLeasesResponseMissingLeaseCountMin)
+})
+
+
+/**
  * @summary Get a client
  */
 export const GetClientParams = zod.object({
