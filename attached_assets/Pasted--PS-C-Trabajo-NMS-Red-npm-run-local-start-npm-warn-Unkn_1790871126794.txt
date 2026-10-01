@@ -1,0 +1,107 @@
+
+PS C:\Trabajo\NMS-Red>   npm run local:start
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:start
+> node scripts/run-local.mjs local-start
+
+
+> workspace@0.0.0 build C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build
+
+
+> workspace@0.0.0 typecheck:server C:\Trabajo\NMS-Red
+> pnpm exec tsc --noEmit -p tsconfig.server.json
+
+
+> workspace@0.0.0 build:web C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build-web
+
+
+> @workspace/client@0.0.0 build C:\Trabajo\NMS-Red\client
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2839 modules transformed.
+../dist/index.html                     1.38 kB │ gzip:   0.55 kB
+../dist/assets/index-r2VafTex.css    141.13 kB │ gzip:  21.53 kB
+../dist/assets/web-BNt90Sfc.js         0.22 kB │ gzip:   0.17 kB
+../dist/assets/web-CSZiXO6y.js         0.38 kB │ gzip:   0.25 kB
+../dist/assets/native-BkyKX0wk.js      0.80 kB │ gzip:   0.36 kB
+../dist/assets/web-DBRpYcMs.js         0.83 kB │ gzip:   0.42 kB
+../dist/assets/web-0ivlTXHF.js         0.90 kB │ gzip:   0.45 kB
+../dist/assets/web-DXuceFIG.js         2.30 kB │ gzip:   0.93 kB
+../dist/assets/web-DQKrN2Tp.js         2.43 kB │ gzip:   1.06 kB
+../dist/assets/base-Bq9g2g5Q.js        2.81 kB │ gzip:   1.00 kB
+../dist/assets/index-Bc_YiCD0.js   1,319.37 kB │ gzip: 364.90 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 15.39s
+(node:46304) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:48744) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:49636) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"level":30,"time":1790870924697,"pid":62352,"hostname":"manuel","port":5000,"msg":"Server listening"}
+{"level":30,"time":1790870924697,"pid":62352,"hostname":"manuel","msg":"Starting Imperio AP network monitoring service (60s interval)"}
+{"level":30,"time":1790870924698,"pid":62352,"hostname":"manuel","msg":"Starting 5-min metrics collection"}
+{"level":30,"time":1790870924698,"pid":62352,"hostname":"manuel","msg":"Starting live network telemetry collection (15s interval)"}
+{"level":30,"time":1790870924699,"pid":62352,"hostname":"manuel","msg":"Task queue worker started"}
+{"level":30,"time":1790870924700,"pid":62352,"hostname":"manuel","msg":"Starting billing cron service (nightly check every 6h)"}
+{"level":30,"time":1790870924701,"pid":62352,"hostname":"manuel","msg":"Starting backup cron service (daily at 02:00)"}
+{"level":30,"time":1790870924702,"pid":62352,"hostname":"manuel","nextBackupAt":"2026-10-02T06:00:00.000Z","msg":"Next backup scheduled"}
+{"level":30,"time":1790870924756,"pid":62352,"hostname":"manuel","suspended":0,"markedPending":0,"msg":"Billing check completed"}
+{"level":30,"time":1790870932561,"pid":62352,"hostname":"manuel","req":{"id":1,"method":"GET","url":"/clients"},"res":{"statusCode":200},"responseTime":22,"msg":"request completed"}
+{"level":30,"time":1790870932621,"pid":62352,"hostname":"manuel","req":{"id":2,"method":"GET","url":"/assets/index-r2VafTex.css"},"res":{"statusCode":200},"responseTime":11,"msg":"request completed"}
+{"level":30,"time":1790870932630,"pid":62352,"hostname":"manuel","req":{"id":3,"method":"GET","url":"/assets/index-Bc_YiCD0.js"},"res":{"statusCode":200},"responseTime":18,"msg":"request completed"}
+{"level":30,"time":1790870932842,"pid":62352,"hostname":"manuel","req":{"id":4,"method":"GET","url":"/favicon.svg"},"res":{"statusCode":304},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790870933969,"pid":62352,"hostname":"manuel","req":{"id":5,"method":"POST","url":"/api/users/login"},"res":{"statusCode":200},"responseTime":300,"msg":"request completed"}
+{"level":30,"time":1790870934073,"pid":62352,"hostname":"manuel","socketId":"s1CjwqfzuXoQViuCAAAB","msg":"Client connected via WebSocket"}
+{"level":30,"time":1790870934080,"pid":62352,"hostname":"manuel","req":{"id":6,"method":"GET","url":"/api/monitoring/summary"},"res":{"statusCode":304},"responseTime":66,"msg":"request completed"}
+{"level":30,"time":1790870934083,"pid":62352,"hostname":"manuel","req":{"id":7,"method":"GET","url":"/api/monitoring/alerts"},"res":{"statusCode":304},"responseTime":63,"msg":"request completed"}
+{"level":30,"time":1790870934085,"pid":62352,"hostname":"manuel","req":{"id":8,"method":"GET","url":"/api/audit-logs"},"res":{"statusCode":304},"responseTime":61,"msg":"request completed"}
+{"level":30,"time":1790870936571,"pid":62352,"hostname":"manuel","req":{"id":9,"method":"GET","url":"/api/users"},"res":{"statusCode":304},"responseTime":28,"msg":"request completed"}
+{"level":30,"time":1790870936585,"pid":62352,"hostname":"manuel","req":{"id":11,"method":"GET","url":"/api/equipment"},"res":{"statusCode":200},"responseTime":34,"msg":"request completed"}
+{"level":30,"time":1790870936588,"pid":62352,"hostname":"manuel","req":{"id":10,"method":"GET","url":"/api/clients"},"res":{"statusCode":304},"responseTime":41,"msg":"request completed"}
+{"level":30,"time":1790870936894,"pid":62352,"hostname":"manuel","req":{"id":12,"method":"GET","url":"/api/clients/dhcp-leases"},"res":{"statusCode":200},"responseTime":282,"msg":"request completed"}
+{"level":30,"time":1790870939560,"pid":62352,"hostname":"manuel","req":{"id":13,"method":"GET","url":"/api/equipment/2/wireless"},"res":{"statusCode":200},"responseTime":2945,"msg":"request completed"}
+{"level":30,"time":1790870967483,"pid":62352,"hostname":"manuel","req":{"id":14,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":108,"msg":"request completed"}
+{"level":30,"time":1790870967485,"pid":62352,"hostname":"manuel","req":{"id":15,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":105,"msg":"request completed"}
+{"level":30,"time":1790870977564,"pid":62352,"hostname":"manuel","req":{"id":16,"method":"GET","url":"/api/monitoring/overview"},"res":{"statusCode":200},"responseTime":24,"msg":"request completed"}
+{"level":30,"time":1790871011782,"pid":62352,"hostname":"manuel","req":{"id":17,"method":"GET","url":"/api/equipment"},"res":{"statusCode":200},"responseTime":84,"msg":"request completed"}
+{"level":30,"time":1790871023675,"pid":62352,"hostname":"manuel","req":{"id":18,"method":"GET","url":"/api/reconciliation/equipment/1"},"res":{"statusCode":200},"responseTime":412,"msg":"request completed"}
+{"level":30,"time":1790871038273,"pid":62352,"hostname":"manuel","req":{"id":19,"method":"GET","url":"/api/monitoring/topology"},"res":{"statusCode":200},"responseTime":47,"msg":"request completed"}
+{"level":30,"time":1790871038923,"pid":62352,"hostname":"manuel","req":{"id":20,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":43,"msg":"request completed"}
+{"level":30,"time":1790871048475,"pid":62352,"hostname":"manuel","req":{"id":21,"method":"GET","url":"/api/proxmox"},"res":{"statusCode":304},"responseTime":26,"msg":"request completed"}
+{"level":30,"time":1790871049054,"pid":62352,"hostname":"manuel","req":{"id":22,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":33,"msg":"request completed"}
+{"level":30,"time":1790871049055,"pid":62352,"hostname":"manuel","req":{"id":23,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":30,"msg":"request completed"}
+{"level":30,"time":1790871050156,"pid":62352,"hostname":"manuel","req":{"id":24,"method":"GET","url":"/api/users"},"res":{"statusCode":304},"responseTime":38,"msg":"request completed"}
+{"level":30,"time":1790871050184,"pid":62352,"hostname":"manuel","req":{"id":27,"method":"GET","url":"/api/clients"},"res":{"statusCode":304},"responseTime":55,"msg":"request completed"}
+{"level":30,"time":1790871050186,"pid":62352,"hostname":"manuel","req":{"id":28,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":54,"msg":"request completed"}
+{"level":30,"time":1790871050341,"pid":62352,"hostname":"manuel","req":{"id":25,"method":"GET","url":"/api/clients/dhcp-leases"},"res":{"statusCode":200},"responseTime":220,"msg":"request completed"}
+{"level":30,"time":1790871051339,"pid":62352,"hostname":"manuel","req":{"id":29,"method":"GET","url":"/api/reports/operations"},"res":{"statusCode":200},"responseTime":55,"msg":"request completed"}
+{"level":30,"time":1790871051359,"pid":62352,"hostname":"manuel","req":{"id":30,"method":"GET","url":"/api/clients"},"res":{"statusCode":304},"responseTime":72,"msg":"request completed"}
+{"level":30,"time":1790871051360,"pid":62352,"hostname":"manuel","req":{"id":32,"method":"GET","url":"/api/inventory"},"res":{"statusCode":304},"responseTime":67,"msg":"request completed"}
+{"level":30,"time":1790871051363,"pid":62352,"hostname":"manuel","req":{"id":33,"method":"GET","url":"/api/work-orders"},"res":{"statusCode":304},"responseTime":65,"msg":"request completed"}
+{"level":30,"time":1790871051373,"pid":62352,"hostname":"manuel","req":{"id":31,"method":"GET","url":"/api/tickets"},"res":{"statusCode":304},"responseTime":82,"msg":"request completed"}
+{"level":30,"time":1790871051396,"pid":62352,"hostname":"manuel","req":{"id":34,"method":"GET","url":"/api/users/technicians"},"res":{"statusCode":304},"responseTime":49,"msg":"request completed"}
+{"level":30,"time":1790871051409,"pid":62352,"hostname":"manuel","req":{"id":36,"method":"GET","url":"/api/incidents"},"res":{"statusCode":304},"responseTime":41,"msg":"request completed"}
+{"level":30,"time":1790871051410,"pid":62352,"hostname":"manuel","req":{"id":35,"method":"GET","url":"/api/technicians/availability"},"res":{"statusCode":304},"responseTime":45,"msg":"request completed"}
+{"level":30,"time":1790871051411,"pid":62352,"hostname":"manuel","req":{"id":37,"method":"GET","url":"/api/plans"},"res":{"statusCode":304},"responseTime":41,"msg":"request completed"}
+{"level":30,"time":1790871051421,"pid":62352,"hostname":"manuel","req":{"id":38,"method":"GET","url":"/api/notifications"},"res":{"statusCode":304},"responseTime":42,"msg":"request completed"}
+{"level":30,"time":1790871051429,"pid":62352,"hostname":"manuel","req":{"id":39,"method":"GET","url":"/api/tickets"},"res":{"statusCode":304},"responseTime":26,"msg":"request completed"}
+{"level":40,"time":1790871053502,"pid":62352,"hostname":"manuel","ip":"192.168.200.57","err":{"type":"Error","message":"Timed out while waiting for handshake","stack":"Error: Timed out while waiting for handshake\n    at Timeout._onTimeout (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\ssh2@1.17.0\\node_modules\\ssh2\\lib\\client.js:1114:23)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","level":"client-timeout"},"msg":"Ubiquiti SSH status failed"}
+{"level":40,"time":1790871053599,"pid":62352,"hostname":"manuel","ip":"192.168.200.57","err":{"type":"Error","message":"Timed out while waiting for handshake","stack":"Error: Timed out while waiting for handshake\n    at Timeout._onTimeout (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\ssh2@1.17.0\\node_modules\\ssh2\\lib\\client.js:1114:23)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","level":"client-timeout"},"msg":"Ubiquiti SSH status failed"}
+{"level":30,"time":1790871055205,"pid":62352,"hostname":"manuel","req":{"id":40,"method":"GET","url":"/api/backups"},"res":{"statusCode":200},"responseTime":37,"msg":"request completed"}
+{"level":30,"time":1790871055612,"pid":62352,"hostname":"manuel","req":{"id":26,"method":"GET","url":"/api/equipment/2/wireless"},"res":{"statusCode":200},"responseTime":5488,"msg":"request completed"}
+{"level":30,"time":1790871056563,"pid":62352,"hostname":"manuel","req":{"id":42,"method":"GET","url":"/api/equipment"},"res":{"statusCode":200},"responseTime":42,"msg":"request completed"}
+{"level":30,"time":1790871056678,"pid":62352,"hostname":"manuel","req":{"id":41,"method":"GET","url":"/api/equipment/1/security"},"res":{"statusCode":200},"responseTime":160,"msg":"request completed"}
+{"level":30,"time":1790871059316,"pid":62352,"hostname":"manuel","req":{"id":43,"method":"GET","url":"/api/audit-logs"},"res":{"statusCode":304},"responseTime":43,"msg":"request completed"}
