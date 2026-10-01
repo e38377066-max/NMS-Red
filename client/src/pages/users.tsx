@@ -3,13 +3,16 @@ import {
   getListUsersQueryKey,
   useCreateUser,
   useListUsers,
+  useUpdateUser,
+  type User,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldCheck, UserPlus, Users as UsersIcon } from "lucide-react";
+import { Pencil, ShieldCheck, UserPlus, Users as UsersIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -28,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { getCurrentUser } from "@/lib/auth";
 
 type Role = "admin" | "operator";
 
@@ -43,10 +47,26 @@ export default function Users() {
     query: { queryKey: getListUsersQueryKey() },
   });
   const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const currentUser = getCurrentUser();
+  const isAdmin = currentUser?.role === "admin";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("operator");
   const [search, setSearch] = useState("");
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUsername, setEditUsername] = useState("");
+  const [editRole, setEditRole] = useState<Role>("operator");
+  const [resetPassword, setResetPassword] = useState("");
+  const [editError, setEditError] = useState("");
+
+  const openEdit = (user: User) => {
+    setEditingUser(user);
+    setEditUsername(user.username);
+    setEditRole(user.role);
+    setResetPassword("");
+    setEditError("");
+  };
 
   const visibleUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -87,6 +107,65 @@ export default function Users() {
     );
   };
 
+  const handleEdit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingUser) return;
+    const normalizedUsername = editUsername.trim();
+    if (normalizedUsername.length < 3 || (resetPassword.length > 0 && resetPassword.length < 6)) {
+      setEditError("El usuario debe tener al menos 3 caracteres y la contraseña nueva al menos 6.");
+      return;
+    }
+    setEditError("");
+    updateUser.mutate(
+      {
+        id: editingUser.id,
+        data: {
+          username: normalizedUsername,
+          role: editRole,
+          ...(resetPassword ? { password: resetPassword } : {}),
+        },
+      },
+      {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+          setEditingUser(null);
+          toast({ title: "Usuario actualizado", description: `Se guardaron los cambios de ${normalizedUsername}.` });
+        },
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : "No se pudieron guardar los cambios.";
+          setEditError(message);
+          toast({ title: "No se pudo actualizar el usuario", description: message, variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  const handleToggleActive = (user: User) => {
+    if (user.isActive && user.id === currentUser?.id) {
+      toast({ title: "Acción no permitida", description: "No puedes desactivar tu propia cuenta.", variant: "destructive" });
+      return;
+    }
+    const activate = !user.isActive;
+    if (!confirm(`${activate ? "¿Reactivar" : "¿Desactivar"} la cuenta de ${user.username}?`)) return;
+    updateUser.mutate(
+      { id: user.id, data: { isActive: activate } },
+      {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+          toast({
+            title: activate ? "Cuenta reactivada" : "Cuenta desactivada",
+            description: `${user.username} ${activate ? "puede volver a iniciar sesión" : "ya no puede iniciar sesión"}.`,
+          });
+        },
+        onError: (error) => toast({
+          title: "No se pudo cambiar el estado",
+          description: error instanceof Error ? error.message : "Inténtalo de nuevo.",
+          variant: "destructive",
+        }),
+      },
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -99,7 +178,9 @@ export default function Users() {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      {!isAdmin ? (
+        <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Solo un administrador puede gestionar usuarios.</CardContent></Card>
+      ) : <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <Card className="bg-card/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -180,7 +261,8 @@ export default function Users() {
                     <TableHead>Usuario</TableHead>
                     <TableHead>Rol</TableHead>
                     <TableHead>Alta</TableHead>
-                    <TableHead className="text-right">Estado</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -198,7 +280,22 @@ export default function Users() {
                       <TableCell className="text-sm text-muted-foreground">
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString("es") : "—"}
                       </TableCell>
-                      <TableCell className="text-right text-xs text-emerald-400">Activo</TableCell>
+                      <TableCell className={`text-xs ${user.isActive ? "text-emerald-400" : "text-muted-foreground"}`}>
+                        {user.isActive ? "Activo" : "Inactivo"}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(user)} disabled={updateUser.isPending}>
+                          <Pencil className="mr-1 h-4 w-4" /> Editar
+                        </Button>
+                        <Button
+                          variant={user.isActive ? "outline" : "default"}
+                          size="sm"
+                          onClick={() => handleToggleActive(user)}
+                          disabled={updateUser.isPending || (user.isActive && user.id === currentUser?.id)}
+                        >
+                          {user.isActive ? "Desactivar" : "Reactivar"}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -206,7 +303,54 @@ export default function Users() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </div>}
+      <Dialog
+        open={editingUser !== null}
+        onOpenChange={(open) => {
+          if (!open && !updateUser.isPending) {
+            setEditingUser(null);
+            setEditError("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar usuario</DialogTitle></DialogHeader>
+          <form className="space-y-4" onSubmit={handleEdit}>
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Usuario</Label>
+              <Input id="edit-username" value={editUsername} onChange={(event) => setEditUsername(event.target.value)} autoComplete="off" />
+            </div>
+            <div className="space-y-2">
+              <Label>Rol</Label>
+              <Select value={editRole} onValueChange={(value) => setEditRole(value as Role)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="operator">Operador</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-password">Nueva contraseña (opcional)</Label>
+              <Input
+                id="reset-password"
+                type="password"
+                value={resetPassword}
+                onChange={(event) => setResetPassword(event.target.value)}
+                placeholder="Dejar en blanco para no cambiarla"
+                autoComplete="new-password"
+              />
+            </div>
+            {editError && <p role="alert" className="text-sm text-destructive">{editError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingUser(null)} disabled={updateUser.isPending}>Cancelar</Button>
+              <Button type="submit" disabled={updateUser.isPending}>
+                {updateUser.isPending ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

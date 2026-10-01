@@ -2565,6 +2565,7 @@ export const ListUsersResponseItem = zod.object({
   "id": zod.int(),
   "username": zod.string(),
   "role": zod.enum(['admin', 'operator']),
+  "isActive": zod.boolean(),
   "createdAt": zod.string().optional()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
@@ -2576,13 +2577,47 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem)
 export const CreateUserBody = zod.object({
   "username": zod.string(),
   "password": zod.string(),
-  "role": zod.string()
+  "role": zod.enum(['admin', 'operator'])
 })
 
 export const CreateUserResponse = zod.object({
   "id": zod.int(),
   "username": zod.string(),
   "role": zod.enum(['admin', 'operator']),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update user details, role, password, or active status
+ */
+
+
+
+export const UpdateUserParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateUserBodyUsernameMin = 3;
+export const updateUserBodyUsernameMax = 100;
+
+export const updateUserBodyPasswordMin = 6;
+
+
+
+export const UpdateUserBody = zod.object({
+  "username": zod.string().min(updateUserBodyUsernameMin).max(updateUserBodyUsernameMax).optional(),
+  "role": zod.enum(['admin', 'operator']).optional(),
+  "password": zod.string().min(updateUserBodyPasswordMin).optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateUserResponse = zod.object({
+  "id": zod.int(),
+  "username": zod.string(),
+  "role": zod.enum(['admin', 'operator']),
+  "isActive": zod.boolean(),
   "createdAt": zod.string().optional()
 })
 
@@ -2594,6 +2629,7 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.int(),
   "username": zod.string(),
   "role": zod.enum(['admin', 'operator']),
+  "isActive": zod.boolean(),
   "createdAt": zod.string().optional()
 })
 
@@ -2612,6 +2648,7 @@ export const LoginUserResponse = zod.object({
   "id": zod.int(),
   "username": zod.string(),
   "role": zod.enum(['admin', 'operator']),
+  "isActive": zod.boolean(),
   "createdAt": zod.string().optional()
 })
 })

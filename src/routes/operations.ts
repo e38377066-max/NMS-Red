@@ -96,7 +96,17 @@ const modelName = (model: any) => {
   return typeof name === "string" ? name : name.tableName;
 };
 const fieldName = (column: Column) => column.model.rawAttributes[column.attr]?.field ?? column.attr;
-const aliasFor = (model: any) => `t_${model.modelName.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+const aliasFor = (model: any) => {
+  const tableName = model?.getTableName?.();
+  const modelIdentity = model?.options?.modelName
+    ?? model?.modelName
+    ?? (typeof tableName === "string" ? tableName : tableName?.tableName)
+    ?? model?.name;
+  if (typeof modelIdentity !== "string" || !modelIdentity) {
+    throw new Error("Unable to derive SQL alias for Sequelize model");
+  }
+  return `t_${modelIdentity.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+};
 const returningColumns = (model: any) => Object.keys(model.rawAttributes)
   .map(attr => `${quote(fieldName({ model, attr }))} AS ${quote(attr)}`).join(", ");
 class SqlBuilder {

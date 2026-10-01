@@ -87,19 +87,22 @@ export async function extractUserFromRequest(authHeader?: string): Promise<AuthU
   const token = authHeader.slice(7);
   const tokenPayload = verifyToken(token);
   if (!tokenPayload) return null;
-  const session = await AuthSession.findOne({
-    attributes: ["userId"],
-    where: {
-      tokenHash: hashSessionToken(token),
-      userId: tokenPayload.id,
-      revokedAt: { [Op.is]: null },
-      expiresAt: { [Op.gt]: new Date() },
-    },
-  });
-  if (!session) return null;
+  const [session, user] = await Promise.all([
+    AuthSession.findOne({
+      attributes: ["userId"],
+      where: {
+        tokenHash: hashSessionToken(token),
+        userId: tokenPayload.id,
+        revokedAt: { [Op.is]: null },
+        expiresAt: { [Op.gt]: new Date() },
+      },
+    }),
+    User.findByPk(tokenPayload.id, { attributes: ["id", "username", "role", "isActive"] }),
+  ]);
+  if (!session || !user?.isActive) return null;
   await AuthSession.update(
     { lastUsedAt: new Date() },
     { where: { tokenHash: hashSessionToken(token) } },
   );
-  return { id: tokenPayload.id, username: tokenPayload.username, role: tokenPayload.role };
+  return { id: user.id, username: user.username, role: user.role };
 }

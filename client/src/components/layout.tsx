@@ -42,6 +42,7 @@ export function Layout({ children }: { children: ReactNode }) {
         { name: "Reconciliación", href: "/reconciliation", icon: GitCompare },
         { name: "Topología", href: "/topology", icon: Network },
         { name: "Nodos", href: "/nodes", icon: Server },
+        { name: "Virtualización Proxmox", href: "/proxmox", icon: Server },
         { name: "Equipos", href: "/equipment", icon: RouterIcon },
         { name: "Clientes", href: "/clients", icon: Users },
         { name: "Facturación", href: "/billing", icon: DollarSign },

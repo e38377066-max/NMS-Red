@@ -2,10 +2,39 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { io, Socket } from "socket.io-client";
 import { API_BASE_URL } from "@/lib/api-config";
+import { getAuthToken, getCurrentUser, subscribeAuthChanges } from "@/lib/auth";
 import { getListEquipmentQueryKey, getListAlertsQueryKey, getGetMonitoringSummaryQueryKey } from "@workspace/api-client-react";
 import type { NetworkMonitoringSnapshot } from "@/types/monitoring";
 
 let socket: Socket | null = null;
+let socketToken: string | null = null;
+let socketUserId: number | null = null;
+
+function synchronizeSocketAuthentication(): void {
+  const token = getAuthToken();
+  const userId = token ? getCurrentUser()?.id ?? null : null;
+  if (!socket) {
+    socket = io(API_BASE_URL ?? undefined, {
+      path: "/ws/socket.io",
+      transports: ["websocket", "polling"],
+      reconnectionDelay: 3000,
+      reconnectionAttempts: 10,
+      autoConnect: false,
+      auth: token ? { token } : {},
+    });
+    socketToken = token;
+    socketUserId = userId;
+    if (token) socket.connect();
+    return;
+  }
+
+  if (token === socketToken && userId === socketUserId) return;
+  socketToken = token;
+  socketUserId = userId;
+  socket.auth = token ? { token } : {};
+  socket.disconnect();
+  if (token) socket.connect();
+}
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
@@ -13,14 +42,10 @@ export function useWebSocket() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!socket) {
-      socket = io(API_BASE_URL ?? undefined, {
-        path: "/ws/socket.io",
-        transports: ["websocket", "polling"],
-        reconnectionDelay: 3000,
-        reconnectionAttempts: 10,
-      });
-    }
+    synchronizeSocketAuthentication();
+    const activeSocket = socket;
+    if (!activeSocket) return;
+    const unsubscribeAuthChanges = subscribeAuthChanges(synchronizeSocketAuthentication);
 
     const onConnect = () => setIsConnected(true);
     const onDisconnect = () => setIsConnected(false);
@@ -41,22 +66,23 @@ export function useWebSocket() {
     };
     const onTelemetry = (snapshot: NetworkMonitoringSnapshot) => setTelemetry(snapshot);
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("equipment:status", onEquipmentStatus);
-    socket.on("alert:new", onNewAlert);
-    socket.on("equipment:recovered", onRecovered);
-    socket.on("monitoring:telemetry", onTelemetry);
+    activeSocket.on("connect", onConnect);
+    activeSocket.on("disconnect", onDisconnect);
+    activeSocket.on("equipment:status", onEquipmentStatus);
+    activeSocket.on("alert:new", onNewAlert);
+    activeSocket.on("equipment:recovered", onRecovered);
+    activeSocket.on("monitoring:telemetry", onTelemetry);
 
-    if (socket.connected) setIsConnected(true);
+    if (activeSocket.connected) setIsConnected(true);
 
     return () => {
-      socket?.off("connect", onConnect);
-      socket?.off("disconnect", onDisconnect);
-      socket?.off("equipment:status", onEquipmentStatus);
-      socket?.off("alert:new", onNewAlert);
-      socket?.off("equipment:recovered", onRecovered);
-      socket?.off("monitoring:telemetry", onTelemetry);
+      activeSocket.off("connect", onConnect);
+      activeSocket.off("disconnect", onDisconnect);
+      activeSocket.off("equipment:status", onEquipmentStatus);
+      activeSocket.off("alert:new", onNewAlert);
+      activeSocket.off("equipment:recovered", onRecovered);
+      activeSocket.off("monitoring:telemetry", onTelemetry);
+      unsubscribeAuthChanges();
     };
   }, [queryClient]);
 

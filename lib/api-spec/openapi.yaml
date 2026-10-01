@@ -2074,6 +2074,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+  /users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user details, role, password, or active status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid update or last active administrator
+        "404":
+          description: User not found
 
   /users/me:
     get:
@@ -3879,7 +3908,7 @@ components:
 
     User:
       type: object
-      required: [id, username, role]
+      required: [id, username, role, isActive]
       properties:
         id:
           type: integer
@@ -3888,6 +3917,8 @@ components:
         role:
           type: string
           enum: [admin, operator]
+        isActive:
+          type: boolean
         createdAt:
           type: string
 
@@ -3901,6 +3932,24 @@ components:
           type: string
         role:
           type: string
+          enum: [admin, operator]
+
+    UserUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 100
+        role:
+          type: string
+          enum: [admin, operator]
+        password:
+          type: string
+          minLength: 6
+        isActive:
+          type: boolean
 
     LoginInput:
       type: object

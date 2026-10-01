@@ -6,6 +6,16 @@ import { apiUrl } from "@/lib/api-config";
 const TOKEN_KEY = "imperio-ap.auth-token";
 let activeToken: string | null = null;
 let activeUser: User | null = null;
+const authChangeListeners = new Set<() => void>();
+
+function notifyAuthChanged(): void {
+  authChangeListeners.forEach((listener) => listener());
+}
+
+export function subscribeAuthChanges(listener: () => void): () => void {
+  authChangeListeners.add(listener);
+  return () => authChangeListeners.delete(listener);
+}
 
 export function getAuthToken(): string | null {
   if (typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "").endsWith("/portal")) {
@@ -24,6 +34,7 @@ export async function saveAuth(result: LoginResult): Promise<void> {
   }
   activeToken = result.token;
   activeUser = result.user;
+  notifyAuthChanged();
 }
 
 export async function restoreAuth(): Promise<User | null> {
@@ -40,6 +51,7 @@ export async function restoreAuth(): Promise<User | null> {
 
     activeToken = token;
     activeUser = (await response.json()) as User;
+    notifyAuthChanged();
     return activeUser;
   } catch {
     await clearAuth();
@@ -50,6 +62,7 @@ export async function restoreAuth(): Promise<User | null> {
 export async function clearAuth(): Promise<void> {
   activeToken = null;
   activeUser = null;
+  notifyAuthChanged();
   if (Capacitor.isNativePlatform()) {
     try {
       await SecureStorage.removeItem(TOKEN_KEY);

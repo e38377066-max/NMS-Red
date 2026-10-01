@@ -5,10 +5,11 @@
  * API de Imperio AP para gestión de red, equipos MikroTik, Ubiquiti y Proxmox.
  * OpenAPI spec version: 0.1.0
  */
-import type { UserInputRole } from './userInputRole';
 
-export interface UserInput {
-  username: string;
-  password: string;
-  role: UserInputRole;
-}
+export type UserInputRole = typeof UserInputRole[keyof typeof UserInputRole];
+
+
+export const UserInputRole = {
+  admin: 'admin',
+  operator: 'operator',
+} as const;

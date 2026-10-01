@@ -60,7 +60,7 @@ export const Equipment = define("Equipment", "equipment", {
 });
 export const User = define("User", "users", {
   id, username: { ...text("username", true), unique: true }, passwordHash: text("password_hash", true),
-  role: text("role", true, "operator"), failedLoginAttempts: integer("failed_login_attempts", true, 0),
+  role: text("role", true, "operator"), isActive: bool("is_active", true, true), failedLoginAttempts: integer("failed_login_attempts", true, 0),
   lockedUntil: date("locked_until"), createdAt,
 });
 export const Client = define("Client", "clients", {

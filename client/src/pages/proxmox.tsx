@@ -92,14 +92,22 @@ function VmTable({ serverId }: { serverId: number }) {
 
   const handleStart = (vmid: number) => {
     startVm.mutate({ id: serverId, vmid }, {
-      onSuccess: (r) => { toast({ title: r.success ? "VM iniciada" : "Error", description: r.message }); refresh(); },
+      onSuccess: (r) => {
+        toast({ title: r.success ? "VM iniciada" : "Error al iniciar VM", description: r.message, variant: r.success ? "default" : "destructive" });
+        if (r.success) refresh();
+      },
+      onError: (error) => toast({ title: "Error al iniciar VM", description: error instanceof Error ? error.message : "No se pudo completar la acción.", variant: "destructive" }),
     });
   };
 
   const handleStop = (vmid: number) => {
     if (!confirm("¿Detener la VM?")) return;
     stopVm.mutate({ id: serverId, vmid }, {
-      onSuccess: (r) => { toast({ title: r.success ? "VM detenida" : "Error", description: r.message }); refresh(); },
+      onSuccess: (r) => {
+        toast({ title: r.success ? "VM detenida" : "Error al detener VM", description: r.message, variant: r.success ? "default" : "destructive" });
+        if (r.success) refresh();
+      },
+      onError: (error) => toast({ title: "Error al detener VM", description: error instanceof Error ? error.message : "No se pudo completar la acción.", variant: "destructive" }),
     });
   };
 
@@ -109,9 +117,12 @@ function VmTable({ serverId }: { serverId: number }) {
       { id: serverId, vmid: snapTarget.vmid, data: { snapname: snapName.replace(/\s+/g, "_") } },
       {
         onSuccess: (r) => {
-          toast({ title: r.success ? "Snapshot creado" : "Error", description: r.message });
-          setSnapTarget(null); setSnapName("");
+          toast({ title: r.success ? "Snapshot creado" : "Error al crear snapshot", description: r.message, variant: r.success ? "default" : "destructive" });
+          if (r.success) {
+            setSnapTarget(null); setSnapName("");
+          }
         },
+        onError: (error) => toast({ title: "Error al crear snapshot", description: error instanceof Error ? error.message : "No se pudo completar la acción.", variant: "destructive" }),
       }
     );
   };
@@ -125,9 +136,12 @@ function VmTable({ serverId }: { serverId: number }) {
       { id: serverId, vmid: configTarget.vmid, data: body },
       {
         onSuccess: (r) => {
-          toast({ title: r.success ? "Config actualizada" : "Error", description: r.message });
-          setConfigTarget(null); setNewCores(""); setNewMem(""); refresh();
+          toast({ title: r.success ? "Configuración actualizada" : "Error al actualizar configuración", description: r.message, variant: r.success ? "default" : "destructive" });
+          if (r.success) {
+            setConfigTarget(null); setNewCores(""); setNewMem(""); refresh();
+          }
         },
+        onError: (error) => toast({ title: "Error al actualizar configuración", description: error instanceof Error ? error.message : "No se pudo completar la acción.", variant: "destructive" }),
       }
     );
   };

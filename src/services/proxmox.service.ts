@@ -44,12 +44,32 @@ async function fetchProxmox<T>(
       let data = "";
       res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
       res.on("end", () => {
+        const isSuccessful = res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300;
+        let parsed: { data?: T; errors?: unknown; message?: unknown };
         try {
-          const parsed = JSON.parse(data) as { data?: T };
-          resolve(parsed.data as T);
+          parsed = JSON.parse(data) as { data?: T; errors?: unknown; message?: unknown };
         } catch {
+          if (!isSuccessful) {
+            reject(new Error(`Proxmox API error (${res.statusCode ?? "unknown"}): ${data.slice(0, 200) || res.statusMessage || "request failed"}`));
+            return;
+          }
           reject(new Error(`Invalid JSON from Proxmox: ${data.slice(0, 100)}`));
+          return;
         }
+
+        if (!isSuccessful) {
+          const details = parsed.errors
+            ? JSON.stringify(parsed.errors)
+            : typeof parsed.message === "string"
+              ? parsed.message
+              : typeof parsed.data === "string"
+                ? parsed.data
+                : res.statusMessage || "request failed";
+          reject(new Error(`Proxmox API error (${res.statusCode ?? "unknown"}): ${details}`));
+          return;
+        }
+
+        resolve(parsed.data as T);
       });
     });
 

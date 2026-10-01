@@ -31,6 +31,7 @@ import FieldAgenda from "@/pages/field/agenda";
 import FieldOrderDetail from "@/pages/field/order-detail";
 import FieldAlignment from "@/pages/field/alignment";
 import FieldAccount from "@/pages/field/account";
+import Proxmox from "@/pages/proxmox";
 
 function Protected({ children }: { children: React.ReactNode }) {
   return getCurrentUser() ? <>{children}</> : <Redirect to="/login" />;
@@ -88,6 +89,9 @@ function Router() {
       </Route>
       <Route path="/nodes">
         <Protected><Layout><Nodes /></Layout></Protected>
+      </Route>
+      <Route path="/proxmox">
+        <Protected><Layout><Proxmox /></Layout></Protected>
       </Route>
       <Route path="/equipment">
         <Protected><Layout><Equipment /></Layout></Protected>

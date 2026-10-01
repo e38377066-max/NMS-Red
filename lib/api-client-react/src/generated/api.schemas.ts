@@ -1233,13 +1233,42 @@ export interface User {
   id: number;
   username: string;
   role: UserRole;
+  isActive: boolean;
   createdAt?: string;
 }
+
+export type UserInputRole = typeof UserInputRole[keyof typeof UserInputRole];
+
+
+export const UserInputRole = {
+  admin: 'admin',
+  operator: 'operator',
+} as const;
 
 export interface UserInput {
   username: string;
   password: string;
-  role: string;
+  role: UserInputRole;
+}
+
+export type UserUpdateRole = typeof UserUpdateRole[keyof typeof UserUpdateRole];
+
+
+export const UserUpdateRole = {
+  admin: 'admin',
+  operator: 'operator',
+} as const;
+
+export interface UserUpdate {
+  /**
+     * @minLength 3
+     * @maxLength 100
+     */
+  username?: string;
+  role?: UserUpdateRole;
+  /** @minLength 6 */
+  password?: string;
+  isActive?: boolean;
 }
 
 export interface LoginInput {

@@ -8,7 +8,7 @@ import { isAllowedCorsOrigin } from "./lib/cors-origins";
 import { startBackupCron } from "./services/backup.service";
 import { setNetworkMonitoringSocket, startNetworkMonitoring } from "./services/network-monitoring.service";
 import { setTaskQueueSocket, startTaskQueue } from "./services/task-queue.service";
-import { bootstrapInitialAdmin } from "./services/auth.service";
+import { bootstrapInitialAdmin, extractUserFromRequest } from "./services/auth.service";
 import { sequelize } from "./db";
 
 const rawPort = process.env["PORT"] ?? "5000";
@@ -30,6 +30,26 @@ const io = new SocketServer(httpServer, {
   path: "/ws/socket.io",
 });
 
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (typeof token !== "string" || token.length === 0) {
+    next(new Error("Authentication required"));
+    return;
+  }
+
+  try {
+    const user = await extractUserFromRequest(`Bearer ${token}`);
+    if (!user) {
+      next(new Error("Authentication required"));
+      return;
+    }
+    socket.data.authUser = user;
+    next();
+  } catch {
+    next(new Error("Authentication required"));
+  }
+});
+
 setSocketServer(io);
 setBillingSocketServer(io);
 setNetworkMonitoringSocket(io);
@@ -37,7 +57,18 @@ setTaskQueueSocket(io);
 
 io.on("connection", (socket) => {
   logger.info({ socketId: socket.id }, "Client connected via WebSocket");
+  const sessionToken = socket.handshake.auth.token as string;
+  const sessionCheck = setInterval(() => {
+    void extractUserFromRequest(`Bearer ${sessionToken}`)
+      .then((user) => {
+        if (!user) socket.disconnect(true);
+      })
+      .catch(() => socket.disconnect(true));
+  }, 60_000);
+  sessionCheck.unref?.();
+
   socket.on("disconnect", () => {
+    clearInterval(sessionCheck);
     logger.info({ socketId: socket.id }, "Client disconnected from WebSocket");
   });
 });
