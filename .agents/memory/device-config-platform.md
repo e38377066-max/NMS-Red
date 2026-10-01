@@ -15,6 +15,14 @@ Live MikroTik station discovery must decrypt stored credentials and support both
 
 **How to apply:** When adding station-based features, verify the reader uses the credential decryption boundary and probes the supported package paths before treating an empty table as no association.
 
+## Central router tunnel constraint
+
+The central MikroTik for this project is an hEX RB750Gr3 on RouterOS 7.18.2 (`mmips`). RouterOS containers support ARM, ARM64, and x86, so do not plan to host a tunnel container on this router.
+
+**Why:** The router's architecture is outside RouterOS container support, and Railway has no direct private route to a LAN behind NAT. Outbound telemetry does not provide interactive network access.
+
+**How to apply:** Before implementing Railway-to-LAN access, confirm public WAN reachability or upstream UDP forwarding and evaluate a RouterOS-native WireGuard endpoint plus a Railway-side client. Never expose RouterOS REST/SSH directly; a dedicated VPN port requires explicit user approval.
+
 ## Aggregated MikroTik capacity
 
 Record parent-child capacity allocations in NMS without changing RouterOS by default. Do not route aggregate queue changes through the generic configuration-file or script applicator.

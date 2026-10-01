@@ -1,6 +1,6 @@
 - [NMS multi-brand platform](nms-platform.md) — SSH/native modules need externals list in esbuild + onlyBuiltDependencies in pnpm-workspace.yaml
 - [Workspace install firewall](workspace-install-firewall.md) — codegen-only packages may require a filtered runtime install when the package firewall blocks their tarball
-- [RouterOS/airOS compatibility](device-config-platform.md) — station discovery must handle encrypted credentials and version-specific wireless tables; configuration changes still need reviewed backups
+- [RouterOS/airOS compatibility](device-config-platform.md) — firmware varies; the current RB750Gr3 cannot host a RouterOS container, and router changes need reviewed backups
 - [DHCP lease and queue identity](dhcp-queue-identity.md) — use the client comment/name as stable identity while IP and MAC remain match/target data
 - [Imported NMS database](dev-db-bootstrap.md) — an empty development database needs the Drizzle schema pushed before API-backed previews can show equipment state
 - [OpenAPI/Zod codegen](api-codegen-zod.md) — keep the post-Orval compatibility pass because this workspace stays on Zod 3
