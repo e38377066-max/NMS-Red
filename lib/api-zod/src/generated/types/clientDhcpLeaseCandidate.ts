@@ -21,6 +21,8 @@ export interface ClientDhcpLeaseCandidate {
   blocked: boolean;
   dhcpServer: string;
   /** @nullable */
+  dhcpPool: string | null;
+  /** @nullable */
   expiresAfter: string | null;
   alreadyImported: boolean;
 }

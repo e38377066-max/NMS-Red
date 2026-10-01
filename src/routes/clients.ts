@@ -17,7 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { enqueueSpeedChange } from "../services/task-queue.service";
 import { provisionClient } from "../services/client-provisioning.service";
-import { readMikroTikDhcpLeases, type MikroTikDhcpLease } from "../services/mikrotik.service";
+import { readMikroTikDhcpConfig, readMikroTikDhcpLeases, type MikroTikDhcpLease } from "../services/mikrotik.service";
 
 const router: IRouter = Router();
 
@@ -267,6 +267,17 @@ router.get("/clients/dhcp-leases", async (req, res): Promise<void> => {
     return;
   }
 
+  let dhcpPoolByServer = new Map<string, string | null>();
+  try {
+    const config = await readMikroTikDhcpConfig(controller.ip, controller.username, controller.password);
+    dhcpPoolByServer = new Map(config.servers.map((server) => [
+      server.name,
+      server.addressPool?.toLowerCase() === "static-only" ? null : server.addressPool,
+    ]));
+  } catch (error) {
+    req.log.warn({ err: error, equipmentId: controller.id }, "Could not enrich DHCP leases with pool configuration");
+  }
+
   const usableLeases = usableDhcpLeases(leases);
   const existingClients = await Client.findAll({ attributes: ["equipmentId", "mac", "ip", "name"] });
   const existingMacs = new Set(existingClients.map((client) => normalizeMacAddress(client.mac)).filter((mac): mac is string => mac !== null));
@@ -291,6 +302,7 @@ router.get("/clients/dhcp-leases", async (req, res): Promise<void> => {
       dynamic: lease.dynamic,
       blocked: lease.blocked,
       dhcpServer: lease.dhcpServer,
+      dhcpPool: dhcpPoolByServer.get(lease.dhcpServer) ?? null,
       expiresAfter: lease.expiresAfter,
       alreadyImported: existingMacs.has(mac) || existingIps.has(address) ||
         (stableComment !== "" && existingNamesForController.has(stableComment)),
@@ -326,6 +338,17 @@ router.post("/clients/import-dhcp-leases", async (req, res): Promise<void> => {
     req.log.error({ err: error, equipmentId: controller.id, ip: controller.ip }, "Failed to refresh DHCP leases for client import");
     res.status(502).json({ error: "No se pudieron actualizar los leases DHCP. No se guardaron clientes." });
     return;
+  }
+
+  let dhcpPoolByServer = new Map<string, string | null>();
+  try {
+    const config = await readMikroTikDhcpConfig(controller.ip, controller.username, controller.password);
+    dhcpPoolByServer = new Map(config.servers.map((server) => [
+      server.name,
+      server.addressPool?.toLowerCase() === "static-only" ? null : server.addressPool,
+    ]));
+  } catch (error) {
+    req.log.warn({ err: error, equipmentId: controller.id }, "Could not read DHCP pool names before lease import");
   }
 
   const currentLeases = usableDhcpLeases(leases).filter(({ mac }) => requestedMacs.has(mac));
@@ -371,7 +394,7 @@ router.post("/clients/import-dhcp-leases", async (req, res): Promise<void> => {
           paymentStatus: "PENDING",
           monthlyFee: "0",
           dhcpServer: lease.dhcpServer || null,
-          dhcpPool: null,
+          dhcpPool: dhcpPoolByServer.get(lease.dhcpServer) ?? null,
         }, { transaction });
 
         await ClientLifecycleEvent.create({

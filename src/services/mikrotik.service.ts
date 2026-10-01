@@ -38,6 +38,26 @@ export interface MikroTikDhcpLease {
   expiresAfter: string | null;
 }
 
+export interface MikroTikDhcpServerConfig {
+  name: string;
+  interface: string | null;
+  addressPool: string | null;
+  disabled: boolean;
+  invalid: boolean;
+  running: boolean | null;
+  active: boolean;
+}
+
+export interface MikroTikDhcpPoolConfig {
+  name: string;
+  ranges: string | null;
+}
+
+export interface MikroTikDhcpConfig {
+  servers: MikroTikDhcpServerConfig[];
+  pools: MikroTikDhcpPoolConfig[];
+}
+
 export interface MikroTikSimpleQueue {
   id: string;
   name: string;
@@ -570,6 +590,66 @@ export async function getMikroTikDhcpLeases(
     logger.warn({ ip, err }, "Failed to fetch DHCP leases");
     return [];
   }
+}
+
+function parseRouterBoolean(value: unknown): boolean | null {
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
+  return null;
+}
+
+export async function readMikroTikDhcpConfig(
+  ip: string,
+  username: string,
+  password: string,
+): Promise<MikroTikDhcpConfig> {
+  const [serverResponse, poolResponse] = await Promise.all([
+    mkFetch(ip, username, password, "/ip/dhcp-server"),
+    mkFetch(ip, username, password, "/ip/pool"),
+  ]);
+  if (!serverResponse.ok) {
+    throw new Error(`MikroTik respondió HTTP ${serverResponse.status} al consultar servidores DHCP`);
+  }
+  if (!poolResponse.ok) {
+    throw new Error(`MikroTik respondió HTTP ${poolResponse.status} al consultar pools DHCP`);
+  }
+
+  const [rawServers, rawPools] = await Promise.all([
+    serverResponse.json() as Promise<unknown>,
+    poolResponse.json() as Promise<unknown>,
+  ]);
+  if (!Array.isArray(rawServers) || !Array.isArray(rawPools)) {
+    throw new Error("La respuesta de configuración DHCP del MikroTik no tiene el formato esperado");
+  }
+
+  const servers = rawServers
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => {
+      const name = String(entry.name ?? "").trim();
+      const disabled = parseRouterBoolean(entry.disabled) === true;
+      const invalid = parseRouterBoolean(entry.invalid) === true;
+      const running = parseRouterBoolean(entry.running);
+      return {
+        name,
+        interface: String(entry.interface ?? "").trim() || null,
+        addressPool: String(entry["address-pool"] ?? "").trim() || null,
+        disabled,
+        invalid,
+        running,
+        active: Boolean(name) && !disabled && !invalid && running === true,
+      };
+    })
+    .filter((server) => server.name.length > 0);
+
+  const pools = rawPools
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => ({
+      name: String(entry.name ?? "").trim(),
+      ranges: String(entry.ranges ?? "").trim() || null,
+    }))
+    .filter((pool) => pool.name.length > 0);
+
+  return { servers, pools };
 }
 
 export async function createStaticDhcpLease(

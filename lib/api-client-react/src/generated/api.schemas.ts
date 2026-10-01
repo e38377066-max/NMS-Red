@@ -311,6 +311,32 @@ export interface WirelessClient {
   distance?: string | null;
 }
 
+export interface EquipmentDhcpServer {
+  name: string;
+  /** @nullable */
+  interface: string | null;
+  /** @nullable */
+  addressPool: string | null;
+  disabled: boolean;
+  invalid: boolean;
+  /** @nullable */
+  running: boolean | null;
+  active: boolean;
+}
+
+export interface EquipmentDhcpPool {
+  name: string;
+  /** @nullable */
+  ranges: string | null;
+}
+
+export interface EquipmentDhcpConfig {
+  equipmentId: number;
+  checkedAt: string;
+  servers: EquipmentDhcpServer[];
+  pools: EquipmentDhcpPool[];
+}
+
 export type ClientStatus = typeof ClientStatus[keyof typeof ClientStatus];
 
 
@@ -416,6 +442,8 @@ export interface ClientDhcpLeaseCandidate {
   dynamic: boolean;
   blocked: boolean;
   dhcpServer: string;
+  /** @nullable */
+  dhcpPool: string | null;
   /** @nullable */
   expiresAfter: string | null;
   alreadyImported: boolean;

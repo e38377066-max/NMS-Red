@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import {
   useListClients, getListClientsQueryKey, useDeleteClient, useRegisterClientPayment,
   useListEquipment, useProvisionClient, useListClientDhcpLeases,
-  useImportClientsFromDhcpLeases, type Client,
+  useImportClientsFromDhcpLeases, useGetEquipmentDhcpConfig,
+  type Client, type ClientDhcpLeaseCandidate, type WirelessClient,
 } from "@workspace/api-client-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,10 @@ function formatDate(iso: string | null | undefined) {
   return new Date(iso).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function normalizeMacAddress(value: string | null | undefined) {
+  return value?.replace(/[^a-f0-9]/gi, "").toLowerCase() ?? "";
+}
+
 export default function Clients() {
   const { data: clients, isLoading } = useListClients({ query: { queryKey: getListClientsQueryKey() } });
   const deleteClient = useDeleteClient();
@@ -66,6 +71,7 @@ export default function Clients() {
   const [fee, setFee] = useState("");
   const [days, setDays] = useState("30");
   const [createOpen, setCreateOpen] = useState(false);
+  const [assignmentFilter, setAssignmentFilter] = useState<"all" | "assigned" | "unassigned" | "unknown">("all");
   const [importOpen, setImportOpen] = useState(false);
   const [importEquipmentId, setImportEquipmentId] = useState("");
   const [selectedMacs, setSelectedMacs] = useState<string[]>([]);
@@ -131,6 +137,109 @@ export default function Clients() {
     item.connectionType === "mikrotik_routeros" &&
     item.equipmentRole === "core_router"
   );
+  const accessPoints = (equipment ?? []).filter((item) =>
+    item.id !== Number(newClient.equipmentId) &&
+    (item.equipmentRole === "ap_distributor" || item.connectionType === "ubiquiti_airos")
+  );
+  const selectedRouterId = Number(newClient.equipmentId) || 0;
+  const dhcpConfigQuery = useGetEquipmentDhcpConfig(selectedRouterId, {
+    query: {
+      enabled: createOpen && selectedRouterId > 0,
+      staleTime: 30_000,
+      refetchOnWindowFocus: true,
+    },
+  });
+  const activeDhcpServers = (dhcpConfigQuery.data?.servers ?? []).filter((server) => server.active);
+  const configuredDhcpServers = (dhcpConfigQuery.data?.servers ?? []).filter((server) => !server.disabled && !server.invalid);
+  const selectedDhcpServer = activeDhcpServers.find((server) => server.name === newClient.dhcpServer);
+  const selectedDhcpPool = dhcpConfigQuery.data?.pools.find((pool) => pool.name === selectedDhcpServer?.addressPool);
+
+  const clientLeaseQueries = useQueries({
+    queries: centralRouters.map((router) => ({
+      queryKey: ["clients", "live-dhcp-leases", router.id],
+      queryFn: async () => {
+        const response = await apiFetch(`/api/clients/dhcp-leases?equipmentId=${router.id}`);
+        if (!response.ok) throw new Error("No se pudieron consultar los leases DHCP");
+        return await response.json() as ClientDhcpLeaseCandidate[];
+      },
+      staleTime: 20_000,
+      refetchInterval: 60_000,
+      enabled: Boolean(clients?.length),
+    })),
+  });
+  const wirelessQueries = useQueries({
+    queries: accessPoints.map((accessPoint) => ({
+      queryKey: ["clients", "live-wireless", accessPoint.id],
+      queryFn: async () => {
+        const response = await apiFetch(`/api/equipment/${accessPoint.id}/wireless`);
+        if (!response.ok) throw new Error("No se pudo consultar la tabla inalámbrica");
+        return await response.json() as WirelessClient[];
+      },
+      staleTime: 20_000,
+      refetchInterval: 60_000,
+      enabled: Boolean(clients?.length),
+    })),
+  });
+
+  useEffect(() => {
+    const config = dhcpConfigQuery.data;
+    if (!createOpen || !selectedRouterId || config?.equipmentId !== selectedRouterId) return;
+    const activeServers = config.servers.filter((server) => server.active);
+    setNewClient((current) => {
+      const selected = activeServers.find((server) => server.name === current.dhcpServer) ??
+        (activeServers.length === 1 ? activeServers[0] : undefined);
+      const dhcpServer = selected?.name ?? "";
+      const dhcpPool = selected?.addressPool?.toLowerCase() === "static-only" ? "" : selected?.addressPool ?? "";
+      return current.dhcpServer === dhcpServer && current.dhcpPool === dhcpPool
+        ? current
+        : { ...current, dhcpServer, dhcpPool };
+    });
+  }, [createOpen, dhcpConfigQuery.data, selectedRouterId]);
+
+  const leaseQueryByRouter = new Map(
+    centralRouters.map((router, index) => [router.id, clientLeaseQueries[index]] as const),
+  );
+  const wirelessByMac = new Map<string, Array<{
+    equipment: (typeof accessPoints)[number];
+    station: WirelessClient;
+  }>>();
+  accessPoints.forEach((accessPoint, index) => {
+    for (const station of wirelessQueries[index]?.data ?? []) {
+      const mac = normalizeMacAddress(station.mac);
+      if (!mac) continue;
+      const observations = wirelessByMac.get(mac) ?? [];
+      observations.push({ equipment: accessPoint, station });
+      wirelessByMac.set(mac, observations);
+    }
+  });
+  const clientRows = (clients ?? []).map((client) => {
+    const leaseQuery = leaseQueryByRouter.get(client.equipmentId);
+    const mac = normalizeMacAddress(client.mac);
+    const lease = leaseQuery?.data?.find((candidate) => normalizeMacAddress(candidate.macAddress) === mac) ??
+      leaseQuery?.data?.find((candidate) => Boolean(client.ip) && candidate.address === client.ip);
+    const dhcpState = lease
+      ? lease.dynamic ? "unassigned" as const : "assigned" as const
+      : leaseQuery?.isError
+        ? "error" as const
+        : leaseQuery?.isPending
+          ? "loading" as const
+          : "missing" as const;
+    const wirelessLinks = wirelessByMac.get(mac) ?? [];
+    const liveWireless = wirelessLinks.find((link) => link.equipment.id === client.accessPointEquipmentId) ??
+      (wirelessLinks.length === 1 ? wirelessLinks[0] : undefined);
+    const configuredAccessPoint = equipment?.find((item) => item.id === client.accessPointEquipmentId);
+    return { client, lease, dhcpState, wirelessLinks, liveWireless, configuredAccessPoint };
+  });
+  const filteredClientRows = clientRows.filter(({ dhcpState }) =>
+    assignmentFilter === "all" ||
+    (assignmentFilter === "assigned" && dhcpState === "assigned") ||
+    (assignmentFilter === "unassigned" && dhcpState === "unassigned") ||
+    (assignmentFilter === "unknown" && dhcpState !== "assigned" && dhcpState !== "unassigned")
+  );
+  const assignedClientCount = clientRows.filter((row) => row.dhcpState === "assigned").length;
+  const unassignedClientCount = clientRows.filter((row) => row.dhcpState === "unassigned").length;
+  const unknownClientCount = clientRows.length - assignedClientCount - unassignedClientCount;
+
   const availableLeases = (dhcpLeases ?? []).filter((lease) => !lease.alreadyImported);
   const allAvailableSelected = availableLeases.length > 0 &&
     availableLeases.every((lease) => selectedMacs.includes(lease.macAddress));
@@ -192,14 +301,17 @@ export default function Clients() {
     });
   };
 
-  const accessPoints = (equipment ?? []).filter((item) =>
-    item.id !== Number(newClient.equipmentId) &&
-    (item.equipmentRole === "ap_distributor" || item.connectionType === "ubiquiti_airos")
-  );
-
   const submitClient = () => {
     if (!newClient.equipmentId || !newClient.name || !newClient.mac || !newClient.ip || !newClient.planLimit) {
       toast({ title: "Completa los campos requeridos", description: "Selecciona el router central y registra nombre, MAC, IP fija y plan.", variant: "destructive" });
+      return;
+    }
+    if (!activeDhcpServers.some((server) => server.name === newClient.dhcpServer)) {
+      toast({
+        title: "Selecciona un servidor DHCP activo",
+        description: "No se puede aprovisionar el cliente sin un servidor detectado y habilitado en el router.",
+        variant: "destructive",
+      });
       return;
     }
     provisionClient.mutate({
@@ -222,6 +334,7 @@ export default function Clients() {
     }, {
       onSuccess: (result) => {
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["clients", "live-dhcp-leases"] });
         toast({ title: "Cliente aprovisionado", description: result.router?.verified ? `${newClient.name} quedó verificado en DHCP, Simple Queue y address-list.` : `${newClient.name} quedó registrado.` });
         setCreateOpen(false);
          setNewClient({
@@ -253,16 +366,37 @@ export default function Clients() {
         </div>
       </div>
 
-      <div className="border border-border/50 rounded-md bg-card/50">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Asignación DHCP:</span>
+        <Button size="sm" variant={assignmentFilter === "all" ? "default" : "outline"} onClick={() => setAssignmentFilter("all")}>
+          Todos ({clientRows.length})
+        </Button>
+        <Button size="sm" variant={assignmentFilter === "assigned" ? "default" : "outline"} onClick={() => setAssignmentFilter("assigned")}>
+          Asignados · IP fija ({assignedClientCount})
+        </Button>
+        <Button size="sm" variant={assignmentFilter === "unassigned" ? "default" : "outline"} onClick={() => setAssignmentFilter("unassigned")}>
+          Sin asignar · IP dinámica ({unassignedClientCount})
+        </Button>
+        <Button size="sm" variant={assignmentFilter === "unknown" ? "default" : "outline"} onClick={() => setAssignmentFilter("unknown")}>
+          Sin lectura ({unknownClientCount})
+        </Button>
+      </div>
+      {(clientLeaseQueries.some((query) => query.isError) || wirelessQueries.some((query) => query.isError)) && (
+        <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-300">
+          Hay routers o radios que no respondieron. La vista distingue “Sin lectura” de una asignación estática y conserva los últimos datos guardados.
+        </div>
+      )}
+      <div className="border border-border/50 rounded-md bg-card/50 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Estado</TableHead>
+              <TableHead>Asignación DHCP</TableHead>
               <TableHead>Cobro</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>MAC / IP</TableHead>
               <TableHead>Router controlador</TableHead>
-              <TableHead>Equipo de acceso</TableHead>
+              <TableHead>Equipo de acceso detectado</TableHead>
               <TableHead>DHCP servidor / pool</TableHead>
               <TableHead>Señal</TableHead>
               <TableHead>Plan</TableHead>
@@ -272,62 +406,117 @@ export default function Clients() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={11}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
-            ) : clients?.length === 0 ? (
+              <TableRow><TableCell colSpan={12}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+            ) : clientRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
+                <TableCell colSpan={12} className="text-center text-muted-foreground py-12">
                   <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
                   No hay clientes registrados.
                 </TableCell>
               </TableRow>
+            ) : filteredClientRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={12} className="text-center text-muted-foreground py-12">
+                  No hay clientes en esta categoría.
+                </TableCell>
+              </TableRow>
             ) : (
-              clients?.map(client => (
-                <TableRow key={client.id} className={client.paymentStatus === "SUSPENDED" ? "bg-red-950/10" : ""}>
-                  <TableCell>
-                    <Badge variant="outline" className={
-                      client.status === "ACTIVE" ? "border-emerald-500/30 text-emerald-500" :
-                      client.status === "OFFLINE" ? "border-red-500/30 text-red-500" : "border-yellow-500/30 text-yellow-500"
-                    }>{client.status === "ACTIVE" ? "Activo" : client.status === "OFFLINE" ? "Offline" : "Suspendido"}</Badge>
-                  </TableCell>
-                  <TableCell><PaymentBadge status={client.paymentStatus} /></TableCell>
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell>
-                    <div className="font-mono text-xs">{client.mac}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{client.ip ?? "—"}</div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{client.equipmentModel ?? "—"}</TableCell>
-                  <TableCell className="text-sm">
-                    {(() => {
-                      const accessPoint = equipment?.find((item) => item.id === client.accessPointEquipmentId);
-                      return accessPoint
-                        ? <><div>{accessPoint.model}</div><div className="text-xs text-muted-foreground font-mono">{accessPoint.ip}</div></>
-                        : <span className="text-muted-foreground">Sin asociar</span>;
-                    })()}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    <div className="font-mono">{client.dhcpServer ?? "—"}</div>
-                    <div className="text-xs text-muted-foreground">{client.dhcpPool ? `Pool: ${client.dhcpPool}` : "Pool sin registrar"}</div>
-                  </TableCell>
-                  <TableCell><SignalStrength dbm={client.lastSeenDbm} /></TableCell>
-                  <TableCell className="font-mono text-sm">{client.planLimit}</TableCell>
-                  <TableCell className={`text-xs ${client.dueDate && new Date(client.dueDate) < new Date() ? "text-red-400 font-medium" : "text-muted-foreground"}`}>
-                    {formatDate(client.dueDate)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="text-emerald-400 hover:bg-emerald-500/10" onClick={() => openPayment(client as Client)} title="Registrar pago">
-                        <DollarSign className="w-4 h-4" />
-                      </Button>
-                      <Link href={`/clients/${client.id}`}>
-                        <Button variant="ghost" size="icon"><Eye className="w-4 h-4" /></Button>
-                      </Link>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(client.id, client.name)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              filteredClientRows.map(({ client, lease, dhcpState, wirelessLinks, liveWireless, configuredAccessPoint }) => {
+                const signalDbm = liveWireless?.station.signalDbm ?? client.lastSeenDbm;
+                const accessPoint = liveWireless?.equipment ?? configuredAccessPoint;
+                const dhcpAssignmentLabel = dhcpState === "assigned" ? "Asignado · IP fija"
+                  : dhcpState === "unassigned" ? "Sin asignar · IP dinámica"
+                    : dhcpState === "loading" ? "Consultando DHCP"
+                      : dhcpState === "error" ? "DHCP sin respuesta" : "Sin lease";
+                const dhcpAssignmentClass = dhcpState === "assigned" ? "border-emerald-500/30 text-emerald-400"
+                  : dhcpState === "unassigned" ? "border-yellow-500/30 text-yellow-400"
+                    : dhcpState === "error" ? "border-red-500/30 text-red-400"
+                      : "border-border text-muted-foreground";
+
+                return (
+                  <TableRow key={client.id} className={client.paymentStatus === "SUSPENDED" ? "bg-red-950/10" : ""}>
+                    <TableCell>
+                      <Badge variant="outline" className={
+                        client.status === "ACTIVE" ? "border-emerald-500/30 text-emerald-500" :
+                        client.status === "OFFLINE" ? "border-red-500/30 text-red-500" : "border-yellow-500/30 text-yellow-500"
+                      }>{client.status === "ACTIVE" ? "Activo" : client.status === "OFFLINE" ? "Offline" : "Suspendido"}</Badge>
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className={dhcpAssignmentClass}>{dhcpAssignmentLabel}</Badge></TableCell>
+                    <TableCell><PaymentBadge status={client.paymentStatus} /></TableCell>
+                    <TableCell className="font-medium">{client.name}</TableCell>
+                    <TableCell>
+                      <div className="font-mono text-xs">{client.mac}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{client.ip ?? "—"}</div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{client.equipmentModel ?? "—"}</TableCell>
+                    <TableCell className="text-sm min-w-48">
+                      {liveWireless ? (
+                        <>
+                          <div className="flex items-center gap-1.5 font-medium">
+                            {liveWireless.equipment.model}
+                            <Badge variant="outline" className="border-emerald-500/30 px-1.5 py-0 text-[10px] text-emerald-400">Conectado</Badge>
+                          </div>
+                          <div className="font-mono text-xs text-muted-foreground">{liveWireless.equipment.ip}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Tx {liveWireless.station.txRate ?? "—"} · Rx {liveWireless.station.rxRate ?? "—"} · CCQ {liveWireless.station.ccq}
+                          </div>
+                          {liveWireless.station.uptime && <div className="text-[10px] text-muted-foreground">Enlace {liveWireless.station.uptime}</div>}
+                        </>
+                      ) : wirelessLinks.length > 1 ? (
+                        <>
+                          <div className="text-yellow-300">Detectado en varios radios</div>
+                          <div className="text-xs text-muted-foreground">{wirelessLinks.map((link) => link.equipment.model).join(" · ")}</div>
+                        </>
+                      ) : accessPoint ? (
+                        <>
+                          <div>{accessPoint.model}</div>
+                          <div className="font-mono text-xs text-muted-foreground">{accessPoint.ip}</div>
+                          <div className="text-[10px] text-yellow-300">
+                            {wirelessQueries.some((query) => query.isPending)
+                              ? "Asignado; consultando lectura en vivo"
+                              : "Asignado en expediente; sin lectura actual"}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {wirelessQueries.some((query) => query.isPending) ? "Consultando radios…" : "No detectado"}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <div className="font-mono">{lease?.dhcpServer || client.dhcpServer || "—"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {lease?.dhcpPool || client.dhcpPool ? `Pool: ${lease?.dhcpPool ?? client.dhcpPool}` : lease ? "Pool sin registrar" : "Sin lectura actual"}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <SignalStrength dbm={signalDbm} />
+                      <div className="text-[10px] text-muted-foreground">
+                        {liveWireless
+                          ? `En vivo · ruido ${liveWireless.station.noiseDbm ?? "—"} · CCQ ${liveWireless.station.ccq}`
+                          : client.lastSeenDbm ? "Última lectura guardada" : "Sin lectura"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{client.planLimit}</TableCell>
+                    <TableCell className={`text-xs ${client.dueDate && new Date(client.dueDate) < new Date() ? "text-red-400 font-medium" : "text-muted-foreground"}`}>
+                      {formatDate(client.dueDate)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="text-emerald-400 hover:bg-emerald-500/10" onClick={() => openPayment(client)} title="Registrar pago">
+                          <DollarSign className="w-4 h-4" />
+                        </Button>
+                        <Link href={`/clients/${client.id}`}>
+                          <Button variant="ghost" size="icon"><Eye className="w-4 h-4" /></Button>
+                        </Link>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(client.id, client.name)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -517,7 +706,10 @@ export default function Clients() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Router central</Label>
-              <Select value={newClient.equipmentId} onValueChange={(value) => updateNewClient("equipmentId", value)}>
+              <Select
+                value={newClient.equipmentId}
+                onValueChange={(value) => setNewClient((current) => ({ ...current, equipmentId: value, dhcpServer: "", dhcpPool: "" }))}
+              >
                 <SelectTrigger><SelectValue placeholder="Selecciona el MikroTik que administra las colas..." /></SelectTrigger>
                 <SelectContent>
                   {centralRouters.map((router) => (
@@ -583,24 +775,62 @@ export default function Clients() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Servidor DHCP <span className="text-xs text-muted-foreground">(nombre RouterOS)</span></Label>
-                  <Input
-                    data-testid="input-client-dhcp-server"
+                  <Label>Servidor DHCP activo</Label>
+                  <Select
                     value={newClient.dhcpServer}
-                    onChange={(event) => updateNewClient("dhcpServer", event.target.value)}
-                    placeholder="dhcp1"
-                    className="font-mono"
-                  />
+                    disabled={!selectedRouterId || dhcpConfigQuery.isLoading || activeDhcpServers.length === 0}
+                    onValueChange={(value) => {
+                      const server = activeDhcpServers.find((candidate) => candidate.name === value);
+                      setNewClient((current) => ({
+                        ...current,
+                        dhcpServer: value,
+                        dhcpPool: server?.addressPool?.toLowerCase() === "static-only" ? "" : server?.addressPool ?? "",
+                      }));
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-client-dhcp-server">
+                      <SelectValue placeholder={
+                        dhcpConfigQuery.isLoading ? "Leyendo servidores DHCP..." :
+                          activeDhcpServers.length ? "Selecciona un servidor DHCP..." :
+                            "No hay servidores DHCP activos"
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeDhcpServers.map((server) => (
+                        <SelectItem key={server.name} value={server.name}>
+                          {server.name} · {server.interface ?? "interfaz no indicada"} · {server.running === true ? "Activo" : "Habilitado"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {dhcpConfigQuery.isError && (
+                    <p className="text-xs text-red-400">
+                      No se pudo leer la configuración DHCP: {dhcpConfigQuery.error.message}
+                    </p>
+                  )}
+                  {!dhcpConfigQuery.isLoading && dhcpConfigQuery.data && activeDhcpServers.length === 0 && (
+                    <p className="text-xs text-yellow-400">
+                      {configuredDhcpServers.length > 0
+                        ? "RouterOS no confirmó running=true para los servidores habilitados; no se ofrecen como activos."
+                        : "El router respondió, pero no tiene servidores DHCP habilitados y válidos."}
+                    </p>
+                  )}
+                  {dhcpConfigQuery.isLoading && selectedRouterId > 0 && (
+                    <p className="text-xs text-muted-foreground">Consultando el MikroTik en modo de solo lectura…</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Pool DHCP <span className="text-xs text-muted-foreground">(referencia)</span></Label>
-                  <Input
-                    data-testid="input-client-dhcp-pool"
-                    value={newClient.dhcpPool}
-                    onChange={(event) => updateNewClient("dhcpPool", event.target.value)}
-                    placeholder="pool-clientes"
-                    className="font-mono"
-                  />
+                  <Label>Pool DHCP detectado</Label>
+                  <div className="min-h-10 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm font-mono">
+                    {selectedDhcpServer
+                      ? selectedDhcpServer.addressPool?.toLowerCase() === "static-only"
+                        ? "Solo leases estáticos"
+                        : selectedDhcpServer.addressPool ?? "Sin pool dinámico configurado"
+                      : "Se mostrará al elegir un servidor"}
+                  </div>
+                  {selectedDhcpPool?.ranges && (
+                    <p className="text-xs text-muted-foreground">Rangos: <span className="font-mono">{selectedDhcpPool.ranges}</span></p>
+                  )}
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -618,7 +848,7 @@ export default function Clients() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-            <Button onClick={submitClient} disabled={provisionClient.isPending || centralRouters.length === 0}>
+            <Button onClick={submitClient} disabled={provisionClient.isPending || !selectedDhcpServer || dhcpConfigQuery.isLoading}>
               {provisionClient.isPending ? "Aprovisionando..." : "Aprovisionar Cliente"}
             </Button>
           </DialogFooter>

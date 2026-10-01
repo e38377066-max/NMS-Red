@@ -31,6 +31,14 @@ The current LAN RouterOS REST endpoint responds on HTTP port 80 (an unauthentica
 
 **How to apply:** Limit HTTP/80 use to a trusted private LAN, never expose or port-forward the management endpoint to the Internet, and keep HTTPS for any deployment where LAN trust cannot be assumed.
 
+## DHCP server discovery
+
+Only offer a DHCP server as active when RouterOS reports it enabled, valid, and `running=true`. Treat missing `running` as unknown, not active.
+
+**Why:** An enabled server may still have no operational interface; configuration presence alone is not evidence that clients can use it.
+
+**How to apply:** Read `/ip/dhcp-server` and `/ip/pool` only; preserve disabled, invalid, stopped, and unknown states in the response, and do not modify equipment during discovery.
+
 ## Aggregated MikroTik capacity
 
 Record parent-child capacity allocations in NMS without changing RouterOS by default. Do not route aggregate queue changes through the generic configuration-file or script applicator.

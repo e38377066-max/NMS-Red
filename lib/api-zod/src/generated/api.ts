@@ -418,6 +418,32 @@ export const GetEquipmentWirelessResponse = zod.array(GetEquipmentWirelessRespon
 
 
 /**
+ * @summary Read DHCP servers and pools from a MikroTik router
+ */
+export const GetEquipmentDhcpConfigParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetEquipmentDhcpConfigResponse = zod.object({
+  "equipmentId": zod.int(),
+  "checkedAt": zod.coerce.date(),
+  "servers": zod.array(zod.object({
+  "name": zod.string(),
+  "interface": zod.string().nullable(),
+  "addressPool": zod.string().nullable(),
+  "disabled": zod.boolean(),
+  "invalid": zod.boolean(),
+  "running": zod.boolean().nullable(),
+  "active": zod.boolean()
+})),
+  "pools": zod.array(zod.object({
+  "name": zod.string(),
+  "ranges": zod.string().nullable()
+}))
+})
+
+
+/**
  * @summary List all clients
  */
 export const ListClientsResponseItem = zod.object({
@@ -583,6 +609,7 @@ export const ListClientDhcpLeasesResponseItem = zod.object({
   "dynamic": zod.boolean(),
   "blocked": zod.boolean(),
   "dhcpServer": zod.string(),
+  "dhcpPool": zod.string().nullable(),
   "expiresAfter": zod.string().nullable(),
   "alreadyImported": zod.boolean()
 })

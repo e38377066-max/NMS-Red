@@ -7,6 +7,7 @@ import {
   getMikroTikAddressList,
   getMikroTikDhcpLeases,
   getMikroTikSimpleQueues,
+  readMikroTikDhcpConfig,
   removeFromAddressList,
   restoreDhcpLease,
   upsertSimpleQueue,
@@ -50,6 +51,21 @@ export async function provisionClient(input: ProvisionClientInput, requestedByUs
   if (!equipment) throw new Error("Router central no encontrado");
   if (equipment.connectionType !== "mikrotik_routeros" || equipment.equipmentRole !== "core_router") {
     throw new Error("El aprovisionamiento solo puede ejecutarse en un Router central MikroTik");
+  }
+  const dhcpConfig = await readMikroTikDhcpConfig(equipment.ip, equipment.username, equipment.password);
+  const activeDhcpServers = dhcpConfig.servers.filter((server) => server.active);
+  const requestedDhcpServer = input.dhcpServer?.trim();
+  const dhcpServer = requestedDhcpServer
+    ? activeDhcpServers.find((server) => server.name === requestedDhcpServer)
+    : activeDhcpServers.length === 1 ? activeDhcpServers[0] : undefined;
+  if (!dhcpServer) {
+    throw new Error("Elige un servidor DHCP activo detectado en el Router central");
+  }
+  const configuredDhcpPool = dhcpServer.addressPool?.toLowerCase() === "static-only"
+    ? undefined
+    : dhcpServer.addressPool ?? undefined;
+  if (input.dhcpPool?.trim() && input.dhcpPool.trim() !== (configuredDhcpPool ?? "")) {
+    throw new Error("El pool DHCP cambió en el router; vuelve a consultar y selecciona el servidor de nuevo");
   }
   if (input.accessPointEquipmentId !== undefined) {
     if (input.accessPointEquipmentId === equipment.id) {
@@ -109,7 +125,7 @@ export async function provisionClient(input: ProvisionClientInput, requestedByUs
       mac,
       fixedIp,
       `Cliente: ${name}`,
-      input.dhcpServer,
+      dhcpServer.name,
       planLimit,
     );
     if (!lease.success || !lease.id) throw new Error(lease.message);
@@ -174,8 +190,8 @@ export async function provisionClient(input: ProvisionClientInput, requestedByUs
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
         status: input.status ?? "ACTIVE",
         paymentStatus: input.paymentStatus ?? "PAID",
-        dhcpServer: input.dhcpServer,
-        dhcpPool: input.dhcpPool,
+        dhcpServer: dhcpServer.name,
+        dhcpPool: configuredDhcpPool,
         contractReference: input.contractReference,
         contractNotes: input.contractNotes,
         installationDate: input.installationDate ? new Date(input.installationDate) : undefined,

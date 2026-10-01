@@ -6,10 +6,12 @@ import {
   GetEquipmentParams,
   UpdateEquipmentParams,
   DeleteEquipmentParams,
+  GetEquipmentDhcpConfigParams,
+  GetEquipmentDhcpConfigResponse,
   GetEquipmentStatusParams,
   GetEquipmentWirelessParams,
 } from "@workspace/api-zod";
-import { getMikroTikResource } from "../services/mikrotik.service";
+import { getMikroTikResource, readMikroTikDhcpConfig } from "../services/mikrotik.service";
 import { getUbiquitiStatus, getWirelessTable } from "../services/ubiquiti.service";
 import { encryptSecret } from "../services/credentials.service";
 
@@ -229,6 +231,36 @@ router.get("/equipment/:id/status", async (req, res): Promise<void> => {
       noiseFloor: null,
       airMaxCapacity: null,
     });
+  }
+});
+
+router.get("/equipment/:id/dhcp-config", async (req, res): Promise<void> => {
+  const params = GetEquipmentDhcpConfigParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const equipment = await Equipment.findByPk(params.data.id);
+  if (!equipment) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+  if (equipment.connectionType !== "mikrotik_routeros" || equipment.equipmentRole !== "core_router") {
+    res.status(400).json({ error: "Selecciona un MikroTik con rol Router central" });
+    return;
+  }
+
+  try {
+    const config = await readMikroTikDhcpConfig(equipment.ip, equipment.username, equipment.password);
+    res.json(GetEquipmentDhcpConfigResponse.parse({
+      equipmentId: equipment.id,
+      checkedAt: new Date().toISOString(),
+      ...config,
+    }));
+  } catch (error) {
+    req.log.warn({ err: error, equipmentId: equipment.id, ip: equipment.ip }, "Failed to read DHCP configuration");
+    res.status(502).json({ error: "No se pudo leer la configuración DHCP del MikroTik." });
   }
 });
 

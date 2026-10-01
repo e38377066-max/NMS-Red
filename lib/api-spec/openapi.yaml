@@ -392,6 +392,31 @@ paths:
                 items:
                   $ref: "#/components/schemas/WirelessClient"
 
+  /equipment/{id}/dhcp-config:
+    get:
+      operationId: getEquipmentDhcpConfig
+      tags: [equipment]
+      summary: Read DHCP servers and pools from a MikroTik router
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Read-only DHCP server and pool configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipmentDhcpConfig"
+        "400":
+          description: Invalid equipment or equipment is not a central MikroTik router
+        "404":
+          description: Equipment was not found
+        "502":
+          description: DHCP configuration could not be read from the router
+
   # CLIENTS
   /clients:
     get:
@@ -2863,6 +2888,52 @@ components:
         distance:
           type: ["string", "null"]
 
+    EquipmentDhcpConfig:
+      type: object
+      required: [equipmentId, checkedAt, servers, pools]
+      properties:
+        equipmentId:
+          type: integer
+        checkedAt:
+          type: string
+          format: date-time
+        servers:
+          type: array
+          items:
+            $ref: "#/components/schemas/EquipmentDhcpServer"
+        pools:
+          type: array
+          items:
+            $ref: "#/components/schemas/EquipmentDhcpPool"
+
+    EquipmentDhcpServer:
+      type: object
+      required: [name, interface, addressPool, disabled, invalid, running, active]
+      properties:
+        name:
+          type: string
+        interface:
+          type: ["string", "null"]
+        addressPool:
+          type: ["string", "null"]
+        disabled:
+          type: boolean
+        invalid:
+          type: boolean
+        running:
+          type: ["boolean", "null"]
+        active:
+          type: boolean
+
+    EquipmentDhcpPool:
+      type: object
+      required: [name, ranges]
+      properties:
+        name:
+          type: string
+        ranges:
+          type: ["string", "null"]
+
     Client:
       type: object
       required: [id, equipmentId, mac, name, planLimit, status, paymentStatus, dhcpServer, dhcpPool]
@@ -2959,7 +3030,7 @@ components:
 
     ClientDhcpLeaseCandidate:
       type: object
-      required: [address, macAddress, displayName, hostName, comment, rateLimit, status, dynamic, blocked, dhcpServer, expiresAfter, alreadyImported]
+      required: [address, macAddress, displayName, hostName, comment, rateLimit, status, dynamic, blocked, dhcpServer, dhcpPool, expiresAfter, alreadyImported]
       properties:
         address:
           type: string
@@ -2981,6 +3052,8 @@ components:
           type: boolean
         dhcpServer:
           type: string
+        dhcpPool:
+          type: ["string", "null"]
         expiresAfter:
           type: ["string", "null"]
         alreadyImported:

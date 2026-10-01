@@ -54,6 +54,7 @@ import type {
   EquipmentConfigurationFileInput,
   EquipmentConfigurationPreview,
   EquipmentConfigurationSettingsInput,
+  EquipmentDhcpConfig,
   EquipmentInput,
   EquipmentLiveStatus,
   EquipmentUpdate,
@@ -1721,6 +1722,107 @@ export function useGetEquipmentWireless<TData = Awaited<ReturnType<typeof getEqu
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetEquipmentWirelessQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetEquipmentDhcpConfigUrl = (id: number,) => {
+
+
+
+
+  return `/api/equipment/${id}/dhcp-config`
+}
+
+/**
+ * @summary Read DHCP servers and pools from a MikroTik router
+ */
+export const getEquipmentDhcpConfig = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<EquipmentDhcpConfig> => {
+
+  return customFetch<EquipmentDhcpConfig>(getGetEquipmentDhcpConfigUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEquipmentDhcpConfigQueryKey = (id: number,) => {
+    return [
+    `/api/equipment/${id}/dhcp-config`
+    ] as const;
+    }
+
+
+export const getGetEquipmentDhcpConfigQueryOptions = <TData = Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError = ErrorType<void>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEquipmentDhcpConfigQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>> = ({ signal }) => getEquipmentDhcpConfig(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetEquipmentDhcpConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>>
+export type GetEquipmentDhcpConfigQueryError = ErrorType<void>
+
+
+export function useGetEquipmentDhcpConfig<TData = Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError = ErrorType<void>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEquipmentDhcpConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getEquipmentDhcpConfig>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEquipmentDhcpConfig<TData = Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEquipmentDhcpConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getEquipmentDhcpConfig>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEquipmentDhcpConfig<TData = Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Read DHCP servers and pools from a MikroTik router
+ */
+
+export function useGetEquipmentDhcpConfig<TData = Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEquipmentDhcpConfig>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetEquipmentDhcpConfigQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
