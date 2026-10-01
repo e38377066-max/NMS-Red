@@ -1,6 +1,7 @@
 packages:
   - client
   - artifacts/*
+  - mobile/*
   - lib/*
   - lib/integrations/*
   - scripts

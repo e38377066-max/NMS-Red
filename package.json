@@ -11,9 +11,10 @@
     "start": "NODE_ENV=production PORT=${PORT:-5000} pnpm exec tsx src/index.ts",
     "typecheck:server": "pnpm exec tsc --noEmit -p tsconfig.server.json",
     "typecheck:client": "pnpm --filter @workspace/client run typecheck",
-    "typecheck:workspace": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "typecheck:workspace": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./mobile/**\" --filter \"./scripts\" --if-present run typecheck",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm run typecheck:client && pnpm run typecheck:server"
+    "typecheck:mobile": "pnpm --filter @workspace/nms-field-app run typecheck",
+    "typecheck": "pnpm run typecheck:libs && pnpm run typecheck:client && pnpm run typecheck:server && pnpm run typecheck:mobile"
   },
   "private": true,
   "devDependencies": {

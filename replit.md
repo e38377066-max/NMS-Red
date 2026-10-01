@@ -5,9 +5,9 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 ## Run & Operate
 
 - `pnpm install --frozen-lockfile` — instalar las dependencias del workspace.
-- En Replit, la vista previa usa los workflows administrados `artifacts/nms-dashboard: web` y `artifacts/api-server: API Server`; el panel está en `/` y la API en `/api`.
-- `pnpm --filter @workspace/api-server run dev` — API server (puerto 8080)
-- `pnpm --filter @workspace/nms-dashboard run dev` — Dashboard React (puerto variable)
+- En Replit, `Start application` ejecuta el sitio y la API integrados: React en `/`, Express en `/api`, puerto 5000.
+- La app Expo para Android/iOS vive en `mobile/nms-field-app`; `pnpm --filter @workspace/nms-field-app run dev` inicia su workflow.
+- `pnpm run dev` — compila el cliente y arranca el servidor Express integrado.
 - `pnpm run typecheck` — typecheck completo en todos los paquetes
 - `pnpm run build` — typecheck + build todos los paquetes
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
@@ -27,12 +27,12 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 ## Stack
 
 - pnpm workspaces, Node.js 20, TypeScript 5.9
-- API: Express 5 + Socket.io (WebSocket real-time)
-- DB: PostgreSQL + Drizzle ORM
+- API: Express 5 + Socket.io (WebSocket real-time) en `src/`
+- DB: PostgreSQL + Sequelize en tiempo de ejecución; los paquetes Drizzle existentes se conservan para compatibilidad del esquema y codegen.
 - Validación: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (desde spec OpenAPI)
-- Build: esbuild (CJS bundle) — externos: node-ssh, ssh2, cpu-features, net-snmp
-- Frontend: React + Vite + Tailwind + Shadcn UI
+- Build: Vite genera el cliente en `dist/`; el servidor TypeScript se ejecuta con `tsx`.
+- Frontend: React + Vite + Tailwind + Shadcn UI en `client/`
 
 ## Where things live
 
@@ -40,9 +40,11 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - `lib/db/src/schema/` — schemas Drizzle ORM (equipment.ts, proxmoxServers.ts, etc.)
 - `lib/api-client-react/src/generated/` — hooks generados por Orval
 - `lib/api-zod/src/generated/` — schemas Zod generados
-- `artifacts/api-server/src/services/` — mikrotik.service.ts, ubiquiti.service.ts, proxmox.service.ts, monitoring.service.ts, ai.service.ts
-- `artifacts/api-server/src/routes/` — rutas Express por entidad
-- `artifacts/nms-dashboard/src/pages/` — todas las páginas del dashboard
+- `src/services/` y `src/routes/` — lógica y rutas de Express
+- `client/src/pages/` — páginas del dashboard
+- `mobile/nms-field-app/` — app Expo para técnicos
+- `archive/api-server/` y `archive/nms-dashboard/` — copias anteriores, fuera del workspace activo
+- `artifacts/*/.replit-artifact/artifact.toml` — metadatos de previews anteriores; Replit no permite desvincular esos registros de este proyecto.
 
 ## Architecture decisions
 
@@ -73,7 +75,7 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 
 ## Gotchas
 
-- Al añadir dependencias con binarios nativos (ssh2, node-ssh, net-snmp): agregar a `external` en `build.mjs` y a `onlyBuiltDependencies` en `pnpm-workspace.yaml`
+- Al añadir dependencias con binarios nativos: agregarlas a `onlyBuiltDependencies` en `pnpm-workspace.yaml`. El `build.mjs` de `archive/api-server` solo aplica a la copia archivada.
 - Proxmox API usa HTTPS con cert auto-firmado: usar módulo nativo `https` con `rejectUnauthorized: false`
 - Ubiquiti AirOS M-series requiere algoritmos SSH legacy para compatibilidad
 - El CHR MikroTik gestiona todas las Simple Queues; las IPs de clientes deben coincidir con las MACs en las colas

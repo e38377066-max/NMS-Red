@@ -1,6 +1,6 @@
 kind = "web"
-previewPath = "/"
-title = "Imperio AP"
+previewPath = "/legacy-dashboard/"
+title = "Imperio AP (vista archivada)"
 version = "1.0.0"
 id = "artifacts/nms-dashboard"
 router = "path"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/legacy-dashboard/" ]
 localPort = 19346
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "19346"
-BASE_PATH = "/"
+BASE_PATH = "/legacy-dashboard/"

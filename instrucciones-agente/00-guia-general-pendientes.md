@@ -150,7 +150,7 @@ cliente.
   base de datos;
 - descarga protegida con autenticación;
 - sección de documentos en
-  `artifacts/nms-dashboard/src/pages/client-detail.tsx` con carga, listado,
+  `client/src/pages/client-detail.tsx` con carga, listado,
   estado, revisión y descarga;
 - auditoría de carga, aprobación y rechazo con usuario, IP, dispositivo,
   motivo y estados anterior/nuevo;
@@ -160,9 +160,9 @@ cliente.
 **Archivos principales:**
 
 - `lib/db/src/schema/clients.ts`
-- `artifacts/api-server/src/routes/client-contracts.ts`
-- `artifacts/api-server/src/services/object-storage.service.ts`
-- `artifacts/nms-dashboard/src/pages/client-detail.tsx`
+- `src/routes/client-contracts.ts`
+- `src/services/object-storage.service.ts`
+- `client/src/pages/client-detail.tsx`
 - `lib/api-spec/openapi.yaml`
 
 **Verificación realizada:**
@@ -210,11 +210,11 @@ completo y revisable.
 
 **Archivos principales:**
 
-- `artifacts/api-server/src/services/billing.service.ts`;
-- `artifacts/api-server/src/routes/billing.ts`;
-- `artifacts/api-server/src/routes/portal.ts`;
-- `artifacts/nms-dashboard/src/pages/billing.tsx`;
-- `artifacts/nms-dashboard/src/pages/client-portal.tsx`;
+- `src/services/billing.service.ts`;
+- `src/routes/billing.ts`;
+- `src/routes/portal.ts`;
+- `client/src/pages/billing.tsx`;
+- `client/src/pages/client-portal.tsx`;
 - `lib/db/src/schema/operations.ts`;
 - `lib/api-spec/openapi.yaml`.
 
