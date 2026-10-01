@@ -1,6 +1,5 @@
 packages:
   - client
-  - artifacts/*
   - lib/*
   - lib/integrations/*
   - scripts

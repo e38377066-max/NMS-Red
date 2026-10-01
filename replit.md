@@ -47,8 +47,8 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - `client/src/pages/field/` — agenda y flujos de técnicos de campo
 - `android/` y `ios/` — proyectos nativos Capacitor generados desde el cliente compartido
 - `mobile/nms-field-app/` — código Expo anterior conservado como referencia; fuera del workspace activo
-- `archive/api-server/` y `archive/nms-dashboard/` — copias anteriores, fuera del workspace activo
-- `artifacts/*/.replit-artifact/artifact.toml` — metadatos de previews anteriores; Replit no permite desvincular esos registros de este proyecto.
+- `backups/imperio-artifacts-and-archive.zip` — respaldo de las carpetas `artifacts/` y `archive/` antes de retirarlas
+- Los registros de artefactos de Replit siguen asociados al proyecto, pero sus carpetas locales se retiraron; sus previews/workflows antiguos requieren restaurar el respaldo.
 
 ## Architecture decisions
 
@@ -79,7 +79,7 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 
 ## Gotchas
 
-- Al añadir dependencias con binarios nativos: agregarlas a `onlyBuiltDependencies` en `pnpm-workspace.yaml`. El `build.mjs` de `archive/api-server` solo aplica a la copia archivada.
+- Al añadir dependencias con binarios nativos: agregarlas a `onlyBuiltDependencies` en `pnpm-workspace.yaml`.
 - Proxmox API usa HTTPS con cert auto-firmado: usar módulo nativo `https` con `rejectUnauthorized: false`
 - Ubiquiti AirOS M-series requiere algoritmos SSH legacy para compatibilidad
 - El CHR MikroTik gestiona todas las Simple Queues; las IPs de clientes deben coincidir con las MACs en las colas
