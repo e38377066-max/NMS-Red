@@ -1,0 +1,117 @@
+
+PS C:\Trabajo\NMS-Red> npm run local:db:init
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:db:init
+> node scripts/local-db.mjs init
+
+(node:54680) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Base seleccionada: 127.0.0.1:5432/isp_cockpit (sin mostrar credenciales).
+Esto creará el esquema en una base vacía. No se borrarán datos.
+Escribe INIT para continuar: INIT
+
+> @workspace/db@0.0.0 push C:\Trabajo\NMS-Red\lib\db
+> drizzle-kit push --config ./drizzle.config.ts
+
+Reading config file 'C:\Trabajo\NMS-Red\lib\db\drizzle.config.ts'
+Using 'pg' driver for database querying
+[✓] Pulling schema from database...
+[✓] Changes applied
+Operación de esquema completada.
+PS C:\Trabajo\NMS-Red>   npm run local:start
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:start
+> node scripts/run-local.mjs local-start
+
+
+> workspace@0.0.0 build C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build
+
+
+> workspace@0.0.0 typecheck:server C:\Trabajo\NMS-Red
+> pnpm exec tsc --noEmit -p tsconfig.server.json
+
+
+> workspace@0.0.0 build:web C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build-web
+
+
+> @workspace/client@0.0.0 build C:\Trabajo\NMS-Red\client
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2839 modules transformed.
+../dist/index.html                     1.38 kB │ gzip:   0.55 kB
+../dist/assets/index-nw5OiHRu.css    140.74 kB │ gzip:  21.48 kB
+../dist/assets/web-C4Tq_28B.js         0.22 kB │ gzip:   0.17 kB
+../dist/assets/web-BjCiFG4Z.js         0.38 kB │ gzip:   0.25 kB
+../dist/assets/native-D_JLRP0z.js      0.80 kB │ gzip:   0.35 kB
+../dist/assets/web-VM84h-Dd.js         0.83 kB │ gzip:   0.42 kB
+../dist/assets/web-Cs6vQhKT.js         0.90 kB │ gzip:   0.46 kB
+../dist/assets/web-CTV8sdNk.js         2.30 kB │ gzip:   0.93 kB
+../dist/assets/web-xZUz4Znb.js         2.43 kB │ gzip:   1.06 kB
+../dist/assets/base-BQQPjlbD.js        2.81 kB │ gzip:   1.00 kB
+../dist/assets/index-DfB3tYXD.js   1,302.18 kB │ gzip: 360.00 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 9.39s
+(node:11044) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:57432) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:50160) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"level":30,"time":1790830452397,"pid":56148,"hostname":"manuel","port":5000,"msg":"Server listening"}
+{"level":30,"time":1790830452398,"pid":56148,"hostname":"manuel","msg":"Starting Imperio AP network monitoring service (60s interval)"}
+{"level":30,"time":1790830452399,"pid":56148,"hostname":"manuel","msg":"Starting 5-min metrics collection"}
+{"level":30,"time":1790830452399,"pid":56148,"hostname":"manuel","msg":"Starting live network telemetry collection (15s interval)"}
+{"level":30,"time":1790830452399,"pid":56148,"hostname":"manuel","msg":"Task queue worker started"}
+{"level":30,"time":1790830452399,"pid":56148,"hostname":"manuel","msg":"Starting billing cron service (nightly check every 6h)"}
+{"level":30,"time":1790830452400,"pid":56148,"hostname":"manuel","msg":"Starting backup cron service (daily at 02:00)"}
+{"level":30,"time":1790830452401,"pid":56148,"hostname":"manuel","nextBackupAt":"2026-10-01T06:00:00.000Z","msg":"Next backup scheduled"}
+{"level":30,"time":1790830452417,"pid":56148,"hostname":"manuel","suspended":0,"markedPending":0,"msg":"Billing check completed"}
+{"level":30,"time":1790830518445,"pid":56148,"hostname":"manuel","req":{"id":1,"method":"GET","url":"/"},"res":{"statusCode":200},"responseTime":10,"msg":"request completed"}
+{"level":30,"time":1790830518505,"pid":56148,"hostname":"manuel","req":{"id":3,"method":"GET","url":"/assets/index-nw5OiHRu.css"},"res":{"statusCode":200},"responseTime":3,"msg":"request completed"}
+{"level":30,"time":1790830518512,"pid":56148,"hostname":"manuel","req":{"id":2,"method":"GET","url":"/assets/index-DfB3tYXD.js"},"res":{"statusCode":200},"responseTime":11,"msg":"request completed"}
+{"level":30,"time":1790830518873,"pid":56148,"hostname":"manuel","req":{"id":4,"method":"GET","url":"/favicon.svg"},"res":{"statusCode":200},"responseTime":3,"msg":"request completed"}
+{"level":30,"time":1790830532725,"pid":56148,"hostname":"manuel","req":{"id":5,"method":"POST","url":"/api/users/login"},"res":{"statusCode":401},"responseTime":457,"msg":"request completed"}
+{"level":30,"time":1790831613770,"pid":56148,"hostname":"manuel","req":{"id":6,"method":"POST","url":"/api/users/login"},"res":{"statusCode":200},"responseTime":114,"msg":"request completed"}
+{"level":30,"time":1790831613890,"pid":56148,"hostname":"manuel","req":{"id":7,"method":"GET","url":"/api/monitoring/summary"},"res":{"statusCode":200},"responseTime":51,"msg":"request completed"}
+{"level":30,"time":1790831613894,"pid":56148,"hostname":"manuel","req":{"id":8,"method":"GET","url":"/api/monitoring/alerts"},"res":{"statusCode":200},"responseTime":50,"msg":"request completed"}
+{"level":30,"time":1790831613895,"pid":56148,"hostname":"manuel","req":{"id":9,"method":"GET","url":"/api/audit-logs"},"res":{"statusCode":200},"responseTime":40,"msg":"request completed"}
+{"level":30,"time":1790831617712,"pid":56148,"hostname":"manuel","req":{"id":10,"method":"GET","url":"/api/monitoring/overview"},"res":{"statusCode":200},"responseTime":15,"msg":"request completed"}
+{"level":30,"time":1790831619151,"pid":56148,"hostname":"manuel","req":{"id":13,"method":"GET","url":"/api/audit-logs"},"res":{"statusCode":304},"responseTime":14,"msg":"request completed"}
+{"level":30,"time":1790831619153,"pid":56148,"hostname":"manuel","req":{"id":12,"method":"GET","url":"/api/monitoring/alerts"},"res":{"statusCode":304},"responseTime":18,"msg":"request completed"}
+{"level":30,"time":1790831619156,"pid":56148,"hostname":"manuel","req":{"id":11,"method":"GET","url":"/api/monitoring/summary"},"res":{"statusCode":304},"responseTime":24,"msg":"request completed"}
+{"level":30,"time":1790831620804,"pid":56148,"hostname":"manuel","req":{"id":14,"method":"GET","url":"/api/nodes"},"res":{"statusCode":200},"responseTime":12,"msg":"request completed"}
+{"level":30,"time":1790831624088,"pid":56148,"hostname":"manuel","req":{"id":15,"method":"GET","url":"/api/monitoring/topology"},"res":{"statusCode":200},"responseTime":12,"msg":"request completed"}
+{"level":30,"time":1790831625721,"pid":56148,"hostname":"manuel","req":{"id":16,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":10,"msg":"request completed"}
+{"level":30,"time":1790831637858,"pid":56148,"hostname":"manuel","req":{"id":18,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":58,"msg":"request completed"}
+{"level":30,"time":1790831637859,"pid":56148,"hostname":"manuel","req":{"id":17,"method":"GET","url":"/api/equipment"},"res":{"statusCode":200},"responseTime":62,"msg":"request completed"}
+{"level":30,"time":1790831684972,"pid":56148,"hostname":"manuel","req":{"id":19,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":17,"msg":"request completed"}
+{"level":30,"time":1790831704007,"pid":56148,"hostname":"manuel","req":{"id":20,"method":"POST","url":"/api/nodes"},"res":{"statusCode":201},"responseTime":21,"msg":"request completed"}
+{"level":30,"time":1790831704023,"pid":56148,"hostname":"manuel","req":{"id":21,"method":"GET","url":"/api/nodes"},"res":{"statusCode":200},"responseTime":9,"msg":"request completed"}
+{"level":30,"time":1790831708582,"pid":56148,"hostname":"manuel","req":{"id":22,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":21,"msg":"request completed"}
+{"level":30,"time":1790831708582,"pid":56148,"hostname":"manuel","req":{"id":23,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":19,"msg":"request completed"}
+{"level":30,"time":1790831776265,"pid":56148,"hostname":"manuel","req":{"id":24,"method":"POST","url":"/api/equipment"},"res":{"statusCode":201},"responseTime":18,"msg":"request completed"}
+{"level":30,"time":1790831776276,"pid":56148,"hostname":"manuel","req":{"id":25,"method":"GET","url":"/api/equipment"},"res":{"statusCode":200},"responseTime":6,"msg":"request completed"}
+{"level":40,"time":1790831788212,"pid":56148,"hostname":"manuel","ip":"192.168.200.1","error":{},"msg":"Failed to fetch MikroTik traffic snapshot"}
+{"level":30,"time":1790831788704,"pid":56148,"hostname":"manuel","req":{"id":26,"method":"GET","url":"/api/equipment/1"},"res":{"statusCode":200},"responseTime":45,"msg":"request completed"}
+{"level":30,"time":1790831788707,"pid":56148,"hostname":"manuel","req":{"id":27,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":43,"msg":"request completed"}
+{"level":30,"time":1790831788712,"pid":56148,"hostname":"manuel","req":{"id":29,"method":"GET","url":"/api/equipment/1/metrics"},"res":{"statusCode":200},"responseTime":43,"msg":"request completed"}
+{"level":40,"time":1790831788725,"pid":56148,"hostname":"manuel","ip":"192.168.200.1","err":{"type":"TypeError","message":"fetch failed: D4E50000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:openssl\\ssl\\record\\rec_layer_s3.c:918:SSL alert number 40\n","stack":"TypeError: fetch failed\ncaused by: Error: D4E50000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:openssl\\ssl\\record\\rec_layer_s3.c:918:SSL alert number 40\n"},"msg":"Failed to reach MikroTik device"}
+{"level":30,"time":1790831788726,"pid":56148,"hostname":"manuel","req":{"id":28,"method":"GET","url":"/api/equipment/1/status"},"res":{"statusCode":200},"responseTime":60,"msg":"request completed"}
+{"level":30,"time":1790831788855,"pid":56148,"hostname":"manuel","req":{"id":30,"method":"GET","url":"/api/equipment/1/wireless"},"res":{"statusCode":200},"responseTime":183,"msg":"request completed"}
+{"level":40,"time":1790831803076,"pid":56148,"hostname":"manuel","ip":"192.168.200.1","error":{},"msg":"Failed to fetch MikroTik traffic snapshot"}
+{"level":30,"time":1790831805822,"pid":56148,"hostname":"manuel","req":{"id":31,"method":"GET","url":"/api/equipment/1/configuration"},"res":{"statusCode":200},"responseTime":2726,"msg":"request completed"}
+{"level":40,"time":1790831818090,"pid":56148,"hostname":"manuel","ip":"192.168.200.1","error":{},"msg":"Failed to fetch MikroTik traffic snapshot"}
