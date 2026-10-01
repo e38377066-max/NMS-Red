@@ -23,6 +23,14 @@ The central MikroTik for this project is an hEX RB750Gr3 on RouterOS 7.18.2 (`mm
 
 **How to apply:** Before implementing Railway-to-LAN access, confirm public WAN reachability or upstream UDP forwarding and evaluate a RouterOS-native WireGuard endpoint plus a Railway-side client. Never expose RouterOS REST/SSH directly; a dedicated VPN port requires explicit user approval.
 
+## Local REST transport
+
+The current LAN RouterOS REST endpoint responds on HTTP port 80 (an unauthenticated request returns 401); TCP port 443 is reachable but its TLS handshake fails. The local app can use HTTP without router changes, but RouterOS Basic Auth credentials are unencrypted on that connection.
+
+**Why:** Windows-side checks confirmed the REST endpoint on port 80 and a TLS alert on port 443.
+
+**How to apply:** Limit HTTP/80 use to a trusted private LAN, never expose or port-forward the management endpoint to the Internet, and keep HTTPS for any deployment where LAN trust cannot be assumed.
+
 ## Aggregated MikroTik capacity
 
 Record parent-child capacity allocations in NMS without changing RouterOS by default. Do not route aggregate queue changes through the generic configuration-file or script applicator.

@@ -50,6 +50,22 @@ DATABASE_URL=postgresql://isp_cockpit_app:TU_CLAVE@127.0.0.1:5432/isp_cockpit
 Si la contraseña tiene caracteres reservados en una URL (`@`, `#`, `%`, `/` o
 `:`), codifícalos como URL. No compartas ni subas `.env.local`.
 
+### Conexión al MikroTik en la LAN
+
+Para el RouterOS probado en esta instalación, la API REST responde por HTTP en
+el puerto 80; la negociación TLS en el puerto 443 falla. La plantilla local usa:
+
+```text
+MIKROTIK_API_SCHEME=http
+MIKROTIK_API_PORT=80
+```
+
+HTTP no cifra la autenticación Basic: usa esta opción solo en una LAN privada y
+confiable. No conectes la app a una Wi-Fi pública o de invitados, y no reenvíes
+el puerto 80 del MikroTik a Internet. Esto no requiere cambiar la configuración
+del router. Si ya existe `.env.local`, edita ahí esos valores; `local:setup`
+conserva el archivo existente.
+
 Inicializa el esquema únicamente en esa base nueva y vacía:
 
 ```powershell
