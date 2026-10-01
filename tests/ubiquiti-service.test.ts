@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { NodeSSH } from "node-ssh";
 import { encryptSecret } from "../src/services/credentials.service.ts";
-import { getUbiquitiStatus } from "../src/services/ubiquiti.service.ts";
+import { getUbiquitiStatus, isUbiquitiReachable } from "../src/services/ubiquiti.service.ts";
 
 test("Ubiquiti modern HTTP auth sends decrypted stored credentials", async () => {
   const originalSecret = process.env.SESSION_SECRET;
@@ -90,5 +90,32 @@ test("AirOS is reachable when HTTP responds but SSH and status APIs are unavaila
     else delete (NodeSSH.prototype as Partial<NodeSSH>).connect;
     if (originalSecret === undefined) delete process.env.SESSION_SECRET;
     else process.env.SESSION_SECRET = originalSecret;
+  }
+});
+
+test("fast AirOS reachability accepts an HTTP response without waiting for SSH", async () => {
+  const originalFetch = globalThis.fetch;
+  const connectDescriptor = Object.getOwnPropertyDescriptor(NodeSSH.prototype, "connect");
+  let sshAttempted = false;
+  Object.defineProperty(NodeSSH.prototype, "connect", {
+    configurable: true,
+    value: async () => {
+      sshAttempted = true;
+      throw new Error("SSH should not be used when HTTP already responds");
+    },
+  });
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const { pathname } = new URL(String(input));
+    assert.equal(pathname, "/");
+    return new Response("Authentication required", { status: 401 });
+  }) as typeof fetch;
+
+  try {
+    assert.equal(await isUbiquitiReachable("192.0.2.57", "admin", "unused"), true);
+    assert.equal(sshAttempted, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (connectDescriptor) Object.defineProperty(NodeSSH.prototype, "connect", connectDescriptor);
+    else delete (NodeSSH.prototype as Partial<NodeSSH>).connect;
   }
 });

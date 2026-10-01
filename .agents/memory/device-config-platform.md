@@ -39,6 +39,14 @@ Do not mark an AirOS device offline solely because its SSH handshake or authenti
 
 **How to apply:** Use a bounded, read-only HTTP probe as a final reachability fallback, and keep unavailable metrics distinct from device reachability.
 
+## Live polling cadence
+
+Keep live device polling slower than the observed response time and deduplicate in-flight snapshots; the Windows M5 wireless-table requests have taken roughly 3–5.5 seconds.
+
+**Why:** Polling a slow legacy radio faster than it can answer can overlap authenticated requests and increase, rather than reduce, user-visible delay.
+
+**How to apply:** Use the shared live snapshot/socket where possible and keep direct client-table refreshes near a 10-second interval unless measurements show the equipment can handle more frequent polling.
+
 ## DHCP server discovery
 
 Only offer a DHCP server as active when RouterOS reports it enabled, valid, and `running=true`. Treat missing `running` as unknown, not active.
