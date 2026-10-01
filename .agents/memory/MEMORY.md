@@ -9,3 +9,4 @@
 - [Expo web session storage](expo-web-session-storage.md) — SecureStore is native-only; use memory-only tokens in web previews, never localStorage
 - [Alignment coordinate provenance](alignment-coordinate-provenance.md) — preserve each saved position’s source and known accuracy, especially for phone GPS
 - [Capacitor/Replit integration](capacitor-replit-integration.md) — preserve Capacitor custom-scheme CORS origins and forward the root app’s port 5000 to preview port 80
+- [Replit preview routing](replit-preview-routing.md) — a healthy local port can coexist with Preview staying pinned to the wrong external port
