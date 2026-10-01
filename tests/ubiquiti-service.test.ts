@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { NodeSSH } from "node-ssh";
 import { encryptSecret } from "../src/services/credentials.service.ts";
 import { getUbiquitiStatus } from "../src/services/ubiquiti.service.ts";
 
@@ -43,6 +44,50 @@ test("Ubiquiti modern HTTP auth sends decrypted stored credentials", async () =>
     assert.equal(status.boardName, "test-ap");
   } finally {
     globalThis.fetch = originalFetch;
+    if (originalSecret === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = originalSecret;
+  }
+});
+
+test("AirOS is reachable when HTTP responds but SSH and status APIs are unavailable", async () => {
+  const originalSecret = process.env.SESSION_SECRET;
+  const originalFetch = globalThis.fetch;
+  const connectDescriptor = Object.getOwnPropertyDescriptor(NodeSSH.prototype, "connect");
+  process.env.SESSION_SECRET = "unit-test-session-secret-with-at-least-32-characters";
+
+  let rootRequested = false;
+  Object.defineProperty(NodeSSH.prototype, "connect", {
+    configurable: true,
+    value: async () => {
+      throw new Error("SSH is unavailable in this test");
+    },
+  });
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const { pathname } = new URL(String(input));
+    if (pathname === "/api/auth" || pathname === "/login.cgi") {
+      return new Response(null, { status: 404 });
+    }
+    if (pathname === "/") {
+      rootRequested = true;
+      return new Response("Authentication required", { status: 401 });
+    }
+    throw new Error(`Unexpected Ubiquiti request: ${pathname}`);
+  }) as typeof fetch;
+
+  try {
+    const status = await getUbiquitiStatus(
+      "192.0.2.57",
+      "admin",
+      encryptSecret("plain-test-password"),
+    );
+
+    assert.equal(rootRequested, true);
+    assert.equal(status.reachable, true);
+    assert.equal(status.boardName, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (connectDescriptor) Object.defineProperty(NodeSSH.prototype, "connect", connectDescriptor);
+    else delete (NodeSSH.prototype as Partial<NodeSSH>).connect;
     if (originalSecret === undefined) delete process.env.SESSION_SECRET;
     else process.env.SESSION_SECRET = originalSecret;
   }

@@ -5,6 +5,7 @@ import { NodeSSH } from "node-ssh";
 
 const SSH_TIMEOUT_MS = 8000;
 const HTTP_TIMEOUT_MS = 6000;
+const HTTP_REACHABILITY_TIMEOUT_MS = 1500;
 
 export interface UbiquitiStatus {
   reachable: boolean;
@@ -128,6 +129,35 @@ async function trySSHStatus(ip: string, username: string, password: string): Pro
   }
 }
 
+async function probeHttpReachability(ip: string): Promise<boolean> {
+  try {
+    const response = await fetch(`http://${ip}/`, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(HTTP_REACHABILITY_TIMEOUT_MS),
+    });
+    await response.body?.cancel().catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function emptyUbiquitiStatus(reachable: boolean): UbiquitiStatus {
+  return {
+    reachable,
+    boardName: null,
+    firmware: null,
+    frequency: null,
+    txPower: null,
+    noiseFloor: null,
+    airMaxCapacity: null,
+    cpuLoad: null,
+    freeMemory: null,
+    uptime: null,
+  };
+}
+
 export async function getUbiquitiStatus(ip: string, username: string, password: string): Promise<UbiquitiStatus> {
   // Try HTTP first (faster, no SSH overhead)
   const httpResult = await tryHttpStatus(ip, username, password);
@@ -137,11 +167,14 @@ export async function getUbiquitiStatus(ip: string, username: string, password: 
   const sshResult = await trySSHStatus(ip, username, password);
   if (sshResult) return sshResult;
 
-  return {
-    reachable: false,
-    boardName: null, firmware: null, frequency: null, txPower: null,
-    noiseFloor: null, airMaxCapacity: null, cpuLoad: null, freeMemory: null, uptime: null,
-  };
+  // Older airOS devices can answer HTTP while SSH is disabled or unavailable.
+  // A response from the device is enough to establish reachability, even when
+  // its firmware does not expose the status API needed for radio metrics.
+  const httpReachable = await probeHttpReachability(ip);
+  if (httpReachable) {
+    logger.info({ ip }, "Ubiquiti responds over HTTP; SSH/status API unavailable");
+  }
+  return emptyUbiquitiStatus(httpReachable);
 }
 
 function numericCoordinate(value: unknown): number | null {

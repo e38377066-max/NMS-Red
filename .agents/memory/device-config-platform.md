@@ -31,6 +31,14 @@ The current LAN RouterOS REST endpoint responds on HTTP port 80 (an unauthentica
 
 **How to apply:** Limit HTTP/80 use to a trusted private LAN, never expose or port-forward the management endpoint to the Internet, and keep HTTPS for any deployment where LAN trust cannot be assumed.
 
+## Ubiquiti reachability versus telemetry
+
+Do not mark an AirOS device offline solely because its SSH handshake or authenticated status API fails; an HTTP response still proves the device is reachable even if status metrics are unavailable.
+
+**Why:** Older M-series equipment can answer HTTP and wireless-table requests while SSH is disabled or incompatible. Treating that as offline suppresses later metrics collection.
+
+**How to apply:** Use a bounded, read-only HTTP probe as a final reachability fallback, and keep unavailable metrics distinct from device reachability.
+
 ## DHCP server discovery
 
 Only offer a DHCP server as active when RouterOS reports it enabled, valid, and `running=true`. Treat missing `running` as unknown, not active.
