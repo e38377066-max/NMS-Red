@@ -208,7 +208,9 @@ function parseRateMbps(value: unknown): number | null {
 function parseRatePair(value: unknown): { rxMbps: number | null; txMbps: number | null } {
   if (typeof value !== "string") return { rxMbps: null, txMbps: null };
   const [first, second] = value.split("/");
-  return { rxMbps: parseRateMbps(first), txMbps: parseRateMbps(second) };
+  // RouterOS simple queues report upload/download, while the NMS fields are
+  // shown to users as download/upload.
+  return { rxMbps: parseRateMbps(second), txMbps: parseRateMbps(first) };
 }
 
 function parseTarget(value: unknown): string | null {
@@ -228,11 +230,13 @@ export async function getMikroTikTrafficSnapshot(
       mkFetch(ip, username, password, "/queue/simple"),
     ]);
 
-    if (!interfaceResponse.ok) {
+    if (!interfaceResponse.ok && !queueResponse.ok) {
       return { reachable: false, rxMbps: null, txMbps: null, clients: [] };
     }
 
-    const interfaces = await interfaceResponse.json() as Array<Record<string, unknown>>;
+    const interfaces = interfaceResponse.ok
+      ? await interfaceResponse.json() as Array<Record<string, unknown>>
+      : [];
     const activeInterfaces = interfaces.filter((entry) => {
       const name = String(entry.name ?? "").toLowerCase();
       return entry.running !== "false" && !name.includes("loopback");
@@ -240,21 +244,65 @@ export async function getMikroTikTrafficSnapshot(
     const rxValues = activeInterfaces.map((entry) => parseRateMbps(entry["rx-bits-per-second"])).filter((value): value is number => value !== null);
     const txValues = activeInterfaces.map((entry) => parseRateMbps(entry["tx-bits-per-second"])).filter((value): value is number => value !== null);
 
-    const clients: MikroTikTrafficClient[] = [];
-    if (queueResponse.ok) {
-      const queues = await queueResponse.json() as Array<Record<string, unknown>>;
-      for (const queue of queues) {
-        const key = parseTarget(queue.target) ?? String(queue.name ?? "").trim();
-        if (!key) continue;
-        const rates = parseRatePair(queue.rate ?? queue["rate-bytes"]);
-        clients.push({ key, ...rates });
+    const queues = queueResponse.ok
+      ? await queueResponse.json() as Array<Record<string, unknown>>
+      : [];
+    const queueIds = queues
+      .map((queue) => String(queue[".id"] ?? ""))
+      .filter(Boolean);
+    let monitoredQueues: Array<Record<string, unknown>> = [];
+    if (queueIds.length > 0) {
+      const monitorResponse = await mkFetch(ip, username, password, "/queue/simple/monitor", {
+        method: "POST",
+        body: JSON.stringify({ numbers: queueIds.join(","), once: "" }),
+      });
+      if (monitorResponse.ok) {
+        const result: unknown = await monitorResponse.json();
+        monitoredQueues = Array.isArray(result)
+          ? result as Array<Record<string, unknown>>
+          : result && typeof result === "object"
+            ? [result as Record<string, unknown>]
+            : [];
       }
     }
 
+    const monitoredById = new Map(
+      monitoredQueues
+        .map((queue) => [String(queue[".id"] ?? ""), queue] as const)
+        .filter(([id]) => id.length > 0),
+    );
+    const clients: MikroTikTrafficClient[] = [];
+    for (const queue of queues) {
+      if (String(queue.name ?? "").trim().toLowerCase() === "total") continue;
+      const key = parseTarget(queue.target) ?? String(queue.name ?? "").trim();
+      if (!key) continue;
+      const monitored = monitoredById.get(String(queue[".id"] ?? ""));
+      const rates = parseRatePair(
+        monitored?.rate
+        ?? monitored?.["rate-bytes"]
+        ?? queue.rate
+        ?? queue["rate-bytes"],
+      );
+      clients.push({ key, ...rates });
+    }
+
+    const totalQueue = queues.find((queue) => String(queue.name ?? "").trim().toLowerCase() === "total");
+    const totalMonitored = totalQueue
+      ? monitoredById.get(String(totalQueue[".id"] ?? ""))
+      : undefined;
+    const totalQueueRates = totalQueue
+      ? parseRatePair(
+        totalMonitored?.rate
+        ?? totalMonitored?.["rate-bytes"]
+        ?? totalQueue.rate
+        ?? totalQueue["rate-bytes"],
+      )
+      : { rxMbps: null, txMbps: null };
+
     return {
       reachable: true,
-      rxMbps: rxValues.length ? rxValues.reduce((sum, value) => sum + value, 0) : null,
-      txMbps: txValues.length ? txValues.reduce((sum, value) => sum + value, 0) : null,
+      rxMbps: totalQueueRates.rxMbps ?? (rxValues.length ? rxValues.reduce((sum, value) => sum + value, 0) : null),
+      txMbps: totalQueueRates.txMbps ?? (txValues.length ? txValues.reduce((sum, value) => sum + value, 0) : null),
       clients,
     };
   } catch (error) {

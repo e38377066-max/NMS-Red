@@ -90,9 +90,10 @@ export default function Monitoring() {
       return response.json() as Promise<NetworkMonitoringSnapshot>;
     },
     staleTime: 10_000,
+    refetchInterval: isConnected ? false : 15_000,
   });
 
-  const data = telemetry ?? initialData;
+  const data = isConnected ? telemetry ?? initialData : initialData;
 
   useEffect(() => {
     if (!data) return;
@@ -154,7 +155,7 @@ export default function Monitoring() {
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className={`h-2 w-2 rounded-full ${isConnected ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-amber-400"}`} />
-            {isConnected ? "Telemetría en vivo" : "Esperando WebSocket"}
+            {isConnected ? "Telemetría en vivo" : "HTTP fallback · actualización cada 15 s"}
           </span>
           <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />

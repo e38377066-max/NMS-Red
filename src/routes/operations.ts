@@ -63,7 +63,7 @@ import {
 } from "../services/field-work-scheduling.service";
 
 type Column = { model: any; attr: string };
-type Condition = { kind: string; column?: Column; value?: any; values?: any[]; conditions?: Condition[] };
+type Condition = { kind: string; column?: Column; otherColumn?: Column; value?: any; values?: any[]; conditions?: Condition[] };
 const table = (model: any) => {
   const result: any = { __model: model };
   for (const key of Object.keys(model.rawAttributes ?? {})) result[key] = { model, attr: key };
@@ -81,6 +81,7 @@ const {
   MaintenanceNotice: maintenanceNoticesTable,
 } = Object.fromEntries(Object.entries(models).map(([name, model]) => [name, table(model)])) as any;
 const eq = (column: Column, value: any): Condition => ({ kind: "eq", column, value });
+const eqColumns = (column: Column, otherColumn: Column): Condition => ({ kind: "columnEq", column, otherColumn });
 const and = (...conditions: Condition[]): Condition => ({ kind: "and", conditions });
 const or = (...conditions: Condition[]): Condition => ({ kind: "or", conditions });
 const isNull = (column: Column): Condition => ({ kind: "null", column });
@@ -121,6 +122,7 @@ class SqlBuilder {
       return parts.length ? parts.join(condition.kind === "and" ? " AND " : " OR ") : "TRUE";
     }
     const column = this.column(condition.column!);
+    if (condition.kind === "columnEq") return `${column} = ${this.column(condition.otherColumn!)}`;
     if (condition.kind === "null") return `${column} IS NULL`;
     if (condition.kind === "notnull") return `${column} IS NOT NULL`;
     if (condition.kind === "in") {
@@ -683,7 +685,7 @@ router.get("/clients/:id/history", async (req, res): Promise<void> => {
     createdAt: clientChangeHistoryTable.createdAt,
   })
     .from(clientChangeHistoryTable)
-    .leftJoin(usersTable, eq(usersTable.id, clientChangeHistoryTable.changedByUserId))
+    .leftJoin(usersTable, eqColumns(usersTable.id, clientChangeHistoryTable.changedByUserId))
     .where(eq(clientChangeHistoryTable.clientId, clientId))
     .orderBy(desc(clientChangeHistoryTable.createdAt));
   res.json(rows.map(serializeDates));
@@ -1341,7 +1343,7 @@ router.get("/work-orders/mine", async (_req, res): Promise<void> => {
     clientName: clientsTable.name,
     clientInstallationAddress: clientsTable.installationAddress,
   }).from(fieldWorkOrdersTable)
-    .leftJoin(clientsTable, eq(clientsTable.id, fieldWorkOrdersTable.clientId))
+    .leftJoin(clientsTable, eqColumns(clientsTable.id, fieldWorkOrdersTable.clientId))
     .where(eq(fieldWorkOrdersTable.assignedToUserId, userId))
     .orderBy(asc(fieldWorkOrdersTable.scheduledAt), asc(fieldWorkOrdersTable.createdAt));
 

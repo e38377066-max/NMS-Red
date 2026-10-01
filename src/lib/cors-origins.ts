@@ -16,6 +16,8 @@ export const allowedCorsOrigins = [
   "capacitor://localhost",
   "https://localhost",
   "http://localhost",
+  "http://localhost:5000",
+  "http://127.0.0.1:5000",
 ]
   .map(normalizeOrigin)
   .filter((origin): origin is string => origin !== null);
