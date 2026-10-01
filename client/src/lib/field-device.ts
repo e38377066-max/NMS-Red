@@ -5,23 +5,6 @@ import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { Motion } from "@capacitor/motion";
 import { CameraPreview } from "@capacitor-community/camera-preview";
 
-let cameraTransparentAncestors: HTMLElement[] = [];
-
-function enableCameraPreviewTransparency(element: HTMLElement): void {
-  cameraTransparentAncestors = [];
-  for (let current: HTMLElement | null = element; current && current !== document.body; current = current.parentElement) {
-    current.dataset.capacitorCameraTransparent = "true";
-    cameraTransparentAncestors.push(current);
-  }
-  document.documentElement.classList.add("capacitor-camera-active");
-}
-
-function disableCameraPreviewTransparency(): void {
-  cameraTransparentAncestors.forEach(element => delete element.dataset.capacitorCameraTransparent);
-  cameraTransparentAncestors = [];
-  document.documentElement.classList.remove("capacitor-camera-active");
-}
-
 export type FieldCoordinate = {
   latitude: number;
   longitude: number;
@@ -190,19 +173,20 @@ export async function startFieldCameraPreview(elementId: string): Promise<void> 
   }
 
   const rect = element.getBoundingClientRect();
-  enableCameraPreviewTransparency(element);
+  const pixelRatio = window.devicePixelRatio || 1;
+  document.documentElement.classList.add("capacitor-camera-active");
   try {
     await CameraPreview.start({
       position: "rear",
-      x: Math.round(rect.left),
-      y: Math.round(rect.top),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
+      x: Math.round(rect.left * pixelRatio),
+      y: Math.round(rect.top * pixelRatio),
+      width: Math.round(rect.width * pixelRatio),
+      height: Math.round(rect.height * pixelRatio),
       toBack: true,
       enableZoom: true,
     });
   } catch (error) {
-    disableCameraPreviewTransparency();
+    document.documentElement.classList.remove("capacitor-camera-active");
     throw error;
   }
 }
@@ -211,7 +195,7 @@ export async function stopFieldCameraPreview(): Promise<void> {
   try {
     await CameraPreview.stop();
   } finally {
-    disableCameraPreviewTransparency();
+    document.documentElement.classList.remove("capacitor-camera-active");
   }
 }
 

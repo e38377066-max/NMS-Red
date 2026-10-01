@@ -3,8 +3,8 @@ name: Replit preview port routing
 description: Diagnose a healthy workspace server when the Replit Preview pane still shows a port-unreachable page.
 ---
 
-**Rule:** Compare the port opened by the workflow and its local HTTP response with `.replit`'s `[[ports]]` external mapping and the port selected in Preview. If local port 5000 maps to external port 80, use the mapped web preview/base domain without `:5000`; the explicit `:5000` URL is a different route.
+**Rule:** Compare the workflow port, local HTTP response, base development domain, and explicit `:5000` URL. A healthy local server and base domain can coexist with a 502 on the explicit high-port URL; use the base domain or Preview's port selector.
 
-**Why:** In this workspace the server and container IP returned 200 on port 5000, the base `REPLIT_DEV_DOMAIN` returned 200 after mapping local 5000 to external 80, but the explicit `:5000` domain returned 502. Restarting the workflow did not change which port Preview had selected.
+**Why:** In this workspace the server and container IP returned 200 on port 5000, the base `REPLIT_DEV_DOMAIN` returned 200, but the explicit `:5000` URL returned 502. Replit later normalized away the temporary port mapping, and restarting did not change the Preview pane's selected route.
 
-**How to apply:** When Preview still shows “couldn't reach this app,” avoid changing app routes after local and base-domain checks succeed. Click the Preview location domain and select the route matching the configured external mapping, or open the base development domain. Restart only after changing workflow or port configuration, not just because Preview retained an old selection.
+**How to apply:** When Preview still shows “couldn't reach this app,” check the base development domain before changing app routes or repeating restarts. Open the base domain or click the Preview location domain and select the app's available port. Re-read `.replit` after validation or restart because Replit may normalize port mappings.
