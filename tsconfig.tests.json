@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.server.json",
+  "compilerOptions": {
+    "composite": false
+  },
+  "include": ["tests/**/*.test.ts"]
+}

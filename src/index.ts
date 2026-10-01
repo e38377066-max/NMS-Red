@@ -9,6 +9,7 @@ import { startBackupCron } from "./services/backup.service";
 import { setNetworkMonitoringSocket, startNetworkMonitoring } from "./services/network-monitoring.service";
 import { setTaskQueueSocket, startTaskQueue } from "./services/task-queue.service";
 import { bootstrapInitialAdmin, extractUserFromRequest } from "./services/auth.service";
+import { createSocketSessionMiddleware } from "./middlewares/socket-auth";
 import { sequelize } from "./db";
 
 const rawPort = process.env["PORT"] ?? "5000";
@@ -30,25 +31,7 @@ const io = new SocketServer(httpServer, {
   path: "/ws/socket.io",
 });
 
-io.use(async (socket, next) => {
-  const token = socket.handshake.auth?.token;
-  if (typeof token !== "string" || token.length === 0) {
-    next(new Error("Authentication required"));
-    return;
-  }
-
-  try {
-    const user = await extractUserFromRequest(`Bearer ${token}`);
-    if (!user) {
-      next(new Error("Authentication required"));
-      return;
-    }
-    socket.data.authUser = user;
-    next();
-  } catch {
-    next(new Error("Authentication required"));
-  }
-});
+io.use(createSocketSessionMiddleware());
 
 setSocketServer(io);
 setBillingSocketServer(io);

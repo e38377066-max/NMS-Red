@@ -11,7 +11,7 @@ interface ProxmoxTicket {
   CSRFPreventionToken: string;
 }
 
-async function fetchProxmox<T>(
+export async function fetchProxmox<T>(
   ip: string,
   port: number,
   path: string,
@@ -20,7 +20,8 @@ async function fetchProxmox<T>(
     ticket?: string;
     csrf?: string;
     body?: unknown;
-  } = {}
+  } = {},
+  requestFn: typeof https.request = https.request,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const { method = "GET", ticket, csrf, body } = options;
@@ -40,7 +41,7 @@ async function fetchProxmox<T>(
       },
     };
 
-    const req = https.request(reqOptions, (res) => {
+    const req = requestFn(reqOptions, (res) => {
       let data = "";
       res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
       res.on("end", () => {
@@ -222,14 +223,15 @@ export async function listProxmoxVms(
 }
 
 export async function startVm(
-  ip: string, port: number, ticket: ProxmoxTicket, nodeName: string, vmid: number
+  ip: string, port: number, ticket: ProxmoxTicket, nodeName: string, vmid: number,
+  requestFn: typeof https.request = https.request,
 ): Promise<{ success: boolean; message: string }> {
   try {
     await fetchProxmox(ip, port, `/nodes/${nodeName}/qemu/${vmid}/status/start`, {
       method: "POST",
       ticket: ticket.ticket,
       csrf: ticket.CSRFPreventionToken,
-    });
+    }, requestFn);
     return { success: true, message: `VM ${vmid} iniciada correctamente` };
   } catch (err) {
     logger.warn({ ip, vmid, err }, "Failed to start VM");
