@@ -41,7 +41,7 @@ async function tryHttpStatus(ip: string, username: string, password: string): Pr
     const loginRes = await fetch(`http://${ip}/api/auth`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password: decryptSecret(password) }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
