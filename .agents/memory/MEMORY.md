@@ -4,6 +4,7 @@
 - [DHCP lease and queue identity](dhcp-queue-identity.md) — use the client comment/name as stable identity while IP and MAC remain match/target data
 - [Imported NMS database](dev-db-bootstrap.md) — an empty development database needs the Drizzle schema pushed before API-backed previews can show equipment state
 - [OpenAPI/Zod codegen](api-codegen-zod.md) — keep the post-Orval compatibility pass because this workspace stays on Zod 3
+- [Drizzle schema paths on Windows](drizzle-windows-paths.md) — use a package-relative schema path; absolute backslash paths may not be found by Drizzle Kit's glob scan
 - [Ticket attachment storage](ticket-attachment-storage.md) — keep ticket files on a dedicated persistent Railway volume path, separate from backups
 - [Field technician scheduling](field-scheduling.md) — use explicit dated availability blocks; scheduled orders must fit a block and avoid active-order overlaps
 - [Expo web session storage](expo-web-session-storage.md) — SecureStore is native-only; use memory-only tokens in web previews, never localStorage
