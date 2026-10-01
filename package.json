@@ -11,13 +11,18 @@
     "start": "NODE_ENV=production PORT=${PORT:-5000} pnpm exec tsx src/index.ts",
     "typecheck:server": "pnpm exec tsc --noEmit -p tsconfig.server.json",
     "typecheck:client": "pnpm --filter @workspace/client run typecheck",
-    "typecheck:workspace": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./mobile/**\" --filter \"./scripts\" --if-present run typecheck",
+    "typecheck:workspace": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "typecheck:libs": "tsc --build",
-    "typecheck:mobile": "pnpm --filter @workspace/nms-field-app run typecheck",
-    "typecheck": "pnpm run typecheck:libs && pnpm run typecheck:client && pnpm run typecheck:server && pnpm run typecheck:mobile"
+    "typecheck": "pnpm run typecheck:libs && pnpm run typecheck:client && pnpm run typecheck:server && pnpm run typecheck:workspace",
+    "cap:sync": "node scripts/validate-capacitor-api.mjs && pnpm run build:web && pnpm exec cap sync",
+    "cap:open:android": "pnpm exec cap open android",
+    "cap:open:ios": "pnpm exec cap open ios"
   },
   "private": true,
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "prettier": "^3.8.3",
     "typescript": "~5.9.3"
   },

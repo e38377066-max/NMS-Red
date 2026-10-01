@@ -35,7 +35,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useWebSocket } from "@/hooks/use-websocket";
 import type { NetworkMonitoringSnapshot } from "@/types/monitoring";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { apiFetch } from "@/lib/api-fetch";
 const chartTooltipStyle = {
   backgroundColor: "#171827",
   border: "1px solid rgba(255,255,255,0.12)",
@@ -85,7 +85,7 @@ export default function Monitoring() {
   const { data: initialData, isLoading, isFetching, refetch } = useQuery<NetworkMonitoringSnapshot>({
     queryKey: ["network-monitoring-overview"],
     queryFn: async () => {
-      const response = await fetch(`${BASE}/api/monitoring/overview`);
+      const response = await apiFetch("/api/monitoring/overview");
       if (!response.ok) throw new Error("No se pudo cargar el monitoreo");
       return response.json() as Promise<NetworkMonitoringSnapshot>;
     },

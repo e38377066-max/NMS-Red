@@ -17,7 +17,7 @@ import { SignalStrength } from "@/components/signal-strength";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { apiFetch } from "@/lib/api-fetch";
 
 function PaymentBadge({ status }: { status: string }) {
   if (status === "PAID") return (
@@ -50,7 +50,7 @@ export default function Clients() {
   const { data: users } = useQuery<Array<{ id: number; username: string; role: string }>>({
     queryKey: ["users-for-client-assignment"],
     queryFn: async () => {
-      const response = await fetch(`${BASE}/api/users`);
+      const response = await apiFetch("/api/users");
       if (!response.ok) throw new Error("No se pudieron cargar los técnicos");
       return response.json();
     },

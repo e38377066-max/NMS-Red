@@ -20,12 +20,16 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { clearAuth, getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, logoutAuth } from "@/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [, navigate] = useLocation();
   const { isConnected } = useWebSocket();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const currentUser = getCurrentUser();
 
@@ -125,8 +129,13 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="p-4 border-t border-border">
           <button
             type="button"
-            onClick={() => {
-              clearAuth();
+            onClick={async () => {
+              try {
+                await logoutAuth();
+              } catch {
+                toast({ title: "Sesión cerrada en este dispositivo", description: "No se pudo confirmar la revocación con el servidor." });
+              }
+              queryClient.clear();
               navigate("/login");
             }}
             className="flex items-center gap-3 px-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"

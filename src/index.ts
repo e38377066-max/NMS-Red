@@ -4,6 +4,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startMonitoring, setSocketServer } from "./services/monitoring.service";
 import { startBillingCron, setBillingSocketServer } from "./services/billing.service";
+import { isAllowedCorsOrigin } from "./lib/cors-origins";
 import { startBackupCron } from "./services/backup.service";
 import { setNetworkMonitoringSocket, startNetworkMonitoring } from "./services/network-monitoring.service";
 import { setTaskQueueSocket, startTaskQueue } from "./services/task-queue.service";
@@ -22,9 +23,10 @@ const httpServer = createServer(app);
 
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: "*",
+    origin: (origin, callback) => callback(null, isAllowedCorsOrigin(origin)),
     methods: ["GET", "POST"],
   },
+  allowRequest: (request, callback) => callback(null, isAllowedCorsOrigin(request.headers.origin)),
   path: "/ws/socket.io",
 });
 

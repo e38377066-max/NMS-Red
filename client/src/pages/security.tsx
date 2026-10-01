@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { apiFetch } from "@/lib/api-fetch";
 
 type RuleKind = "filter" | "nat" | "mangle" | "raw";
 type SecurityTab = RuleKind | "lists" | "services";
@@ -413,7 +413,7 @@ export default function Security() {
     queryKey: securityKey,
     enabled: Boolean(equipmentId),
     queryFn: async () => {
-      const response = await fetch(`${BASE}/api/equipment/${equipmentId}/security`, { credentials: "include" });
+      const response = await apiFetch(`/api/equipment/${equipmentId}/security`, { credentials: "include" });
       const body = await response.json() as SecurityResponse & { message?: string; error?: string };
       if (!response.ok) throw new Error(body.message ?? body.error ?? "No se pudo leer la seguridad del equipo.");
       return body;
@@ -520,8 +520,8 @@ export default function Security() {
       return;
     }
     try {
-      const endpoint = `${BASE}/api/equipment/${equipmentId}/security/${ruleKind}${editingRule ? `/${ruleId(editingRule)}` : ""}`;
-      const response = await fetch(endpoint, {
+      const endpoint = `/api/equipment/${equipmentId}/security/${ruleKind}${editingRule ? `/${ruleId(editingRule)}` : ""}`;
+      const response = await apiFetch(endpoint, {
         method: editingRule ? "PATCH" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -541,7 +541,7 @@ export default function Security() {
     if (!equipmentId || !ruleId(rule)) return;
     if (!confirm(`¿Eliminar la regla “${rule.comment ?? rule.action ?? "sin comentario"}”? Esta acción se aplicará al router.`)) return;
     try {
-      const response = await fetch(`${BASE}/api/equipment/${equipmentId}/security/${kind}/${ruleId(rule)}`, { method: "DELETE", credentials: "include" });
+      const response = await apiFetch(`/api/equipment/${equipmentId}/security/${kind}/${ruleId(rule)}`, { method: "DELETE", credentials: "include" });
       const body = await response.json() as MutationResponse;
       if (!response.ok || body.success === false) throw new Error(body.message ?? "No se pudo eliminar la regla.");
       await queryClient.invalidateQueries({ queryKey: securityKey });
@@ -554,7 +554,7 @@ export default function Security() {
   const saveAddress = async () => {
     if (!equipmentId || !addressForm.list.trim() || !addressForm.address.trim()) return;
     try {
-      const response = await fetch(`${BASE}/api/equipment/${equipmentId}/security/address-list`, {
+      const response = await apiFetch(`/api/equipment/${equipmentId}/security/address-list`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -576,7 +576,7 @@ export default function Security() {
     if (!equipmentId || !id) return;
     if (!confirm(`¿Quitar ${entry.address ?? "esta dirección"} de la lista ${entry.list ?? ""}?`)) return;
     try {
-      const response = await fetch(`${BASE}/api/equipment/${equipmentId}/security/address-list/${id}`, { method: "DELETE", credentials: "include" });
+      const response = await apiFetch(`/api/equipment/${equipmentId}/security/address-list/${id}`, { method: "DELETE", credentials: "include" });
       const body = await response.json() as MutationResponse;
       if (!response.ok || body.success === false) throw new Error(body.message ?? "No se pudo quitar la dirección.");
       await queryClient.invalidateQueries({ queryKey: securityKey });

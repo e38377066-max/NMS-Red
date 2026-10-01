@@ -6,10 +6,12 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 
 - `pnpm install --frozen-lockfile` — instalar las dependencias del workspace.
 - En Replit, `Start application` ejecuta el sitio y la API integrados: React en `/`, Express en `/api`, puerto 5000.
-- La app Expo para Android/iOS vive en `mobile/nms-field-app`; `pnpm --filter @workspace/nms-field-app run dev` inicia su workflow.
+- La aplicación de campo comparte el cliente React/Vite de `client/`; Capacitor prepara los proyectos Android e iOS con `pnpm cap:sync`.
+- Los builds móviles requieren `VITE_API_BASE_URL` con el origen HTTPS público del API. No usar un dominio de desarrollo de Replit en paquetes de distribución.
 - `pnpm run dev` — compila el cliente y arranca el servidor Express integrado.
-- `pnpm run typecheck` — typecheck completo en todos los paquetes
+- `pnpm run typecheck` — typecheck de librerías, cliente, API y workspaces activos
 - `pnpm run build` — typecheck + build todos los paquetes
+- `pnpm cap:sync` — valida la URL HTTPS, compila React/Vite y sincroniza los proyectos Capacitor
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks y schemas Zod desde el spec OpenAPI
 - `pnpm --filter @workspace/db run push` — inicializar el esquema de desarrollo solo después de confirmar que la base está vacía; no ejecutar sobre una base con datos del proyecto.
 - Alta administrativa: usar `POST /api/clients/provision` con `equipmentId`, `name`, `mac`, `fixedIp` y `planLimit`; verifica lease DHCP estático, Simple Queue y `Clientes_Activos`, con rollback si falla el alta.
@@ -26,7 +28,7 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 
 ## Stack
 
-- pnpm workspaces, Node.js 20, TypeScript 5.9
+- pnpm workspaces, Node.js 22, TypeScript 5.9
 - API: Express 5 + Socket.io (WebSocket real-time) en `src/`
 - DB: PostgreSQL + Sequelize en tiempo de ejecución; los paquetes Drizzle existentes se conservan para compatibilidad del esquema y codegen.
 - Validación: Zod (`zod/v4`), `drizzle-zod`
@@ -42,7 +44,9 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 - `lib/api-zod/src/generated/` — schemas Zod generados
 - `src/services/` y `src/routes/` — lógica y rutas de Express
 - `client/src/pages/` — páginas del dashboard
-- `mobile/nms-field-app/` — app Expo para técnicos
+- `client/src/pages/field/` — agenda y flujos de técnicos de campo
+- `android/` y `ios/` — proyectos nativos Capacitor generados desde el cliente compartido
+- `mobile/nms-field-app/` — código Expo anterior conservado como referencia; fuera del workspace activo
 - `archive/api-server/` y `archive/nms-dashboard/` — copias anteriores, fuera del workspace activo
 - `artifacts/*/.replit-artifact/artifact.toml` — metadatos de previews anteriores; Replit no permite desvincular esos registros de este proyecto.
 

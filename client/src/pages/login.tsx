@@ -1,5 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { Capacitor } from "@capacitor/core";
 import { Activity, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useLoginUser } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,7 @@ import { saveAuth } from "@/lib/auth";
 
 export default function Login() {
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const login = useLoginUser();
   const [username, setUsername] = useState("");
@@ -23,10 +26,20 @@ export default function Login() {
     login.mutate(
       { data: { username: username.trim(), password } },
       {
-        onSuccess: (result) => {
-          saveAuth(result);
+        onSuccess: async (result) => {
+          try {
+            await saveAuth(result);
+          } catch (error) {
+            toast({
+              title: "No se pudo guardar la sesión segura",
+              description: error instanceof Error ? error.message : "Vuelve a intentarlo.",
+              variant: "destructive",
+            });
+            return;
+          }
+          queryClient.clear();
           toast({ title: "Sesión iniciada", description: `Bienvenido, ${result.user.username}.` });
-          navigate("/");
+          navigate(Capacitor.isNativePlatform() ? "/field" : "/");
         },
         onError: (error) => {
           toast({

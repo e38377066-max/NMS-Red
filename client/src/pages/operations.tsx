@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { getAuthToken } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
   downloadSupportTicketAttachment,
@@ -45,7 +44,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { apiFetch } from "@/lib/api-fetch";
 
 type Report = {
   clients: { total: number; byStatus: Record<string, number>; byPaymentStatus: Record<string, number> };
@@ -80,10 +79,9 @@ function supportTicketClientLabel(ticket: { category: string; clientId?: number 
 }
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken();
-  const response = await fetch(`${BASE}/api${path}`, {
+  const response = await apiFetch(`/api${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "", ...(options.headers ?? {}) },
+    headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
   });
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new Error(body?.error ?? "No se pudo completar la operación");

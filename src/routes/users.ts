@@ -66,6 +66,28 @@ router.post("/users/logout", async (req, res): Promise<void> => {
 });
 
 router.use(requireAuth);
+router.get("/users/me", async (_req, res): Promise<void> => {
+  const principal = res.locals.user as { id: number } | undefined;
+  if (!principal) {
+    res.status(401).json({ error: "Autenticación requerida" });
+    return;
+  }
+
+  const user = await User.findByPk(principal.id, {
+    attributes: ["id", "username", "role", "createdAt"],
+  });
+  if (!user) {
+    res.status(401).json({ error: "La cuenta ya no existe" });
+    return;
+  }
+
+  res.json({
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    createdAt: user.createdAt,
+  });
+});
 router.use(requireRole("admin"));
 
 router.get("/users", async (_req, res): Promise<void> => {

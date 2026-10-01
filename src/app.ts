@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { corsOriginCallback } from "./lib/cors-origins";
 
 const app: Express = express();
 
@@ -27,29 +28,8 @@ app.use(
     },
   }),
 );
-const normalizeOrigin = (value: string): string | null => {
-  const candidate = value.trim();
-  if (!candidate) return null;
-  try {
-    return new URL(candidate.includes("://") ? candidate : `https://${candidate}`).origin;
-  } catch {
-    return null;
-  }
-};
-const configuredOrigins = [
-  ...(process.env.CORS_ORIGINS ?? "").split(","),
-  ...(process.env.REPLIT_DOMAINS ?? "").split(","),
-  process.env.REPLIT_DEV_DOMAIN ?? "",
-  process.env.REPLIT_EXPO_DEV_DOMAIN ?? "",
-].map(normalizeOrigin).filter((origin): origin is string => origin !== null);
-
 app.use(cors({
-  origin: configuredOrigins.length > 0
-    ? (origin, callback) => {
-        if (!origin || configuredOrigins.includes(origin)) callback(null, true);
-        else callback(null, false);
-      }
-    : false,
+  origin: corsOriginCallback,
 }));
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { io, Socket } from "socket.io-client";
+import { API_BASE_URL } from "@/lib/api-config";
 import { getListEquipmentQueryKey, getListAlertsQueryKey, getGetMonitoringSummaryQueryKey } from "@workspace/api-client-react";
 import type { NetworkMonitoringSnapshot } from "@/types/monitoring";
 
@@ -13,7 +14,7 @@ export function useWebSocket() {
 
   useEffect(() => {
     if (!socket) {
-      socket = io({
+      socket = io(API_BASE_URL ?? undefined, {
         path: "/ws/socket.io",
         transports: ["websocket", "polling"],
         reconnectionDelay: 3000,

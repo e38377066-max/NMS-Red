@@ -2588,6 +2588,17 @@ export const CreateUserResponse = zod.object({
 
 
 /**
+ * @summary Get the authenticated user
+ */
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.int(),
+  "username": zod.string(),
+  "role": zod.enum(['admin', 'operator']),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
  * @summary Login
  */
 export const LoginUserBody = zod.object({

@@ -42,9 +42,8 @@ import {
   type SupportTicketAttachment,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-const TOKEN_KEY = "isp-cockpit-portal-token";
+import { apiFetch } from "@/lib/api-fetch";
+import { clearPortalToken, getPortalToken, restorePortalToken, savePortalToken } from "@/lib/portal-session";
 
 type Equipment = {
   id: number;
@@ -159,7 +158,7 @@ function ticketStatusLabel(ticket: TicketRow) {
 }
 
 async function portalApi<T>(token: string, path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${BASE}/api/portal${path}`, {
+  const response = await apiFetch(`/api/portal${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -217,10 +216,10 @@ function PortalLogin({ initialToken, onLogin }: { initialToken: string; onLogin:
 export default function ClientPortal() {
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get("token") ?? "";
-  const [token, setToken] = useState(() => urlToken || window.localStorage.getItem(TOKEN_KEY) || "");
+  const [token, setToken] = useState(urlToken);
   const [session, setSession] = useState<PortalSession | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [loading, setLoading] = useState(Boolean(token));
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [section, setSection] = useState<"overview" | "payments" | "tickets">("overview");
   const { toast } = useToast();
@@ -235,9 +234,9 @@ export default function ClientPortal() {
       ]);
       setSession(nextSession);
       setNotices(nextNotices);
-      window.localStorage.setItem(TOKEN_KEY, activeToken);
+      await savePortalToken(activeToken);
     } catch (reason) {
-      window.localStorage.removeItem(TOKEN_KEY);
+      await clearPortalToken();
       setToken("");
       setSession(null);
       setError(reason instanceof Error ? reason.message : "Token inválido o expirado");
@@ -247,7 +246,26 @@ export default function ClientPortal() {
   };
 
   useEffect(() => {
-    if (token) void load(token);
+    let cancelled = false;
+    const initialize = async () => {
+      const restoredToken = urlToken || await restorePortalToken();
+      if (urlToken) {
+        const cleanedUrl = new URL(window.location.href);
+        cleanedUrl.searchParams.delete("token");
+        window.history.replaceState(null, "", `${cleanedUrl.pathname}${cleanedUrl.search}${cleanedUrl.hash}`);
+      }
+      if (cancelled) return;
+      if (!restoredToken) {
+        setLoading(false);
+        return;
+      }
+      setToken(restoredToken);
+      void load(restoredToken);
+    };
+    void initialize();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!token || (!session && !loading)) {
@@ -261,7 +279,7 @@ export default function ClientPortal() {
   const balance = session.invoices.reduce((sum, invoice) => sum + Number(invoice.balanceDue), 0);
   const overdue = session.client.dueDate ? new Date(session.client.dueDate) < new Date() && balance > 0 : false;
   const logout = () => {
-    window.localStorage.removeItem(TOKEN_KEY);
+    void clearPortalToken();
     setToken("");
     setSession(null);
   };
@@ -280,7 +298,7 @@ export default function ClientPortal() {
 
   const downloadReceipt = async (payment: Payment) => {
     try {
-      const response = await fetch(`${BASE}/api/portal/payments/${payment.id}/receipt`, { headers: { "x-portal-token": token } });
+      const response = await apiFetch(`/api/portal/payments/${payment.id}/receipt`, { headers: { "x-portal-token": token } });
       if (!response.ok) throw new Error("No se pudo descargar el recibo");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -296,7 +314,7 @@ export default function ClientPortal() {
 
   const downloadProof = async (proof: PaymentProof) => {
     try {
-      const response = await fetch(`${BASE}/api/portal/payment-proofs/${proof.id}/download`, { headers: { "x-portal-token": token } });
+      const response = await apiFetch(`/api/portal/payment-proofs/${proof.id}/download`, { headers: { "x-portal-token": token } });
       if (!response.ok) throw new Error("No se pudo descargar el comprobante");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -391,7 +409,7 @@ function Payments({ session, onReceipt, onProof, onRefresh }: {
     }
     setSending(true);
     try {
-      const token = window.localStorage.getItem(TOKEN_KEY) ?? "";
+      const token = getPortalToken() ?? "";
       const encoded = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -444,7 +462,7 @@ function Support({ session, onRequest, onRefresh }: { session: PortalSession; on
   const [file, setFile] = useState<File | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const portalToken = window.localStorage.getItem(TOKEN_KEY) ?? "";
+  const portalToken = getPortalToken() ?? "";
   const portalRequest = { headers: { "x-portal-token": portalToken } };
   const notificationsQuery = useListPortalNotifications({ query: { queryKey: getListPortalNotificationsQueryKey(), staleTime: 10_000, refetchInterval: 30_000 }, request: portalRequest });
   const reopenableQuery = useListPortalReopenableTickets({ query: { queryKey: getListPortalReopenableTicketsQueryKey(), staleTime: 10_000, refetchInterval: 30_000 }, request: portalRequest });
@@ -469,7 +487,7 @@ function Support({ session, onRequest, onRefresh }: { session: PortalSession; on
   const closeTicket = async (ticketId: number) => {
     setBusyTicketId(ticketId);
     try {
-      const token = window.localStorage.getItem(TOKEN_KEY) ?? "";
+      const token = getPortalToken() ?? "";
       await portalApi(token, `/tickets/${ticketId}/close`, { method: "POST" });
       toast({ title: "Ticket cerrado", description: "Gracias por confirmar la atención." });
       await onRefresh();

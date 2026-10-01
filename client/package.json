@@ -75,6 +75,13 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.1",
+    "@capacitor-community/camera-preview": "^8.0.2",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/geolocation": "^8.2.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/motion": "^8.0.1",
     "socket.io-client": "^4.8.3"
   }
 }

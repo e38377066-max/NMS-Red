@@ -30,6 +30,7 @@ import {
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentUser } from "@/lib/auth";
+import { apiFetch } from "@/lib/api-fetch";
 
 type DhcpLease = {
   id: string;
@@ -91,20 +92,38 @@ function contractStatusClass(status: ClientContract["status"]) {
   return "border-yellow-500/30 text-yellow-400";
 }
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
 export default function ClientDetail() {
   const [, params] = useRoute("/clients/:id");
   const id = Number(params?.id);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const downloadContract = async (contract: ClientContract) => {
+    try {
+      const response = await apiFetch(`/api/clients/${id}/contracts/${contract.id}/download`);
+      if (!response.ok) throw new Error("No se pudo descargar el contrato.");
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `contrato-${id}-${contract.id}.pdf`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (cause) {
+      toast({
+        title: "No se pudo descargar el contrato",
+        description: cause instanceof Error ? cause.message : "Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const { data: client, isLoading } = useGetClient(id, { query: { queryKey: getGetClientQueryKey(id) } });
   const { data: metrics } = useGetClientMetrics(id, { hours: 24 }, { query: { queryKey: getGetClientMetricsQueryKey(id, { hours: 24 }) } });
   const historyQuery = useQuery<ClientHistory[]>({
     queryKey: ["client-history", id],
     queryFn: async () => {
-      const response = await fetch(`${BASE}/api/clients/${id}/history`);
+      const response = await apiFetch(`/api/clients/${id}/history`);
       if (!response.ok) throw new Error("No se pudo cargar el historial");
       return response.json();
     },
@@ -116,7 +135,7 @@ export default function ClientDetail() {
   const { data: users } = useQuery<Array<{ id: number; username: string }>>({
     queryKey: ["users-for-client-detail"],
     queryFn: async () => {
-      const response = await fetch(`${BASE}/api/users`);
+      const response = await apiFetch("/api/users");
       if (!response.ok) throw new Error("No se pudieron cargar los técnicos");
       return response.json();
     },
@@ -161,7 +180,7 @@ export default function ClientDetail() {
     queryKey: ["dhcp-leases", client?.equipmentId],
     queryFn: async () => {
       if (!client?.equipmentId) return [];
-      const res = await fetch(`${BASE}/api/equipment/${client.equipmentId}/dhcp-leases`);
+      const res = await apiFetch(`/api/equipment/${client.equipmentId}/dhcp-leases`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -171,7 +190,7 @@ export default function ClientDetail() {
 
   const createLease = useMutation({
     mutationFn: async ({ fixedIp, dhcpServer }: { fixedIp: string; dhcpServer: string }) => {
-      const res = await fetch(`${BASE}/api/clients/${id}/dhcp-lease`, {
+      const res = await apiFetch(`/api/clients/${id}/dhcp-lease`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fixedIp, dhcpServer: dhcpServer || undefined }),
@@ -191,7 +210,7 @@ export default function ClientDetail() {
 
   const deleteLease = useMutation({
     mutationFn: async (leaseId: string) => {
-      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}`, { method: "DELETE" });
       return res.json();
     },
     onSuccess: () => {
@@ -202,7 +221,7 @@ export default function ClientDetail() {
 
   const makeStatic = useMutation({
     mutationFn: async ({ leaseId, clientId }: { leaseId: string; clientId: number }) => {
-      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}/make-static`, {
+      const res = await apiFetch(`/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}/make-static`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId }),
@@ -260,7 +279,7 @@ export default function ClientDetail() {
 
   const uploadContract = useMutation({
     mutationFn: async (file: File) => {
-      const response = await fetch(`${BASE}/api/clients/${id}/contracts`, {
+      const response = await apiFetch(`/api/clients/${id}/contracts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/pdf",
@@ -710,7 +729,7 @@ export default function ClientDetail() {
                       size="sm"
                       variant="ghost"
                       className="shrink-0"
-                      onClick={() => window.open(`${BASE}/api/clients/${id}/contracts/${contract.id}/download`, "_blank", "noopener,noreferrer")}
+                      onClick={() => void downloadContract(contract)}
                     >
                       <Download className="mr-2 h-3.5 w-3.5" /> Descargar
                     </Button>

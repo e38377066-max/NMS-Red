@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
 import { useListEquipment } from "@workspace/api-client-react";
-import { getAuthToken } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,12 +32,13 @@ type Report = {
   differences: Difference[];
 };
 
+import { apiFetch } from "@/lib/api-fetch";
+
 async function apiRequest(path: string, init?: RequestInit) {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getAuthToken() ?? ""}`,
       ...(init?.headers ?? {}),
     },
   });

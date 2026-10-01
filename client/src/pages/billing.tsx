@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DollarSign, CheckCircle2, AlertCircle, XCircle, Scissors, TrendingUp, Users, FileText, WalletCards, Plus, RefreshCw, Download, FileCheck2, Settings2, Calculator, History, FileSpreadsheet } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthToken } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -87,15 +86,14 @@ type ProrationPreview = {
   total: number;
 };
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { apiFetch } from "@/lib/api-fetch";
 
 async function billingApi<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${BASE}/api${path}`, {
+  const response = await apiFetch(`/api${path}`, {
     ...options,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
       ...(options.headers ?? {}),
     },
   });
@@ -261,9 +259,8 @@ export default function Billing() {
 
   const downloadProof = async (proof: PaymentProof) => {
     try {
-      const response = await fetch(`${BASE}/api/billing/payment-proofs/${proof.id}/download`, {
+      const response = await apiFetch(`/api/billing/payment-proofs/${proof.id}/download`, {
         credentials: "include",
-        headers: getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {},
       });
       if (!response.ok) throw new Error("No se pudo descargar el comprobante");
       const blob = await response.blob();
@@ -332,9 +329,8 @@ export default function Billing() {
 
   const downloadAccountingExport = async () => {
     try {
-      const response = await fetch(`${BASE}/api/billing/reports/accounting-export?from=${encodeURIComponent(exportFrom)}&to=${encodeURIComponent(`${exportTo}T23:59:59`)}`, {
+      const response = await apiFetch(`/api/billing/reports/accounting-export?from=${encodeURIComponent(exportFrom)}&to=${encodeURIComponent(`${exportTo}T23:59:59`)}`, {
         credentials: "include",
-        headers: getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {},
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
