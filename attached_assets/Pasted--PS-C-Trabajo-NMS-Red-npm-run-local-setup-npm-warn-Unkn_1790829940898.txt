@@ -1,0 +1,131 @@
+
+PS C:\Trabajo\NMS-Red> npm run local:setup
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:setup
+> node scripts/run-local.mjs setup
+
+.env.local ya existe; se conserva sin cambios.
+
+Instalando dependencias desde pnpm-lock.yaml...
+Scope: all 7 workspace projects
+Lockfile is up to date, resolution step is skipped
+Packages: +596
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+   ╭─────────────────────────────────────────╮
+   │                                         │
+   │   Update available! 10.26.1 → 12.8.1.   │
+   │   Changelog: https://pnpm.io/v/12.8.1   │
+   │    To update, run: pnpm add -g pnpm     │
+   │                                         │
+   ╰─────────────────────────────────────────╯
+
+Progress: resolved 596, reused 403, downloaded 193, added 596, done
+node_modules/.pnpm/cpu-features@0.0.10/node_modules/cpu-features: Running install script, failed in 935ms (skipped as optional)
+node_modules/.pnpm/ssh2@1.17.0/node_modules/ssh2: Running install script, done in 14.5s
+
+dependencies:
++ @types/cookie-parser 1.4.10
++ @types/cors 2.8.19
++ @types/express 5.0.6
++ @types/jsonwebtoken 9.0.10
++ @types/node 25.6.2
++ @workspace/api-zod 0.0.0 <- lib\api-zod
++ @workspace/db 0.0.0 <- lib\db
++ bcryptjs 3.0.3
++ cookie-parser 1.4.7
++ cors 2.8.6
++ drizzle-orm 0.45.2
++ express 5.2.1
++ jsonwebtoken 9.0.3
++ node-fetch 3.3.2
++ node-ssh 13.2.1
++ pg 8.20.0
++ pino 9.14.0
++ pino-http 10.5.0
++ sequelize 6.37.8
++ socket.io 4.8.3
++ tsx 4.21.0
+
+devDependencies:
++ @capacitor/android 8.5.2
++ @capacitor/cli 8.5.2
++ @capacitor/ios 8.5.2
++ pino-pretty 13.1.3
++ prettier 3.8.3
++ typescript 5.9.3
+
+. preinstall$ node scripts/preinstall.mjs
+└─ Done in 81ms
+Done in 34.3s using pnpm v10.26.1
+Aviso: no encuentro pg_dump en PATH. La app puede iniciar, pero agrega la carpeta bin de PostgreSQL al PATH para habilitar copias de seguridad.
+
+Siguiente: configura DATABASE_URL en .env.local y crea una base vacía llamada isp_cockpit.
+Luego ejecuta: npm run local:db:init
+(node:48740) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PS C:\Trabajo\NMS-Red> npm run local:db:init
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:db:init
+> node scripts/local-db.mjs init
+
+(node:46480) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+la autentificaci�n password fall� para el usuario �isp_cockpit_app�
+PS C:\Trabajo\NMS-Red> npm run local:start
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:start
+> node scripts/run-local.mjs local-start
+
+
+> workspace@0.0.0 build C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build
+
+
+> workspace@0.0.0 typecheck:server C:\Trabajo\NMS-Red
+> pnpm exec tsc --noEmit -p tsconfig.server.json
+
+
+> workspace@0.0.0 build:web C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build-web
+
+
+> @workspace/client@0.0.0 build C:\Trabajo\NMS-Red\client
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2839 modules transformed.
+../dist/index.html                     1.38 kB │ gzip:   0.55 kB
+../dist/assets/index-nw5OiHRu.css    140.74 kB │ gzip:  21.48 kB
+../dist/assets/web-C4Tq_28B.js         0.22 kB │ gzip:   0.17 kB
+../dist/assets/web-BjCiFG4Z.js         0.38 kB │ gzip:   0.25 kB
+../dist/assets/native-D_JLRP0z.js      0.80 kB │ gzip:   0.35 kB
+../dist/assets/web-VM84h-Dd.js         0.83 kB │ gzip:   0.42 kB
+../dist/assets/web-Cs6vQhKT.js         0.90 kB │ gzip:   0.46 kB
+../dist/assets/web-CTV8sdNk.js         2.30 kB │ gzip:   0.93 kB
+../dist/assets/web-xZUz4Znb.js         2.43 kB │ gzip:   1.06 kB
+../dist/assets/base-BQQPjlbD.js        2.81 kB │ gzip:   1.00 kB
+../dist/assets/index-DfB3tYXD.js   1,302.18 kB │ gzip: 360.00 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 26.07s
+(node:48064) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:51480) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:57988) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"level":50,"time":1790829926592,"pid":51004,"hostname":"manuel","err":{"type":"ConnectionError","message":"la autentificaci´┐¢n password fall´┐¢ para el usuario ´┐¢isp_cockpit_app´┐¢","stack":"SequelizeConnectionError: la autentificaci´┐¢n password fall´┐¢ para el usuario ´┐¢isp_cockpit_app´┐¢\n    at Client._connectionCallback (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\sequelize@6.37.8_pg@8.20.0\\node_modules\\sequelize\\src\\dialects\\postgres\\connection-manager.js:196:24)\n    at Client._handleErrorWhileConnecting (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg@8.20.0\\node_modules\\pg\\lib\\client.js:379:19)\n    at Client._handleErrorMessage (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg@8.20.0\\node_modules\\pg\\lib\\client.js:399:19)\n    at Connection.emit (node:events:509:28)\n    at C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg@8.20.0\\node_modules\\pg\\lib\\connection.js:115:12\n    at Parser.parse (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\parser.ts:106:9)\n    at Socket.<anonymous> (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\index.ts:7:48)\n    at Socket.emit (node:events:509:28)\n    at addChunk (node:internal/streams/readable:563:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)","name":"SequelizeConnectionError","parent":{"type":"DatabaseError","message":"la autentificaci´┐¢n password fall´┐¢ para el usuario ´┐¢isp_cockpit_app´┐¢","stack":"error: la autentificaci´┐¢n password fall´┐¢ para el usuario ´┐¢isp_cockpit_app´┐¢\n    at parseErrorMessage (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\parser.ts:394:9)\n    at Parser.handlePacket (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\parser.ts:212:19)\n    at Parser.parse (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\parser.ts:105:30)\n    at Socket.<anonymous> (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\index.ts:7:48)\n    at Socket.emit (node:events:509:28)\n    at addChunk (node:internal/streams/readable:563:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)\n    at Readable.push (node:internal/streams/readable:394:5)\n    at TCP.onStreamRead (node:internal/stream_base_commons:189:23)","length":121,"name":"error","severity":"FATAL","code":"28P01","file":"auth.c","line":"320","routine":"auth_failed"},"original":{"type":"DatabaseError","message":"la autentificaci´┐¢n password fall´┐¢ para el usuario ´┐¢isp_cockpit_app´┐¢","stack":"error: la autentificaci´┐¢n password fall´┐¢ para el usuario ´┐¢isp_cockpit_app´┐¢\n    at parseErrorMessage (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\parser.ts:394:9)\n    at Parser.handlePacket (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\parser.ts:212:19)\n    at Parser.parse (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\parser.ts:105:30)\n    at Socket.<anonymous> (C:\\Trabajo\\NMS-Red\\node_modules\\.pnpm\\pg-protocol@1.13.0\\node_modules\\pg-protocol\\src\\index.ts:7:48)\n    at Socket.emit (node:events:509:28)\n    at addChunk (node:internal/streams/readable:563:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)\n    at Readable.push (node:internal/streams/readable:394:5)\n    at TCP.onStreamRead (node:internal/stream_base_commons:189:23)","length":121,"name":"error","severity":"FATAL","code":"28P01","file":"auth.c","line":"320","routine":"auth_failed"}},"msg":"Server startup failed"}
+PS C:\Trabajo\NMS-Red>
