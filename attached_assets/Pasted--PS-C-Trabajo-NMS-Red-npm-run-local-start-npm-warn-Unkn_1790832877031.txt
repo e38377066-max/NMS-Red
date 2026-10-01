@@ -1,0 +1,120 @@
+
+PS C:\Trabajo\NMS-Red>   npm run local:start
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> workspace@0.0.0 local:start
+> node scripts/run-local.mjs local-start
+
+
+> workspace@0.0.0 build C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build
+
+
+> workspace@0.0.0 typecheck:server C:\Trabajo\NMS-Red
+> pnpm exec tsc --noEmit -p tsconfig.server.json
+
+
+> workspace@0.0.0 build:web C:\Trabajo\NMS-Red
+> node scripts/run-local.mjs build-web
+
+
+> @workspace/client@0.0.0 build C:\Trabajo\NMS-Red\client
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2839 modules transformed.
+../dist/index.html                     1.38 kB │ gzip:   0.55 kB
+../dist/assets/index-nw5OiHRu.css    140.74 kB │ gzip:  21.48 kB
+../dist/assets/web-C4Tq_28B.js         0.22 kB │ gzip:   0.17 kB
+../dist/assets/web-BjCiFG4Z.js         0.38 kB │ gzip:   0.25 kB
+../dist/assets/native-D_JLRP0z.js      0.80 kB │ gzip:   0.35 kB
+../dist/assets/web-VM84h-Dd.js         0.83 kB │ gzip:   0.42 kB
+../dist/assets/web-Cs6vQhKT.js         0.90 kB │ gzip:   0.46 kB
+../dist/assets/web-CTV8sdNk.js         2.30 kB │ gzip:   0.93 kB
+../dist/assets/web-xZUz4Znb.js         2.43 kB │ gzip:   1.06 kB
+../dist/assets/base-BQQPjlbD.js        2.81 kB │ gzip:   1.00 kB
+../dist/assets/index-DfB3tYXD.js   1,302.18 kB │ gzip: 360.00 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 9.72s
+(node:57348) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:42332) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:51752) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+{"level":30,"time":1790832736778,"pid":38828,"hostname":"manuel","port":5000,"msg":"Server listening"}
+{"level":30,"time":1790832736778,"pid":38828,"hostname":"manuel","msg":"Starting Imperio AP network monitoring service (60s interval)"}
+{"level":30,"time":1790832736779,"pid":38828,"hostname":"manuel","msg":"Starting 5-min metrics collection"}
+{"level":30,"time":1790832736779,"pid":38828,"hostname":"manuel","msg":"Starting live network telemetry collection (15s interval)"}
+{"level":30,"time":1790832736779,"pid":38828,"hostname":"manuel","msg":"Task queue worker started"}
+{"level":30,"time":1790832736780,"pid":38828,"hostname":"manuel","msg":"Starting billing cron service (nightly check every 6h)"}
+{"level":30,"time":1790832736780,"pid":38828,"hostname":"manuel","msg":"Starting backup cron service (daily at 02:00)"}
+{"level":30,"time":1790832736781,"pid":38828,"hostname":"manuel","nextBackupAt":"2026-10-01T06:00:00.000Z","msg":"Next backup scheduled"}
+{"level":30,"time":1790832736813,"pid":38828,"hostname":"manuel","suspended":0,"markedPending":0,"msg":"Billing check completed"}
+{"level":30,"time":1790832736934,"pid":38828,"hostname":"manuel","ip":"192.168.200.1","brand":"MikroTik","msg":"Equipment recovered"}
+{"level":30,"time":1790832738565,"pid":38828,"hostname":"manuel","req":{"id":1,"method":"GET","url":"/equipment/1"},"res":{"statusCode":200},"responseTime":9,"msg":"request completed"}
+{"level":30,"time":1790832738609,"pid":38828,"hostname":"manuel","req":{"id":3,"method":"GET","url":"/assets/index-nw5OiHRu.css"},"res":{"statusCode":200},"responseTime":5,"msg":"request completed"}
+{"level":30,"time":1790832738613,"pid":38828,"hostname":"manuel","req":{"id":2,"method":"GET","url":"/assets/index-DfB3tYXD.js"},"res":{"statusCode":200},"responseTime":13,"msg":"request completed"}
+{"level":30,"time":1790832738708,"pid":38828,"hostname":"manuel","req":{"id":4,"method":"GET","url":"/favicon.svg"},"res":{"statusCode":304},"responseTime":1,"msg":"request completed"}
+{"level":30,"time":1790832739935,"pid":38828,"hostname":"manuel","req":{"id":5,"method":"POST","url":"/api/users/login"},"res":{"statusCode":200},"responseTime":135,"msg":"request completed"}
+{"level":30,"time":1790832740003,"pid":38828,"hostname":"manuel","req":{"id":6,"method":"GET","url":"/api/monitoring/summary"},"res":{"statusCode":200},"responseTime":35,"msg":"request completed"}
+{"level":30,"time":1790832740004,"pid":38828,"hostname":"manuel","req":{"id":8,"method":"GET","url":"/api/audit-logs"},"res":{"statusCode":200},"responseTime":28,"msg":"request completed"}
+{"level":30,"time":1790832740008,"pid":38828,"hostname":"manuel","req":{"id":7,"method":"GET","url":"/api/monitoring/alerts"},"res":{"statusCode":200},"responseTime":36,"msg":"request completed"}
+{"level":30,"time":1790832751630,"pid":38828,"hostname":"manuel","req":{"id":10,"method":"GET","url":"/api/nodes"},"res":{"statusCode":200},"responseTime":66,"msg":"request completed"}
+{"level":30,"time":1790832751631,"pid":38828,"hostname":"manuel","req":{"id":9,"method":"GET","url":"/api/equipment"},"res":{"statusCode":200},"responseTime":72,"msg":"request completed"}
+{"level":30,"time":1790832754546,"pid":38828,"hostname":"manuel","req":{"id":11,"method":"GET","url":"/api/equipment/1"},"res":{"statusCode":200},"responseTime":37,"msg":"request completed"}
+{"level":30,"time":1790832754549,"pid":38828,"hostname":"manuel","req":{"id":12,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":37,"msg":"request completed"}
+{"level":30,"time":1790832754549,"pid":38828,"hostname":"manuel","req":{"id":14,"method":"GET","url":"/api/equipment/1/metrics"},"res":{"statusCode":304},"responseTime":30,"msg":"request completed"}
+{"level":30,"time":1790832754565,"pid":38828,"hostname":"manuel","req":{"id":13,"method":"GET","url":"/api/equipment/1/status"},"res":{"statusCode":200},"responseTime":50,"msg":"request completed"}
+{"level":30,"time":1790832754576,"pid":38828,"hostname":"manuel","req":{"id":15,"method":"GET","url":"/api/equipment/1/wireless"},"res":{"statusCode":304},"responseTime":55,"msg":"request completed"}
+{"level":30,"time":1790832762138,"pid":38828,"hostname":"manuel","req":{"id":16,"method":"GET","url":"/api/equipment/1/configuration"},"res":{"statusCode":200},"responseTime":2884,"msg":"request completed"}
+{"level":30,"time":1790832788638,"pid":38828,"hostname":"manuel","req":{"id":17,"method":"GET","url":"/api/billing/invoices"},"res":{"statusCode":200},"responseTime":73,"msg":"request completed"}
+{"level":30,"time":1790832788639,"pid":38828,"hostname":"manuel","req":{"id":19,"method":"GET","url":"/api/billing/settings"},"res":{"statusCode":200},"responseTime":68,"msg":"request completed"}
+{"level":30,"time":1790832788640,"pid":38828,"hostname":"manuel","req":{"id":21,"method":"GET","url":"/api/billing/summary"},"res":{"statusCode":200},"responseTime":53,"msg":"request completed"}
+{"level":30,"time":1790832788644,"pid":38828,"hostname":"manuel","req":{"id":20,"method":"GET","url":"/api/billing/reports/arrears"},"res":{"statusCode":200},"responseTime":65,"msg":"request completed"}
+{"level":30,"time":1790832788645,"pid":38828,"hostname":"manuel","req":{"id":18,"method":"GET","url":"/api/billing/payment-proofs"},"res":{"statusCode":200},"responseTime":77,"msg":"request completed"}
+{"level":30,"time":1790832789559,"pid":38828,"hostname":"manuel","req":{"id":22,"method":"GET","url":"/api/users"},"res":{"statusCode":200},"responseTime":13,"msg":"request completed"}
+{"level":30,"time":1790832789567,"pid":38828,"hostname":"manuel","req":{"id":24,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":13,"msg":"request completed"}
+{"level":30,"time":1790832789570,"pid":38828,"hostname":"manuel","req":{"id":23,"method":"GET","url":"/api/clients"},"res":{"statusCode":200},"responseTime":20,"msg":"request completed"}
+{"level":30,"time":1790832793849,"pid":38828,"hostname":"manuel","req":{"id":26,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":13,"msg":"request completed"}
+{"level":30,"time":1790832793854,"pid":38828,"hostname":"manuel","req":{"id":25,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":21,"msg":"request completed"}
+{"level":30,"time":1790832799638,"pid":38828,"hostname":"manuel","req":{"id":27,"method":"GET","url":"/api/monitoring/overview"},"res":{"statusCode":200},"responseTime":10,"msg":"request completed"}
+{"level":30,"time":1790832802281,"pid":38828,"hostname":"manuel","req":{"id":28,"method":"GET","url":"/api/monitoring/overview"},"res":{"statusCode":304},"responseTime":9,"msg":"request completed"}
+{"level":30,"time":1790832804386,"pid":38828,"hostname":"manuel","req":{"id":29,"method":"GET","url":"/api/equipment"},"res":{"statusCode":200},"responseTime":9,"msg":"request completed"}
+{"level":30,"time":1790832805090,"pid":38828,"hostname":"manuel","req":{"id":30,"method":"GET","url":"/api/monitoring/topology"},"res":{"statusCode":200},"responseTime":12,"msg":"request completed"}
+{"level":30,"time":1790832808887,"pid":38828,"hostname":"manuel","req":{"id":31,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":9,"msg":"request completed"}
+{"level":30,"time":1790832809723,"pid":38828,"hostname":"manuel","req":{"id":32,"method":"GET","url":"/api/proxmox"},"res":{"statusCode":200},"responseTime":10,"msg":"request completed"}
+{"level":30,"time":1790832810398,"pid":38828,"hostname":"manuel","req":{"id":33,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":18,"msg":"request completed"}
+{"level":30,"time":1790832810400,"pid":38828,"hostname":"manuel","req":{"id":34,"method":"GET","url":"/api/nodes"},"res":{"statusCode":304},"responseTime":16,"msg":"request completed"}
+{"level":30,"time":1790832811925,"pid":38828,"hostname":"manuel","req":{"id":35,"method":"GET","url":"/api/users"},"res":{"statusCode":304},"responseTime":14,"msg":"request completed"}
+{"level":30,"time":1790832811928,"pid":38828,"hostname":"manuel","req":{"id":37,"method":"GET","url":"/api/equipment"},"res":{"statusCode":304},"responseTime":12,"msg":"request completed"}
+{"level":30,"time":1790832811931,"pid":38828,"hostname":"manuel","req":{"id":36,"method":"GET","url":"/api/clients"},"res":{"statusCode":304},"responseTime":18,"msg":"request completed"}
+{"level":30,"time":1790832813175,"pid":38828,"hostname":"manuel","req":{"id":38,"method":"GET","url":"/api/billing/invoices"},"res":{"statusCode":304},"responseTime":28,"msg":"request completed"}
+{"level":30,"time":1790832813184,"pid":38828,"hostname":"manuel","req":{"id":39,"method":"GET","url":"/api/billing/payment-proofs"},"res":{"statusCode":304},"responseTime":33,"msg":"request completed"}
+{"level":30,"time":1790832813185,"pid":38828,"hostname":"manuel","req":{"id":40,"method":"GET","url":"/api/billing/settings"},"res":{"statusCode":304},"responseTime":31,"msg":"request completed"}
+{"level":30,"time":1790832813187,"pid":38828,"hostname":"manuel","req":{"id":42,"method":"GET","url":"/api/billing/summary"},"res":{"statusCode":304},"responseTime":26,"msg":"request completed"}
+{"level":30,"time":1790832813188,"pid":38828,"hostname":"manuel","req":{"id":41,"method":"GET","url":"/api/billing/reports/arrears"},"res":{"statusCode":304},"responseTime":31,"msg":"request completed"}
+{"level":30,"time":1790832813876,"pid":38828,"hostname":"manuel","req":{"id":44,"method":"GET","url":"/api/clients"},"res":{"statusCode":304},"responseTime":32,"msg":"request completed"}
+{"level":30,"time":1790832813886,"pid":38828,"hostname":"manuel","req":{"id":43,"method":"GET","url":"/api/reports/operations"},"res":{"statusCode":200},"responseTime":44,"msg":"request completed"}
+{"level":30,"time":1790832813895,"pid":38828,"hostname":"manuel","req":{"id":46,"method":"GET","url":"/api/inventory"},"res":{"statusCode":200},"responseTime":47,"msg":"request completed"}
+{"level":30,"time":1790832813896,"pid":38828,"hostname":"manuel","req":{"id":48,"method":"GET","url":"/api/users/technicians"},"res":{"statusCode":200},"responseTime":43,"msg":"request completed"}
+{"level":30,"time":1790832813897,"pid":38828,"hostname":"manuel","req":{"id":47,"method":"GET","url":"/api/work-orders"},"res":{"statusCode":200},"responseTime":47,"msg":"request completed"}
+{"level":30,"time":1790832813912,"pid":38828,"hostname":"manuel","req":{"id":45,"method":"GET","url":"/api/tickets"},"res":{"statusCode":200},"responseTime":66,"msg":"request completed"}
+{"level":30,"time":1790832813919,"pid":38828,"hostname":"manuel","req":{"id":49,"method":"GET","url":"/api/technicians/availability"},"res":{"statusCode":200},"responseTime":36,"msg":"request completed"}
+{"level":30,"time":1790832813922,"pid":38828,"hostname":"manuel","req":{"id":50,"method":"GET","url":"/api/incidents"},"res":{"statusCode":200},"responseTime":31,"msg":"request completed"}
+{"level":30,"time":1790832813922,"pid":38828,"hostname":"manuel","req":{"id":51,"method":"GET","url":"/api/plans"},"res":{"statusCode":200},"responseTime":21,"msg":"request completed"}
+{"level":30,"time":1790832813926,"pid":38828,"hostname":"manuel","req":{"id":52,"method":"GET","url":"/api/notifications"},"res":{"statusCode":200},"responseTime":22,"msg":"request completed"}
+{"level":30,"time":1790832813932,"pid":38828,"hostname":"manuel","req":{"id":53,"method":"GET","url":"/api/tickets"},"res":{"statusCode":304},"responseTime":16,"msg":"request completed"}
+{"level":30,"time":1790832814524,"pid":38828,"hostname":"manuel","req":{"id":54,"method":"GET","url":"/api/billing/invoices"},"res":{"statusCode":304},"responseTime":17,"msg":"request completed"}
+{"level":30,"time":1790832814536,"pid":38828,"hostname":"manuel","req":{"id":56,"method":"GET","url":"/api/billing/settings"},"res":{"statusCode":304},"responseTime":21,"msg":"request completed"}
+{"level":30,"time":1790832814537,"pid":38828,"hostname":"manuel","req":{"id":57,"method":"GET","url":"/api/billing/reports/arrears"},"res":{"statusCode":304},"responseTime":21,"msg":"request completed"}
+{"level":30,"time":1790832814537,"pid":38828,"hostname":"manuel","req":{"id":58,"method":"GET","url":"/api/billing/summary"},"res":{"statusCode":304},"responseTime":18,"msg":"request completed"}
+{"level":30,"time":1790832814538,"pid":38828,"hostname":"manuel","req":{"id":55,"method":"GET","url":"/api/billing/payment-proofs"},"res":{"statusCode":304},"responseTime":25,"msg":"request completed"}
