@@ -5,6 +5,8 @@ Plataforma de gestión de red para ISPs. El MikroTik hEX es el router central qu
 ## Run & Operate
 
 - `pnpm install --frozen-lockfile` — instalar las dependencias del workspace.
+- Windows local: sigue `LOCAL-WINDOWS.md`; después de clonar usa `npm run local:setup`, `npm run local:db:init` y `npm run local:start`.
+- Actualizar una instalación local desde GitHub: `npm run local:update`; las modificaciones del esquema PostgreSQL requieren copia de seguridad y `npm run local:db:push`.
 - En Replit, `Start application` ejecuta el sitio y la API integrados: React en `/`, Express en `/api`, puerto 5000.
 - La aplicación de campo comparte el cliente React/Vite de `client/`; Capacitor prepara los proyectos Android e iOS con `pnpm cap:sync`.
 - Los builds móviles requieren `VITE_API_BASE_URL` con el origen HTTPS público del API. No usar un dominio de desarrollo de Replit en paquetes de distribución.
