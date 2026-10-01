@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "composite": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      "@workspace/api-zod": ["./lib/api-zod/src/index.ts"],
+      "@workspace/db": ["./lib/db/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

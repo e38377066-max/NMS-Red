@@ -2,15 +2,45 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "type": "module",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "pnpm run typecheck:server && pnpm run build:web",
+    "build:web": "BASE_PATH=/ PORT=5000 pnpm --filter @workspace/client run build",
+    "dev": "pnpm run build && PORT=5000 pnpm exec tsx src/index.ts",
+    "start": "NODE_ENV=production PORT=${PORT:-5000} pnpm exec tsx src/index.ts",
+    "typecheck:server": "pnpm exec tsc --noEmit -p tsconfig.server.json",
+    "typecheck:client": "pnpm --filter @workspace/client run typecheck",
+    "typecheck:workspace": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm run typecheck:client && pnpm run typecheck:server"
   },
   "private": true,
   "devDependencies": {
     "prettier": "^3.8.3",
     "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "catalog:",
+    "@workspace/api-zod": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "drizzle-orm": "catalog:",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-fetch": "^3.3.2",
+    "node-ssh": "^13.2.1",
+    "pg": "^8.20.0",
+    "pino": "^9.14.0",
+    "pino-http": "^10.5.0",
+    "sequelize": "^6.37.8",
+    "socket.io": "^4.8.3",
+    "tsx": "catalog:"
   }
 }

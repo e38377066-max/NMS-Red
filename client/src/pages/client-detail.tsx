@@ -1,0 +1,971 @@
+import { useState } from "react";
+import { useRoute } from "wouter";
+import {
+  useGetClient, getGetClientQueryKey,
+  useGetClientMetrics, getGetClientMetricsQueryKey,
+  useRegisterClientPayment, getListClientsQueryKey,
+  useChangeClientSpeed,
+  useListClientContracts, useReviewClientContract,
+  useListEquipment, getListEquipmentQueryKey, useUpdateClient,
+  type ClientContract,
+} from "@workspace/api-client-react";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Link } from "wouter";
+import {
+  ArrowLeft, DollarSign, CheckCircle2, AlertCircle, XCircle,
+  Calendar, Zap, Signal, TrendingUp, User, Network, Trash2, ClipboardList, Pencil,
+  FileText, Upload, Download, Clock,
+} from "lucide-react";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
+import { useToast } from "@/hooks/use-toast";
+import { getCurrentUser } from "@/lib/auth";
+
+type DhcpLease = {
+  id: string;
+  address: string;
+  macAddress: string;
+  hostName: string | null;
+  comment: string | null;
+  rateLimit: string | null;
+  parentQueue: string | null;
+  addressLists: string | null;
+  status: string;
+  dynamic: boolean;
+  blocked: boolean;
+  dhcpServer: string;
+  expiresAfter: string | null;
+};
+
+type ClientHistory = {
+  id: number;
+  changedByUserId: number | null;
+  username: string | null;
+  changeType: string;
+  reason: string | null;
+  previousData: Record<string, unknown>;
+  newData: Record<string, unknown>;
+  createdAt: string;
+};
+
+function PaymentBadge({ status }: { status: string }) {
+  if (status === "PAID") return <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 gap-1"><CheckCircle2 className="w-3 h-3" /> Al día</Badge>;
+  if (status === "PENDING") return <Badge variant="outline" className="border-yellow-500/30 text-yellow-400 gap-1"><AlertCircle className="w-3 h-3" /> Pendiente</Badge>;
+  return <Badge variant="outline" className="border-red-500/30 text-red-400 gap-1"><XCircle className="w-3 h-3" /> Suspendido</Badge>;
+}
+
+function fmt(iso: string | null | undefined) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("es", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function contractStatusLabel(status: ClientContract["status"]) {
+  if (status === "APPROVED") return "Aprobado";
+  if (status === "REJECTED") return "Rechazado";
+  return "Pendiente de revisión";
+}
+
+function contractStatusClass(status: ClientContract["status"]) {
+  if (status === "APPROVED") return "border-emerald-500/30 text-emerald-400";
+  if (status === "REJECTED") return "border-red-500/30 text-red-400";
+  return "border-yellow-500/30 text-yellow-400";
+}
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+export default function ClientDetail() {
+  const [, params] = useRoute("/clients/:id");
+  const id = Number(params?.id);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: client, isLoading } = useGetClient(id, { query: { queryKey: getGetClientQueryKey(id) } });
+  const { data: metrics } = useGetClientMetrics(id, { hours: 24 }, { query: { queryKey: getGetClientMetricsQueryKey(id, { hours: 24 }) } });
+  const historyQuery = useQuery<ClientHistory[]>({
+    queryKey: ["client-history", id],
+    queryFn: async () => {
+      const response = await fetch(`${BASE}/api/clients/${id}/history`);
+      if (!response.ok) throw new Error("No se pudo cargar el historial");
+      return response.json();
+    },
+    enabled: Number.isInteger(id) && id > 0,
+  });
+  const { data: equipment } = useListEquipment({
+    query: { queryKey: getListEquipmentQueryKey() },
+  });
+  const { data: users } = useQuery<Array<{ id: number; username: string }>>({
+    queryKey: ["users-for-client-detail"],
+    queryFn: async () => {
+      const response = await fetch(`${BASE}/api/users`);
+      if (!response.ok) throw new Error("No se pudieron cargar los técnicos");
+      return response.json();
+    },
+  });
+  const contractsQuery = useListClientContracts(id, {
+    query: {
+      queryKey: ["client-contracts", id],
+      enabled: Number.isInteger(id) && id > 0,
+    },
+  });
+
+  const registerPayment = useRegisterClientPayment();
+  const changeSpeed = useChangeClientSpeed();
+  const reviewContract = useReviewClientContract();
+  const updateClient = useUpdateClient();
+
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const [dhcpOpen, setDhcpOpen] = useState(false);
+  const [fee, setFee] = useState("");
+  const [days, setDays] = useState("30");
+  const [newPlan, setNewPlan] = useState("");
+  const [fixedIp, setFixedIp] = useState("");
+  const [dhcpServer, setDhcpServer] = useState("");
+  const [adminEditOpen, setAdminEditOpen] = useState(false);
+  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
+  const [adminForm, setAdminForm] = useState({
+    contractReference: "",
+    contractNotes: "",
+    installationDate: "",
+    installationAddress: "",
+    assignedTechnicianId: "",
+    equipmentId: "",
+    accessPointEquipmentId: "",
+    dhcpServer: "",
+    dhcpPool: "",
+    changeReason: "",
+  });
+
+  // DHCP leases for the client's equipment
+  const dhcpQuery = useQuery<DhcpLease[]>({
+    queryKey: ["dhcp-leases", client?.equipmentId],
+    queryFn: async () => {
+      if (!client?.equipmentId) return [];
+      const res = await fetch(`${BASE}/api/equipment/${client.equipmentId}/dhcp-leases`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!client?.equipmentId,
+    staleTime: 30_000,
+  });
+
+  const createLease = useMutation({
+    mutationFn: async ({ fixedIp, dhcpServer }: { fixedIp: string; dhcpServer: string }) => {
+      const res = await fetch(`${BASE}/api/clients/${id}/dhcp-lease`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fixedIp, dhcpServer: dhcpServer || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message ?? "Error");
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: ["dhcp-leases", client?.equipmentId] });
+      toast({ title: "Lease estático creado", description: data.message });
+      setDhcpOpen(false);
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteLease = useMutation({
+    mutationFn: async (leaseId: string) => {
+      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}`, { method: "DELETE" });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dhcp-leases", client?.equipmentId] });
+      toast({ title: "Lease eliminado" });
+    },
+  });
+
+  const makeStatic = useMutation({
+    mutationFn: async ({ leaseId, clientId }: { leaseId: string; clientId: number }) => {
+      const res = await fetch(`${BASE}/api/equipment/${client?.equipmentId}/dhcp-leases/${leaseId}/make-static`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dhcp-leases", client?.equipmentId] });
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      toast({
+        title: data.message,
+        description: data.rateLimitConfigured === false
+          ? `El límite DHCP no se pudo sincronizar: ${data.rateLimitMessage ?? "revisa el RouterOS"}`
+          : data.rateLimitConfigured
+            ? `Rate-limit DHCP sincronizado para ${data.clientName ?? client?.name}.`
+            : undefined,
+        variant: data.rateLimitConfigured === false ? "destructive" : "default",
+      });
+    },
+  });
+
+  const submitAdministrativeUpdate = () => {
+    const nextEquipmentId = Number(adminForm.equipmentId);
+    if (nextEquipmentId !== client?.equipmentId && !confirm(
+      "Esto solo cambia la asociación en Imperio AP; no migra ni modifica leases, colas o configuración en los MikroTik. ¿Continuar?",
+    )) return;
+    updateClient.mutate({
+      id,
+      data: {
+        equipmentId: nextEquipmentId,
+        contractReference: adminForm.contractReference || null,
+        contractNotes: adminForm.contractNotes || null,
+        installationDate: adminForm.installationDate ? `${adminForm.installationDate}T00:00:00.000Z` : null,
+        installationAddress: adminForm.installationAddress || null,
+        assignedTechnicianId: adminForm.assignedTechnicianId ? Number(adminForm.assignedTechnicianId) : null,
+        accessPointEquipmentId: adminForm.accessPointEquipmentId && adminForm.accessPointEquipmentId !== "none"
+          ? Number(adminForm.accessPointEquipmentId)
+          : null,
+        dhcpServer: adminForm.dhcpServer.trim() || null,
+        dhcpPool: adminForm.dhcpPool.trim() || null,
+        changeReason: adminForm.changeReason || undefined,
+      },
+    }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["client-history", id] });
+        queryClient.invalidateQueries({ queryKey: ["dhcp-leases"] });
+        toast({ title: "Ficha actualizada", description: "La asociación, los datos DHCP y el expediente quedaron registrados en Imperio AP." });
+        setAdminEditOpen(false);
+      },
+      onError: (error) => toast({ title: "No se pudo actualizar", description: error.message, variant: "destructive" }),
+    });
+  };
+
+  const uploadContract = useMutation({
+    mutationFn: async (file: File) => {
+      const response = await fetch(`${BASE}/api/clients/${id}/contracts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/pdf",
+          "X-Original-File-Name": file.name,
+        },
+        body: file,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar el contrato");
+      return payload as ClientContract;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-contracts", id] });
+      toast({ title: "Contrato cargado", description: "La nueva versión quedó pendiente de aprobación." });
+    },
+    onError: (error: Error) => toast({ title: "No se pudo cargar el contrato", description: error.message, variant: "destructive" }),
+  });
+
+  const handleReviewContract = (contract: ClientContract, status: "APPROVED" | "REJECTED") => {
+    const reason = rejectReasons[contract.id]?.trim() ?? "";
+    if (status === "REJECTED" && !reason) {
+      toast({ title: "Motivo requerido", description: "Indica por qué se rechaza el contrato.", variant: "destructive" });
+      return;
+    }
+    reviewContract.mutate(
+      { id, contractId: contract.id, data: { status, reason: reason || undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["client-contracts", id] });
+          setRejectReasons((current) => ({ ...current, [contract.id]: "" }));
+          toast({ title: status === "APPROVED" ? "Contrato aprobado" : "Contrato rechazado" });
+        },
+        onError: (error: Error) => toast({ title: "No se pudo revisar el contrato", description: error.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const submitPayment = () => {
+    registerPayment.mutate(
+      { id, data: { monthlyFee: parseFloat(fee), daysUntilNextDue: parseInt(days, 10) } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+          queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+          toast({ title: "Pago registrado", description: "Estado actualizado a pagado." });
+          setPaymentOpen(false);
+        },
+        onError: () => toast({ title: "Error", variant: "destructive" }),
+      }
+    );
+  };
+
+  const submitSpeed = (confirmed = false) => {
+    changeSpeed.mutate(
+      { id, data: { newLimit: newPlan, userId: 1, dryRun: !confirmed } },
+      {
+        onSuccess: (data) => {
+          if (data.requiresConfirmation) {
+            if (confirm(`⚠ ${data.warning ?? ""}\n¿Confirmar cambio?`)) submitSpeed(true);
+          } else {
+            queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+            toast({ title: data.success ? "Velocidad actualizada" : "Error", description: data.message, variant: data.success ? "default" : "destructive" });
+            setSpeedOpen(false);
+          }
+        },
+      }
+    );
+  };
+
+  if (isLoading) return (
+    <div className="space-y-4">
+      <Skeleton className="h-10 w-48" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+
+  if (!client) return (
+    <div className="text-center py-12 text-muted-foreground">
+      Cliente no encontrado.
+      <Link href="/clients"><Button variant="link">Volver a clientes</Button></Link>
+    </div>
+  );
+
+  const chartData = (metrics ?? []).map(m => ({
+    time: fmtTime(m.recordedAt),
+    "Señal dBm": m.signalDbm,
+    "CCQ %": m.ccq,
+  }));
+
+  const isOverdue = client.dueDate && new Date(client.dueDate) < new Date();
+
+  // Find this client's lease in the list
+  const clientLease = dhcpQuery.data?.find(l => l.macAddress.toLowerCase() === client.mac.toLowerCase());
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Link href="/clients">
+          <Button variant="ghost" size="icon"><ArrowLeft className="w-4 h-4" /></Button>
+        </Link>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <User className="w-6 h-6 text-primary" />
+            {client.name}
+            <PaymentBadge status={client.paymentStatus} />
+          </h1>
+          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+            <span className="font-mono">{client.mac}</span>
+            {client.ip && <><span>·</span><span className="font-mono">{client.ip}</span></>}
+            <span>·</span>
+            <span>Plan: <span className="font-mono text-foreground">{client.planLimit}</span></span>
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Button variant="outline" size="sm" onClick={() => { setFee(client.monthlyFee ?? ""); setDays("30"); setPaymentOpen(true); }}>
+            <DollarSign className="w-4 h-4 mr-2 text-emerald-400" /> Registrar Pago
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setNewPlan(client.planLimit); setSpeedOpen(true); }}>
+            <Zap className="w-4 h-4 mr-2 text-yellow-400" /> Cambiar Velocidad
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpServer(client.dhcpServer ?? ""); setDhcpOpen(true); }}>
+            <Network className="w-4 h-4 mr-2 text-sky-400" /> Lease DHCP Estático
+          </Button>
+        </div>
+      </div>
+
+      {/* Info cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          {
+            icon: DollarSign, label: "Cuota mensual",
+            value: client.monthlyFee ? `Q ${parseFloat(client.monthlyFee).toFixed(2)}` : "No configurada",
+            color: "text-emerald-400",
+          },
+          {
+            icon: Calendar, label: "Vencimiento",
+            value: fmt(client.dueDate),
+            color: isOverdue ? "text-red-400" : "text-muted-foreground",
+          },
+          {
+            icon: CheckCircle2, label: "Último pago",
+            value: fmt(client.lastPaymentDate),
+            color: "text-muted-foreground",
+          },
+          {
+            icon: Signal, label: "Señal actual",
+            value: client.lastSeenDbm ? `${client.lastSeenDbm} dBm` : "—",
+            color: "text-sky-400",
+          },
+        ].map(({ icon: Icon, label, value, color }) => (
+          <Card key={label} className="bg-card/50 border-border/50">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Icon className={`w-4 h-4 ${color}`} />
+                <span className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</span>
+              </div>
+              <div className={`text-sm font-medium ${color}`}>{value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {isOverdue && (
+        <div className="flex items-center gap-3 p-4 rounded-md bg-red-950/20 border border-red-900/30 text-red-400 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          Este cliente tiene su fecha de vencimiento vencida. El corte automático se aplica a las 00:00.
+          <Button size="sm" className="ml-auto bg-emerald-700 hover:bg-emerald-600 text-white" onClick={() => setPaymentOpen(true)}>
+            Registrar Pago Ahora
+          </Button>
+        </div>
+      )}
+
+      {/* DHCP Lease card */}
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Network className="w-4 h-4 text-sky-400" />
+            IP Fija (DHCP Lease)
+            {clientLease && (
+              <Badge variant="outline" className={clientLease.dynamic ? "border-yellow-500/30 text-yellow-400 text-[10px]" : "border-emerald-500/30 text-emerald-400 text-[10px]"}>
+                {clientLease.dynamic ? "Dinámica" : "Estática"}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {dhcpQuery.isLoading ? (
+            <Skeleton className="h-8 w-full" />
+          ) : !clientLease ? (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                No se encontró lease DHCP para <span className="font-mono text-foreground">{client.mac}</span> en este equipo.
+              </div>
+              <Button size="sm" variant="outline" onClick={() => { setFixedIp(client.ip ?? ""); setDhcpServer(client.dhcpServer ?? ""); setDhcpOpen(true); }}>
+                <Network className="w-3 h-3 mr-2" /> Crear Lease Estático
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-muted-foreground">IP asignada:</span>
+                  <span className="font-mono text-sky-400 font-medium">{clientLease.address}</span>
+                  {clientLease.dynamic && clientLease.expiresAfter && (
+                    <span className="text-xs text-muted-foreground">expira en {clientLease.expiresAfter}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Servidor DHCP: <span className="font-mono">{clientLease.dhcpServer || "—"}</span></span>
+                  <span>·</span>
+                  <span>Estado: <span className="text-foreground">{clientLease.status}</span></span>
+                  <span>·</span>
+                  <span>Rate-limit: <span className="font-mono text-foreground">{clientLease.rateLimit || "sin límite"}</span></span>
+                </div>
+                {clientLease.comment && (
+                  <div className="text-xs text-muted-foreground">
+                    Comentario: <span className="text-foreground">{clientLease.comment}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {clientLease.dynamic && (
+                   <Button size="sm" variant="outline" className="text-sky-400 border-sky-500/30 hover:bg-sky-500/10" onClick={() => makeStatic.mutate({ leaseId: clientLease.id, clientId: id })}>
+                    Convertir a Estático
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => {
+                  if (confirm(`¿Eliminar lease de ${clientLease.address}?`)) deleteLease.mutate(clientLease.id);
+                }}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Metrics chart */}
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            Historial de Señal — Últimas 24 horas
+            <span className="text-xs text-muted-foreground ml-auto">{(metrics ?? []).length} puntos</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {chartData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50 text-sm">
+              <TrendingUp className="w-8 h-8 mb-2" />
+              Sin datos históricos aún. Se recolectan cada 5 minutos.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#6b7280" }} />
+                <YAxis yAxisId="dbm" domain={[-100, -40]} tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "dBm", angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#6b7280" } }} />
+                <YAxis yAxisId="ccq" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "%", angle: 90, position: "insideRight", style: { fontSize: 10, fill: "#6b7280" } }} />
+                <Tooltip contentStyle={{ backgroundColor: "#1c1c2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 12 }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                <Line yAxisId="dbm" type="monotone" dataKey="Señal dBm" stroke="#38bdf8" strokeWidth={2} dot={false} connectNulls />
+                <Line yAxisId="ccq" type="monotone" dataKey="CCQ %" stroke="#a78bfa" strokeWidth={2} dot={false} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* DHCP all leases */}
+      {(dhcpQuery.data?.length ?? 0) > 0 && (
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-3 border-b border-border/40">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Network className="w-4 h-4 text-muted-foreground" />
+              Todos los Leases DHCP del Equipo
+              <span className="text-xs text-muted-foreground ml-auto">{dhcpQuery.data?.length} total</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>IP</TableHead>
+                  <TableHead>MAC</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Velocidad DHCP</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dhcpQuery.data?.map(lease => {
+                  const isThisClient = lease.macAddress.toLowerCase() === client.mac.toLowerCase();
+                  return (
+                    <TableRow key={lease.id} className={isThisClient ? "bg-sky-950/20" : ""}>
+                      <TableCell className="font-mono text-sm">{lease.address}</TableCell>
+                      <TableCell className="font-mono text-xs">{lease.macAddress}</TableCell>
+                      <TableCell className="text-sm">{lease.hostName ?? lease.comment ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{lease.rateLimit ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={lease.dynamic ? "border-yellow-500/30 text-yellow-400 text-[10px]" : "border-emerald-500/30 text-emerald-400 text-[10px]"}>
+                          {lease.dynamic ? "Dinámica" : "Estática"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{lease.status}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {lease.dynamic && (
+                             <Button variant="ghost" size="sm" className="text-xs text-sky-400 h-7" onClick={() => makeStatic.mutate({ leaseId: lease.id, clientId: id })}>
+                              → Estático
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-7 w-7" onClick={() => {
+                            if (confirm(`¿Eliminar lease ${lease.address}?`)) deleteLease.mutate(lease.id);
+                          }}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-primary" />
+              Expediente administrativo
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAdminForm({
+                  contractReference: client.contractReference ?? "",
+                  contractNotes: client.contractNotes ?? "",
+                  installationDate: client.installationDate ? new Date(client.installationDate).toISOString().slice(0, 10) : "",
+                  installationAddress: client.installationAddress ?? "",
+                  assignedTechnicianId: client.assignedTechnicianId ? String(client.assignedTechnicianId) : "",
+                  equipmentId: String(client.equipmentId),
+                  accessPointEquipmentId: client.accessPointEquipmentId ? String(client.accessPointEquipmentId) : "none",
+                  dhcpServer: client.dhcpServer ?? "",
+                  dhcpPool: client.dhcpPool ?? "",
+                  changeReason: "",
+                });
+                setAdminEditOpen(true);
+              }}
+            >
+              <Pencil className="w-3 h-3 mr-2" /> Editar ficha y red
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div><p className="text-xs text-muted-foreground">Contrato</p><p>{client.contractReference ?? "Sin referencia"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Instalación</p><p>{fmt(client.installationDate)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Técnico responsable</p><p>{users?.find((user) => user.id === client.assignedTechnicianId)?.username ?? (client.assignedTechnicianId ? `Usuario #${client.assignedTechnicianId}` : "Sin asignar")}</p></div>
+            <div><p className="text-xs text-muted-foreground">MikroTik controlador / DHCP</p><p>{client.equipmentModel ?? `Equipo #${client.equipmentId}`}</p><p className="text-xs text-muted-foreground font-mono">{client.equipmentIp ?? ""}</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Router MikroTik padre</p>
+              {(() => {
+                const controller = equipment?.find((item) => item.id === client.equipmentId);
+                const parent = equipment?.find((item) => item.id === controller?.parentEquipmentId);
+                return parent
+                  ? <><p>{parent.model} · {parent.ip}</p><p className="text-xs text-muted-foreground">Capacidad asignada: <span className="font-mono">{controller?.parentCapacityLimit ?? "—"}</span></p></>
+                  : <p>Sin padre registrado</p>;
+              })()}
+            </div>
+            <div><p className="text-xs text-muted-foreground">AP / LiteAP / SXT / enlace</p><p>{equipment?.find((item) => item.id === client.accessPointEquipmentId)?.model ?? (client.accessPointEquipmentId ? `Equipo #${client.accessPointEquipmentId}` : "Sin asociar")}</p></div>
+            <div><p className="text-xs text-muted-foreground">Servidor DHCP</p><p className="font-mono">{client.dhcpServer ?? "Sin verificar"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Pool DHCP</p><p className="font-mono">{client.dhcpPool ?? "Sin verificar"}</p></div>
+            <div className="md:col-span-2"><p className="text-xs text-muted-foreground">Dirección de instalación</p><p>{client.installationAddress ?? "Sin registrar"}</p></div>
+          </div>
+          {client.contractNotes && <p className="mt-4 pt-3 border-t border-border/40 text-sm text-muted-foreground">{client.contractNotes}</p>}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" />
+              Contratos formales
+              <span className="text-xs text-muted-foreground ml-auto">{contractsQuery.data?.length ?? 0} versiones</span>
+            </CardTitle>
+            <label className="inline-flex items-center">
+              <Input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                disabled={uploadContract.isPending}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.currentTarget.value = "";
+                  if (file) uploadContract.mutate(file);
+                }}
+              />
+              <span className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+                <Upload className="w-3.5 h-3.5" />
+                {uploadContract.isPending ? "Cargando..." : "Cargar PDF"}
+              </span>
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {contractsQuery.isLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : contractsQuery.isError ? (
+            <p className="text-sm text-destructive">No se pudieron cargar las versiones del contrato.</p>
+          ) : (contractsQuery.data ?? []).length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-sm text-muted-foreground">
+              <FileText className="h-8 w-8 opacity-50" />
+              <p>No hay contrato formal cargado.</p>
+              <p className="text-xs">Solo se aceptan archivos PDF de hasta 10 MB.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(contractsQuery.data ?? []).map((contract) => (
+                <div key={contract.id} className="rounded-md border border-border/40 p-3">
+                  <div className="flex flex-wrap items-start gap-3">
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{contract.originalName}</span>
+                        <Badge variant="outline" className={contractStatusClass(contract.status)}>
+                          {contract.status === "PENDING" ? <Clock className="mr-1 h-3 w-3" /> : contract.status === "APPROVED" ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <XCircle className="mr-1 h-3 w-3" />}
+                          {contractStatusLabel(contract.status)}
+                        </Badge>
+                        {contract.isCurrent && <Badge variant="secondary">Vigente</Badge>}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Versión {contract.version} · {formatBytes(contract.sizeBytes)} · {fmt(contract.uploadedAt)}
+                      </p>
+                      {contract.reviewReason && <p className="mt-1 text-xs text-muted-foreground">Motivo: {contract.reviewReason}</p>}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0"
+                      onClick={() => window.open(`${BASE}/api/clients/${id}/contracts/${contract.id}/download`, "_blank", "noopener,noreferrer")}
+                    >
+                      <Download className="mr-2 h-3.5 w-3.5" /> Descargar
+                    </Button>
+                  </div>
+                  {contract.status === "PENDING" && getCurrentUser()?.role === "admin" && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+                      <Input
+                        value={rejectReasons[contract.id] ?? ""}
+                        onChange={(event) => setRejectReasons((current) => ({ ...current, [contract.id]: event.target.value }))}
+                        placeholder="Motivo obligatorio si se rechaza"
+                        className="min-w-56 flex-1"
+                        maxLength={500}
+                      />
+                      <Button size="sm" onClick={() => handleReviewContract(contract, "APPROVED")} disabled={reviewContract.isPending}>
+                        <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> Aprobar
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleReviewContract(contract, "REJECTED")} disabled={reviewContract.isPending}>
+                        <XCircle className="mr-2 h-3.5 w-3.5" /> Rechazar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-muted-foreground" />
+            Historial completo de cambios
+            <span className="text-xs text-muted-foreground ml-auto">{historyQuery.data?.length ?? 0} eventos</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {historyQuery.isLoading ? <Skeleton className="h-16 w-full" /> : (historyQuery.data ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Todavía no hay cambios registrados.</p>
+          ) : (
+            <div className="space-y-3">
+              {historyQuery.data?.map((event) => (
+                <div key={event.id} className="rounded-md border border-border/40 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{event.changeType === "CREATED" ? "Alta" : "Actualización"}</Badge>
+                    <span className="text-muted-foreground">{fmt(event.createdAt)} · {fmtTime(event.createdAt)}</span>
+                    <span className="ml-auto text-muted-foreground">{event.username ?? "Sistema"}</span>
+                  </div>
+                  {event.reason && <p className="mt-2 text-muted-foreground">Motivo: {event.reason}</p>}
+                  {event.changeType !== "CREATED" && (
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                      <pre className="overflow-auto rounded bg-muted/20 p-2 text-muted-foreground">{JSON.stringify(event.previousData, null, 2)}</pre>
+                      <pre className="overflow-auto rounded bg-primary/5 p-2 text-foreground">{JSON.stringify(event.newData, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={adminEditOpen} onOpenChange={setAdminEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar expediente administrativo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label>MikroTik controlador / DHCP</Label>
+                <Select value={adminForm.equipmentId} onValueChange={(value) => setAdminForm((form) => ({
+                  ...form,
+                  equipmentId: value,
+                  accessPointEquipmentId: form.accessPointEquipmentId === value ? "none" : form.accessPointEquipmentId,
+                }))}>
+                  <SelectTrigger data-testid="select-client-controller"><SelectValue placeholder="Selecciona el MikroTik central" /></SelectTrigger>
+                  <SelectContent>
+                    {(equipment ?? [])
+                      .filter((item) => item.connectionType === "mikrotik_routeros" && item.equipmentRole === "core_router")
+                      .map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Referencia de contrato</Label>
+                <Input value={adminForm.contractReference} onChange={(event) => setAdminForm((form) => ({ ...form, contractReference: event.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Fecha de instalación</Label>
+                <Input type="date" value={adminForm.installationDate} onChange={(event) => setAdminForm((form) => ({ ...form, installationDate: event.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Técnico responsable</Label>
+                <Select value={adminForm.assignedTechnicianId} onValueChange={(value) => setAdminForm((form) => ({ ...form, assignedTechnicianId: value }))}>
+                  <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                  <SelectContent>
+                    {(users ?? []).map((user) => <SelectItem key={user.id} value={String(user.id)}>{user.username}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>AP / LiteAP / SXT / enlace</Label>
+                <Select value={adminForm.accessPointEquipmentId || "none"} onValueChange={(value) => setAdminForm((form) => ({ ...form, accessPointEquipmentId: value }))}>
+                  <SelectTrigger data-testid="select-client-access-point"><SelectValue placeholder="Sin asociar" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin asociar</SelectItem>
+                    {(equipment ?? []).filter((item) => item.id !== Number(adminForm.equipmentId)).map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.model} · {item.ip}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Servidor DHCP</Label>
+                <Input
+                  data-testid="input-edit-dhcp-server"
+                  value={adminForm.dhcpServer}
+                  onChange={(event) => setAdminForm((form) => ({ ...form, dhcpServer: event.target.value }))}
+                  placeholder="dhcp1"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Pool DHCP</Label>
+                <Input
+                  data-testid="input-edit-dhcp-pool"
+                  value={adminForm.dhcpPool}
+                  onChange={(event) => setAdminForm((form) => ({ ...form, dhcpPool: event.target.value }))}
+                  placeholder="pool-clientes"
+                  className="font-mono"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Dirección de instalación</Label>
+              <Input value={adminForm.installationAddress} onChange={(event) => setAdminForm((form) => ({ ...form, installationAddress: event.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notas del contrato</Label>
+              <Input value={adminForm.contractNotes} onChange={(event) => setAdminForm((form) => ({ ...form, contractNotes: event.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Motivo del cambio</Label>
+              <Input value={adminForm.changeReason} onChange={(event) => setAdminForm((form) => ({ ...form, changeReason: event.target.value }))} placeholder="Ej. cambio de técnico por nueva visita" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdminEditOpen(false)}>Cancelar</Button>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              Cambiar el MikroTik actualiza la asociación en Imperio AP, pero no migra la configuración del router anterior al nuevo.
+            </p>
+            <Button onClick={submitAdministrativeUpdate} disabled={updateClient.isPending || !adminForm.equipmentId}>
+              {updateClient.isPending ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment dialog */}
+      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-400" /> Registrar Pago — {client.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Monto (Q)</Label>
+              <Input type="number" placeholder="150.00" value={fee} onChange={e => setFee(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Días hasta próximo vencimiento</Label>
+              <Input type="number" value={days} onChange={e => setDays(e.target.value)} />
+              <p className="text-xs text-muted-foreground">
+                Nuevo vencimiento: {(() => { const d = new Date(); d.setDate(d.getDate() + parseInt(days || "30", 10)); return d.toLocaleDateString("es", { day: "2-digit", month: "long", year: "numeric" }); })()}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentOpen(false)}>Cancelar</Button>
+            <Button onClick={submitPayment} disabled={!fee || registerPayment.isPending} className="bg-emerald-600 hover:bg-emerald-700">
+              {registerPayment.isPending ? "Guardando..." : "Confirmar Pago"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Speed dialog */}
+      <Dialog open={speedOpen} onOpenChange={setSpeedOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" /> Cambiar Velocidad — {client.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Nuevo plan (ej. 10M/10M)</Label>
+              <Input value={newPlan} onChange={e => setNewPlan(e.target.value)} placeholder="10M/10M" className="font-mono" />
+              <p className="text-xs text-muted-foreground">Plan actual: <span className="font-mono">{client.planLimit}</span></p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSpeedOpen(false)}>Cancelar</Button>
+            <Button onClick={() => submitSpeed(false)} disabled={!newPlan || changeSpeed.isPending}>
+              {changeSpeed.isPending ? "Aplicando..." : "Cambiar Velocidad"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DHCP lease dialog */}
+      <Dialog open={dhcpOpen} onOpenChange={setDhcpOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Network className="w-5 h-5 text-sky-400" /> Crear Lease DHCP Estático
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1 p-3 rounded-md bg-muted/20 border border-border/40 text-xs text-muted-foreground">
+              <div>MAC del cliente: <span className="font-mono text-foreground">{client.mac}</span></div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>IP fija a asignar</Label>
+              <Input
+                placeholder="10.0.1.100"
+                value={fixedIp}
+                onChange={e => setFixedIp(e.target.value)}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">La MAC del cliente quedará amarrada siempre a esta IP.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nombre del servidor DHCP <span className="text-muted-foreground">(opcional)</span></Label>
+              <Input
+                placeholder="dhcp1"
+                value={dhcpServer}
+                onChange={e => setDhcpServer(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDhcpOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => createLease.mutate({ fixedIp, dhcpServer })}
+              disabled={!fixedIp || createLease.isPending}
+              className="bg-sky-700 hover:bg-sky-600"
+            >
+              {createLease.isPending ? "Creando..." : "Crear Lease Estático"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
